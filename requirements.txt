@@ -1,0 +1,8 @@
+MetaTrader5        # For MT5 API interactions
+pandas             # For data manipulation and analysis
+ta                 # For technical analysis indicators (RSI, MACD, etc.)
+PyQt5              # For GUI (dashboard)
+numpy              # For numerical operations (used by pandas and ta)
+PyYAML             # For reading YAML configuration files
+backtesting           # For backtesting and equity curve visualization
+matplotlib

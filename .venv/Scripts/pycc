@@ -1,0 +1,3 @@
+#!C:\Users\chept\OneDrive\Desktop\brian\fx_trading_bot\.venv\Scripts\python.exe
+from numba.pycc import main
+main()
