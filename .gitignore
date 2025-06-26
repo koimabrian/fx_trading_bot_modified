@@ -34,4 +34,4 @@ build/
 
 # Allow this .gitignore file itself
 !.gitignore
-.github/
+!.github/
