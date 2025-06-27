@@ -1,12 +1,26 @@
-2025-06-27 10:30:30,741 - INFO - Database connection established
-2025-06-27 10:30:30,758 - INFO - Database tables and indexes created successfully
-2025-06-27 10:30:30,769 - DEBUG - Attempting MT5 connection with login=210050644, server=Exness-MT5Trial9
-2025-06-27 10:30:34,162 - ERROR - MT5 initialization failed: (-6, 'Terminal: Authorization failed'). Verify credentials in src/config/config.yaml or check server availability.
-2025-06-27 10:30:58,257 - INFO - Database connection established
-2025-06-27 10:30:58,266 - INFO - Database tables and indexes created successfully
-2025-06-27 10:30:58,269 - DEBUG - Attempting MT5 connection with login=210050644, server=Exness-MT5Trial9
-2025-06-27 10:30:58,281 - ERROR - MT5 initialization failed: (-6, 'Terminal: Authorization failed'). Verify credentials in src/config/config.yaml or check server availability.
-2025-06-27 10:34:08,630 - INFO - Database connection established
-2025-06-27 10:34:08,634 - INFO - Database tables and indexes created successfully
-2025-06-27 10:34:08,637 - DEBUG - Attempting MT5 connection with login=210050644, server=Exness-MT5Trial9
-2025-06-27 10:34:08,651 - ERROR - MT5 initialization failed: (-6, 'Terminal: Authorization failed'). Verify credentials in src/config/config.yaml or check server availability.
+2025-06-27 11:04:26,783 - INFO - Database connection established
+2025-06-27 11:04:26,788 - INFO - Database tables and indexes created successfully
+2025-06-27 11:04:26,791 - DEBUG - Attempting MT5 connection with login=210468396, server=Exness-MT5Trial9
+2025-06-27 11:04:26,867 - INFO - MT5 connection initialized successfully
+2025-06-27 11:04:26,886 - DEBUG - Loaded 2 strategies
+2025-06-27 11:04:26,892 - DEBUG - Fetched 100 rows of market data for USDJPY
+2025-06-27 11:04:26,902 - INFO - Updated database with 100 rows for USDJPY (M15)
+2025-06-27 11:04:26,904 - DEBUG - Fetched 100 rows of market data for XAUUSD
+2025-06-27 11:04:26,910 - INFO - Updated database with 100 rows for XAUUSD (M30)
+2025-06-27 11:04:26,915 - DEBUG - Fetched 0 rows from database for BTCUSDm
+2025-06-27 11:04:26,916 - WARNING - No data available in database for RSI calculation
+2025-06-27 11:04:26,916 - DEBUG - No open positions to monitor
+2025-06-27 11:04:46,926 - DEBUG - Fetched 100 rows of market data for USDJPY
+2025-06-27 11:04:46,931 - INFO - Updated database with 100 rows for USDJPY (M15)
+2025-06-27 11:04:46,932 - DEBUG - Fetched 100 rows of market data for XAUUSD
+2025-06-27 11:04:46,937 - INFO - Updated database with 100 rows for XAUUSD (M30)
+2025-06-27 11:04:46,939 - DEBUG - Fetched 0 rows from database for BTCUSDm
+2025-06-27 11:04:46,940 - WARNING - No data available in database for RSI calculation
+2025-06-27 11:04:46,940 - DEBUG - No open positions to monitor
+2025-06-27 11:05:06,948 - DEBUG - Fetched 100 rows of market data for USDJPY
+2025-06-27 11:05:06,957 - INFO - Updated database with 100 rows for USDJPY (M15)
+2025-06-27 11:05:06,959 - DEBUG - Fetched 100 rows of market data for XAUUSD
+2025-06-27 11:05:06,963 - INFO - Updated database with 100 rows for XAUUSD (M30)
+2025-06-27 11:05:06,965 - DEBUG - Fetched 0 rows from database for BTCUSDm
+2025-06-27 11:05:06,965 - WARNING - No data available in database for RSI calculation
+2025-06-27 11:05:06,966 - DEBUG - No open positions to monitor

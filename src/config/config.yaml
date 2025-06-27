@@ -1,9 +1,9 @@
 # fx_trading_bot/src/config/config.yaml
 # Purpose: Stores configuration settings for strategies and filters
 pairs:
-  - symbol: BTCUSDm
+  - symbol: USDJPY
     timeframe: 15  # M15
-  - symbol: XAUUSDm
+  - symbol: XAUUSD
     timeframe: 30  # M30
 strategies:
   - name: rsi
@@ -21,10 +21,10 @@ strategies:
 ml:
   - name: random_forest
     params:
-      symbol: BTCUSDm
+      symbol: USDJPY
   - name: lstm
     params:
-      symbol: BTCUSDm
+      symbol: USDJPY
       lookback: 20
 mt5:
   login: 210468396
