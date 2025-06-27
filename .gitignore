@@ -14,20 +14,14 @@ ENV/
 # VS Code settings
 .vscode/
 
-# OS generated files
-.DS_Store
-Thumbs.db
-
 # Python egg metadata
 *.egg-info/
 dist/
 build/
 
 # Logs
-*.log
-
-# OneDrive temp files
-~$*
+logs/*
+!logs/terminal_log.txt
 
 # Ignore all files in this folder
 /*
@@ -35,3 +29,8 @@ build/
 # Allow this .gitignore file itself
 !.gitignore
 !.github/
+
+# Source code
+src/*
+!src/config/
+!src/data/

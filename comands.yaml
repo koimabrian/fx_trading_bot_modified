@@ -1,11 +1,12 @@
 
-cd C:\Users\chept\OneDrive\Desktop\brian\fx_trading_bot
+cd D:\brian\fx_trading_bot
 Remove-Item -Recurse -Force .venv
 Remove-Item -Recurse -Force src\data\market_data.sqlite
 Remove-Item -Recurse -Force logs\terminal_log.txt
 
 python -m venv .venv
 .venv\Scripts\activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 
 
@@ -13,7 +14,7 @@ mkdir src\config src\core src\database src\strategies src\ui src\ui\gui src\util
 
 Remove-Item -Force src\data\market_data.sqlite -ErrorAction SilentlyContinue
 
-cd C:\Users\chept\OneDrive\Desktop\brian\fx_trading_bot
+cd D:\brian\fx_trading_bot
 python src\main.py --mode live --strategy rsi
 
 python src\main.py --mode gui
