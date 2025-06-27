@@ -24,3 +24,85 @@
 2025-06-27 11:05:06,965 - DEBUG - Fetched 0 rows from database for BTCUSDm
 2025-06-27 11:05:06,965 - WARNING - No data available in database for RSI calculation
 2025-06-27 11:05:06,966 - DEBUG - No open positions to monitor
+2025-06-27 11:05:55,130 - INFO - Database connection established
+2025-06-27 11:05:55,138 - INFO - Database tables and indexes created successfully
+2025-06-27 11:05:55,144 - DEBUG - Attempting MT5 connection with login=210468396, server=Exness-MT5Trial9
+2025-06-27 11:05:55,155 - INFO - MT5 connection initialized successfully
+2025-06-27 11:05:55,167 - DEBUG - Loaded 2 strategies
+2025-06-27 11:05:55,173 - DEBUG - Fetched 100 rows of market data for USDJPY
+2025-06-27 11:05:55,179 - INFO - Updated database with 100 rows for USDJPY (M15)
+2025-06-27 11:05:55,180 - DEBUG - Fetched 100 rows of market data for XAUUSD
+2025-06-27 11:05:55,184 - INFO - Updated database with 100 rows for XAUUSD (M30)
+2025-06-27 11:05:55,186 - DEBUG - Fetched 0 rows from database for BTCUSDm
+2025-06-27 11:05:55,186 - WARNING - No data available in database for RSI calculation
+2025-06-27 11:05:55,186 - DEBUG - No open positions to monitor
+2025-06-27 11:06:15,199 - DEBUG - Fetched 100 rows of market data for USDJPY
+2025-06-27 11:06:15,206 - INFO - Updated database with 100 rows for USDJPY (M15)
+2025-06-27 11:06:15,208 - DEBUG - Fetched 100 rows of market data for XAUUSD
+2025-06-27 11:06:15,214 - INFO - Updated database with 100 rows for XAUUSD (M30)
+2025-06-27 11:06:15,216 - DEBUG - Fetched 0 rows from database for BTCUSDm
+2025-06-27 11:06:15,218 - WARNING - No data available in database for RSI calculation
+2025-06-27 11:06:15,218 - DEBUG - No open positions to monitor
+2025-06-27 11:06:35,223 - DEBUG - Fetched 100 rows of market data for USDJPY
+2025-06-27 11:06:35,229 - INFO - Updated database with 100 rows for USDJPY (M15)
+2025-06-27 11:06:35,230 - DEBUG - Fetched 100 rows of market data for XAUUSD
+2025-06-27 11:06:35,235 - INFO - Updated database with 100 rows for XAUUSD (M30)
+2025-06-27 11:06:35,253 - DEBUG - Fetched 0 rows from database for BTCUSDm
+2025-06-27 11:06:35,253 - WARNING - No data available in database for RSI calculation
+2025-06-27 11:06:35,254 - DEBUG - No open positions to monitor
+2025-06-27 11:06:55,258 - DEBUG - Fetched 100 rows of market data for USDJPY
+2025-06-27 11:06:55,265 - INFO - Updated database with 100 rows for USDJPY (M15)
+2025-06-27 11:06:55,266 - DEBUG - Fetched 100 rows of market data for XAUUSD
+2025-06-27 11:06:55,271 - INFO - Updated database with 100 rows for XAUUSD (M30)
+2025-06-27 11:06:55,276 - DEBUG - Fetched 0 rows from database for BTCUSDm
+2025-06-27 11:06:55,277 - WARNING - No data available in database for RSI calculation
+2025-06-27 11:06:55,278 - DEBUG - No open positions to monitor
+2025-06-27 11:07:15,281 - DEBUG - Fetched 100 rows of market data for USDJPY
+2025-06-27 11:07:15,289 - INFO - Updated database with 100 rows for USDJPY (M15)
+2025-06-27 11:07:15,291 - DEBUG - Fetched 100 rows of market data for XAUUSD
+2025-06-27 11:07:15,298 - INFO - Updated database with 100 rows for XAUUSD (M30)
+2025-06-27 11:07:15,301 - DEBUG - Fetched 0 rows from database for BTCUSDm
+2025-06-27 11:07:15,301 - WARNING - No data available in database for RSI calculation
+2025-06-27 11:07:15,302 - DEBUG - No open positions to monitor
+2025-06-27 11:07:35,313 - DEBUG - Fetched 100 rows of market data for USDJPY
+2025-06-27 11:07:35,317 - INFO - Updated database with 100 rows for USDJPY (M15)
+2025-06-27 11:07:35,320 - DEBUG - Fetched 100 rows of market data for XAUUSD
+2025-06-27 11:07:35,326 - INFO - Updated database with 100 rows for XAUUSD (M30)
+2025-06-27 11:07:35,328 - DEBUG - Fetched 0 rows from database for BTCUSDm
+2025-06-27 11:07:35,328 - WARNING - No data available in database for RSI calculation
+2025-06-27 11:07:35,328 - DEBUG - No open positions to monitor
+2025-06-27 11:07:55,337 - DEBUG - Fetched 100 rows of market data for USDJPY
+2025-06-27 11:07:55,347 - INFO - Updated database with 100 rows for USDJPY (M15)
+2025-06-27 11:07:55,349 - DEBUG - Fetched 100 rows of market data for XAUUSD
+2025-06-27 11:07:55,355 - INFO - Updated database with 100 rows for XAUUSD (M30)
+2025-06-27 11:07:55,357 - DEBUG - Fetched 0 rows from database for BTCUSDm
+2025-06-27 11:07:55,357 - WARNING - No data available in database for RSI calculation
+2025-06-27 11:07:55,357 - DEBUG - No open positions to monitor
+2025-06-27 11:08:15,367 - DEBUG - Fetched 100 rows of market data for USDJPY
+2025-06-27 11:08:15,376 - INFO - Updated database with 100 rows for USDJPY (M15)
+2025-06-27 11:08:15,377 - DEBUG - Fetched 100 rows of market data for XAUUSD
+2025-06-27 11:08:15,382 - INFO - Updated database with 100 rows for XAUUSD (M30)
+2025-06-27 11:08:15,385 - DEBUG - Fetched 0 rows from database for BTCUSDm
+2025-06-27 11:08:15,385 - WARNING - No data available in database for RSI calculation
+2025-06-27 11:08:15,386 - DEBUG - No open positions to monitor
+2025-06-27 11:08:35,398 - DEBUG - Fetched 100 rows of market data for USDJPY
+2025-06-27 11:08:35,407 - INFO - Updated database with 100 rows for USDJPY (M15)
+2025-06-27 11:08:35,410 - DEBUG - Fetched 100 rows of market data for XAUUSD
+2025-06-27 11:08:35,416 - INFO - Updated database with 100 rows for XAUUSD (M30)
+2025-06-27 11:08:35,419 - DEBUG - Fetched 0 rows from database for BTCUSDm
+2025-06-27 11:08:35,419 - WARNING - No data available in database for RSI calculation
+2025-06-27 11:08:35,419 - DEBUG - No open positions to monitor
+2025-06-27 11:08:55,437 - DEBUG - Fetched 100 rows of market data for USDJPY
+2025-06-27 11:08:55,443 - INFO - Updated database with 100 rows for USDJPY (M15)
+2025-06-27 11:08:55,446 - DEBUG - Fetched 100 rows of market data for XAUUSD
+2025-06-27 11:08:55,451 - INFO - Updated database with 100 rows for XAUUSD (M30)
+2025-06-27 11:08:55,452 - DEBUG - Fetched 0 rows from database for BTCUSDm
+2025-06-27 11:08:55,453 - WARNING - No data available in database for RSI calculation
+2025-06-27 11:08:55,453 - DEBUG - No open positions to monitor
+2025-06-27 11:09:15,456 - DEBUG - Fetched 100 rows of market data for USDJPY
+2025-06-27 11:09:15,463 - INFO - Updated database with 100 rows for USDJPY (M15)
+2025-06-27 11:09:15,464 - DEBUG - Fetched 100 rows of market data for XAUUSD
+2025-06-27 11:09:15,469 - INFO - Updated database with 100 rows for XAUUSD (M30)
+2025-06-27 11:09:15,471 - DEBUG - Fetched 0 rows from database for BTCUSDm
+2025-06-27 11:09:15,471 - WARNING - No data available in database for RSI calculation
+2025-06-27 11:09:15,473 - DEBUG - No open positions to monitor
