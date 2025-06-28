@@ -1,5 +1,5 @@
-
-# This script sets up the FX trading bot environment, installs dependencies, and runs the bot in different modes.
+# fx_trading_bot/comands.yaml
+# Purpose: Defines commands for setting up and running the FX trading bot
 cd D:\brian\fx_trading_bot
 Remove-Item -Recurse -Force .venv
 Remove-Item -Recurse -Force src\data\market_data.sqlite
@@ -10,9 +10,11 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 
 cd D:\brian\fx_trading_bot
-mkdir src\config src\core src\database src\strategies src\ui src\ui\gui src\utils src\data src\logs
+mkdir src\config src\core src\database src\strategies src\ui src\ui\gui src\utils src\data src\logs src\backtesting
 Remove-Item -Force src\data\market_data.sqlite -ErrorAction SilentlyContinue
 
-python src\main.py --mode live --strategy rsi
-
-python src\main.py --mode gui
+python -m src.core.data_fetcher --symbol BTCUSD  
+python -m src.main --mode live --strategy rsi
+python -m src.main --mode gui
+python -m src.backtesting.backtest_manager --mode backtest --strategy all --symbol all
+python -m src.backtesting.backtest_manager --mode optimize --strategy rsi --symbol BTCUSD

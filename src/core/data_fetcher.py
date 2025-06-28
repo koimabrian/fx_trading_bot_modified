@@ -1,39 +1,67 @@
-# Purpose: Fetch and sync market data from MT5
-import yaml
+# fx_trading_bot/src/backtesting/data_pipeline.py
+# Purpose: Preprocesses and validates historical data for backtesting
 import pandas as pd
 import logging
-import MetaTrader5 as mt5
+from src.database.db_manager import DatabaseManager
 
-class DataFetcher:
-    def __init__(self, mt5_conn, db):
-        self.mt5_conn = mt5_conn
+class DataPipeline:
+    def __init__(self, db: DatabaseManager):
         self.db = db
         self.logger = logging.getLogger(__name__)
-        self.pairs = self.load_pairs()
 
-    def load_pairs(self):
-        """Load trading pairs from config"""
+    def fetch_data(self, symbol, timeframe, start_date=None, end_date=None):
+        """Fetch and preprocess historical data"""
         try:
-            with open('src/config/config.yaml', 'r') as file:
-                config = yaml.safe_load(file)
-            return config.get('pairs', [])
-        except Exception as e:
-            self.logger.error(f"Failed to load pairs from config: {e}")
-            return []
+            # Normalize symbol to handle variations (e.g., BTCUSD vs. BTCUSDm)
+            query = f"SELECT * FROM market_data WHERE symbol = ? AND timeframe = ? ORDER BY time"
+            params = (symbol, f"M{timeframe}")
+            if start_date and end_date:
+                query += " AND time BETWEEN ? AND ?"
+                params += (start_date, end_date)
+            data = pd.read_sql(query, self.db.conn, params=params)
+            if data.empty:
+                self.logger.warning(f"No data found for {symbol} on M{timeframe}")
+                # Try alternative symbol (e.g., BTCUSDm)
+                alt_symbol = f"{symbol}m" if not symbol.endswith('m') else symbol[:-1]
+                query = f"SELECT * FROM market_data WHERE symbol = ? AND timeframe = ? ORDER BY time"
+                params = (alt_symbol, f"M{timeframe}")
+                if start_date and end_date:
+                    query += " AND time BETWEEN ? AND ?"
+                    params += (start_date, end_date)
+                data = pd.read_sql(query, self.db.conn, params=params)
+                if data.empty:
+                    self.logger.warning(f"No data found for {alt_symbol} on M{timeframe}")
+                    return pd.DataFrame()
 
-    def sync_data(self):
-        """Fetch and sync market data for all configured pairs"""
-        for pair in self.pairs:
-            symbol = pair['symbol']
-            timeframe = pair['timeframe']
-            mt5_timeframe = getattr(mt5, f"TIMEFRAME_M{timeframe}", mt5.TIMEFRAME_M15)
-            data = self.mt5_conn.fetch_market_data(symbol, mt5_timeframe, count=100)
-            if data is not None:
-                try:
-                    data['symbol'] = symbol
-                    data['timeframe'] = f"M{timeframe}"
-                    data.to_sql('market_data', self.db.conn, if_exists='append', index=False)
-                    self.db.conn.commit()
-                    self.logger.info(f"Updated database with {len(data)} rows for {symbol} (M{timeframe})")
-                except Exception as e:
-                    self.logger.error(f"Failed to update database for {symbol}: {e}")
+            data['time'] = pd.to_datetime(data['time'])
+            data.set_index('time', inplace=True)
+            data = data.sort_index()
+            data = data.rename(columns={
+                'open': 'Open',
+                'high': 'High',
+                'low': 'Low',
+                'close': 'Close',
+                'tick_volume': 'Volume'
+            })
+            if 'Volume' not in data.columns:
+                data['Volume'] = 0
+            if not self.validate_data(data):
+                self.logger.error(f"Invalid data for {symbol} on M{timeframe}")
+                return pd.DataFrame()
+            return data
+        except Exception as e:
+            self.logger.error(f"Failed to fetch data for {symbol} on M{timeframe}: {e}")
+            return pd.DataFrame()
+
+    def validate_data(self, data: pd.DataFrame):
+        """Validate data integrity"""
+        if len(data) < 100:
+            self.logger.warning("Insufficient data points")
+            return False
+        if data[['Open', 'High', 'Low', 'Close']].isnull().any().any():
+            self.logger.warning("Missing values in OHLC data")
+            return False
+        if (data['High'] < data['Low']).any() or (data['Open'] < 0).any():
+            self.logger.warning("Invalid price data")
+            return False
+        return True
