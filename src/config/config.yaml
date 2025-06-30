@@ -1,13 +1,38 @@
-# fx_trading_bot/src/config/config.yaml
+# src/config/config.yaml
+# Purpose: Stores configuration settings for live trading
 pairs:
-  - symbol: USDJPY
+  - symbol: XAUUSD
     timeframe: 15
   - symbol: XAUUSD
     timeframe: 30
-  - symbol: EURUSD
+  - symbol: XAUUSD
+    timeframe: 60  # 1H
+  - symbol: XAUUSD
+    timeframe: 240 # 4H
+  - symbol: USDJPY
     timeframe: 15
+  - symbol: USDJPY
+    timeframe: 30
+  - symbol: USDJPY
+    timeframe: 60
+  - symbol: USDJPY
+    timeframe: 240
+  - symbol: USDCNH
+    timeframe: 15
+  - symbol: USDCNH
+    timeframe: 30
+  - symbol: USDCNH
+    timeframe: 60
+  - symbol: USDCNH
+    timeframe: 240
   - symbol: BTCUSD
     timeframe: 15
+  - symbol: BTCUSD
+    timeframe: 30
+  - symbol: BTCUSD
+    timeframe: 60
+  - symbol: BTCUSD
+    timeframe: 240
 strategies:
   - name: rsi
     params:
@@ -15,14 +40,12 @@ strategies:
       overbought: 70
       oversold: 30
       volume: 0.01
-      symbol: BTCUSD
   - name: macd
     params:
       fast_period: 12
       slow_period: 26
       signal_period: 9
       volume: 0.01
-      symbol: BTCUSD
 ml:
   - name: random_forest
     params:
@@ -37,32 +60,3 @@ mt5:
   server: Exness-MT5Trial9
 database:
   path: src/data/market_data.sqlite
-backtesting:
-  symbols: [XAUUSD, USDJPY, EURUSD, BTCUSD]
-  timeframes: [15, 30]
-  strategies:
-    - name: rsi
-      params:
-        period: [10, 12, 14, 16]
-        overbought: [65, 70, 75]
-        oversold: [25, 30, 35]
-    - name: macd
-      params:
-        fast_period: [8, 12, 16]
-        slow_period: [20, 26, 32]
-        signal_period: [6, 9, 12]
-  metrics:
-    - sharpe_ratio
-    - sortino_ratio
-    - profit_factor
-    - calmar_ratio
-    - ulcer_index
-    - k_ratio
-    - tail_ratio
-    - stability
-    - expectancy
-    - roe
-    - time_to_recover
-    - average_holding_period
-    - robustness_score
-  primary_metric: sharpe_ratio

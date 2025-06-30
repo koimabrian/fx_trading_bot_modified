@@ -4,8 +4,5 @@ ta
 PyQt5
 numpy
 PyYAML
+stratestic
 matplotlib
-seaborn
-scikit-learn
-vectorbt
-plotly
