@@ -1,71 +1,47 @@
-# fx_trading_bot/src/strategies/macd_strategy.py
-# Purpose: Implements MACD-based trading strategy
+# src/strategies/macd_strategy.py
+from .base_strategy import BaseStrategy
+from backtesting.lib import crossover
 import ta
-import pandas as pd
-import MetaTrader5 as mt5
-from src.core.base_strategy import BaseStrategy
+import numpy as np
+import logging
+
+# Define crossunder as a helper function
+def crossunder(x, y):
+    """Return True if x crosses under y (i.e., y crosses over x)."""
+    return crossover(y, x)
 
 class MACDStrategy(BaseStrategy):
-    def __init__(self, params, db):
-        super().__init__(params, db)
-        self.fast_period = params.get('fast_period', 12)
-        self.slow_period = params.get('slow_period', 26)
-        self.signal_period = params.get('signal_period', 9)
+    """MACD-based trading strategy."""
+    def __init__(self, broker, data, params=None, config=None):
+        super().__init__(broker, data, params=params, config=config)
 
-    def generate_entry_signal(self, symbol=None):
-        """Generate entry signal based on MACD"""
-        data = self.fetch_data(symbol)
-        if data.empty:
-            self.logger.warning("No data available in database for MACD calculation")
-            return None
+    def init(self):
+        self.macd = self.I(
+            ta.trend.MACD,
+            close=self.data.Close,
+            window_fast=self.params.get('fast_period', 12),
+            window_slow=self.params.get('slow_period', 26),
+            window_sign=self.params.get('signal_period', 9)
+        ).macd()
+        self.signal = self.I(
+            ta.trend.MACD,
+            close=self.data.Close,
+            window_fast=self.params.get('fast_period', 12),
+            window_slow=self.params.get('slow_period', 26),
+            window_sign=self.params.get('signal_period', 9)
+        ).macd_signal()
 
-        macd = ta.trend.MACD(data['close'], window_fast=self.fast_period,
-                             window_slow=self.slow_period, window_sign=self.signal_period)
-        data['macd'] = macd.macd()
-        data['signal'] = macd.macd_signal()
-        if len(data) < 2:
-            return None
-
-        latest_macd = data['macd'].iloc[-1]
-        latest_signal = data['signal'].iloc[-1]
-        previous_macd = data['macd'].iloc[-2]
-        previous_signal = data['signal'].iloc[-2]
-
-        # Entry signal: MACD crosses above signal line (buy) or below (sell)
-        if previous_macd < previous_signal and latest_macd > latest_signal:
-            self.logger.info(f"MACD Buy signal for {symbol or self.symbol}")
-            return {'symbol': symbol or self.symbol, 'action': 'buy', 'volume': self.volume}
-        elif previous_macd > previous_signal and latest_macd < latest_signal:
-            self.logger.info(f"MACD Sell signal for {symbol or self.symbol}")
-            return {'symbol': symbol or self.symbol, 'action': 'sell', 'volume': self.volume}
-        return None
-
-    def generate_exit_signal(self, position):
-        """Generate exit signal based on MACD reversal"""
-        data = self.fetch_data(position.symbol)
-        if data.empty:
-            self.logger.warning("No data available in database for MACD exit signal")
-            return None
-
-        macd = ta.trend.MACD(data['close'], window_fast=self.fast_period,
-                             window_slow=self.slow_period, window_sign=self.signal_period)
-        data['macd'] = macd.macd()
-        data['signal'] = macd.macd_signal()
-        if len(data) < 2:
-            return None
-
-        latest_macd = data['macd'].iloc[-1]
-        latest_signal = data['signal'].iloc[-1]
-        previous_macd = data['macd'].iloc[-2]
-        previous_signal = data['signal'].iloc[-2]
-
-        # Exit signal: MACD reverses below signal line (close buy) or above (close sell)
-        if position.type == mt5.ORDER_TYPE_BUY:
-            if previous_macd > previous_signal and latest_macd < latest_signal:
-                self.logger.info(f"MACD Exit signal to close buy position for {position.symbol}")
-                return True
-        elif position.type == mt5.ORDER_TYPE_SELL:
-            if previous_macd < previous_signal and latest_macd > latest_signal:
-                self.logger.info(f"MACD Exit signal to close sell position for {position.symbol}")
-                return True
-        return None
+    def next(self):
+        if np.isnan(self.macd[-1]) or np.isnan(self.signal[-1]):
+            self._logger.warning("Skipping signal due to invalid MACD value")
+            return
+        try:
+            if crossover(self.macd, self.signal):
+                self.buy(size=self.lot_size)
+            elif crossunder(self.macd, self.signal):
+                self.sell(size=self.lot_size)
+            self._logger.debug(
+                f"Signal checked: MACD={self.macd[-1]:.2f}, Signal={self.signal[-1]:.2f}, Lot Size={self.lot_size:.6f}"
+            )
+        except Exception as e:
+            self._logger.error(f"Trade execution failed: {e}")

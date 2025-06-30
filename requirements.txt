@@ -4,5 +4,7 @@ ta
 PyQt5
 numpy
 PyYAML
-stratestic
+backtesting
 matplotlib
+dash
+plotly

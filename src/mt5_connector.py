@@ -1,5 +1,4 @@
-# fx_trading_bot/src/mt5_connector.py
-# Purpose: Handles MetaTrader 5 API interactions for trade execution and data fetching
+# src/mt5_connector.py
 import MetaTrader5 as mt5
 import pandas as pd
 import os
@@ -28,8 +27,8 @@ class MT5Connector:
         try:
             self.logger.debug(f"Attempting MT5 connection with login={self.login}, server={self.server}")
             if not mt5.initialize(login=self.login, password=self.password, server=self.server, timeout=30000):
-                error_code, error_msg = mt5.last_error()
-                self.logger.error(f"MT5 initialization failed: ({error_code}, '{error_msg}'). Verify credentials in src/config/config.yaml or check server availability.")
+                error = mt5.last_error()
+                self.logger.error(f"MT5 initialization failed: {error}. Verify credentials in src/config/config.yaml or check server availability.")
                 return False
             self.logger.info("MT5 connection initialized successfully")
             return True
@@ -38,19 +37,19 @@ class MT5Connector:
             return False
 
     def fetch_market_data(self, symbol, timeframe, count=1000):
-        """Implement market data retrieval logic"""
+        """Fetch market data from MT5 with improved error handling and logging."""
         try:
             # Ensure symbol is in Market Watch
             if not mt5.symbol_select(symbol, True):
-                self.logger.error(f"Failed to select {symbol} in Market Watch: {mt5.last_error()}")
+                self.logger.error(f"Failed to select {symbol} in Market Watch: {mt5.last_error()}. Make sure the symbol is available in your MT5 terminal.")
                 return None
 
             rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, count)
             if rates is None or len(rates) == 0:
-                self.logger.error(f"Failed to fetch market data for {symbol}: {mt5.last_error()}")
+                self.logger.error(f"Failed to fetch market data for {symbol}: {mt5.last_error()}. Check if the symbol is available and has historical data.")
                 return None
             df = pd.DataFrame(rates)
-            df['time'] = pd.to_datetime(df['time'], unit='s')  # Convert to datetime string
+            df['time'] = pd.to_datetime(df['time'], unit='s')
             self.logger.debug(f"Fetched {len(df)} rows of market data for {symbol}")
             return df
         except Exception as e:
@@ -74,7 +73,7 @@ class MT5Connector:
         symbol = signal['symbol']
         action = mt5.TRADE_ACTION_DEAL
         order_type = mt5.ORDER_TYPE_BUY if signal['action'] == 'buy' else mt5.ORDER_TYPE_SELL
-        volume = signal.get('volume', 0.01)  # Default to 0.01 if not specified
+        volume = signal.get('volume', 0.01)
 
         try:
             # Ensure symbol is in Market Watch
@@ -148,7 +147,7 @@ class MT5Connector:
 
                 # Calculate profit percentage
                 profit_percent = ((current_price - entry_price) / entry_price * 100) if pos.type == mt5.ORDER_TYPE_BUY else ((entry_price - current_price) / entry_price * 100)
-                if profit_percent >= 2:  # Close if 2% profit
+                if profit_percent >= 2:
                     self.close_position(position_id, symbol, pos.type, pos.volume, "Profit Target")
                     continue
 

@@ -1,61 +1,36 @@
-# fx_trading_bot/src/strategies/rsi_strategy.py
-# Purpose: Implements RSI-based trading strategy
+# src/strategies/rsi_strategy.py
+from .base_strategy import BaseStrategy
+from backtesting.lib import crossover
 import ta
-import pandas as pd
-import MetaTrader5 as mt5
-from src.core.base_strategy import BaseStrategy
+import numpy as np
+import logging
+
+# Define crossunder as a helper function
+def crossunder(x, y):
+    """Return True if x crosses under y (i.e., y crosses over x)."""
+    return crossover(y, x)
 
 class RSIStrategy(BaseStrategy):
-    def __init__(self, params, db):
-        super().__init__(params, db)
-        self.period = params.get('period', 14)
-        self.overbought = params.get('overbought', 70)
-        self.oversold = params.get('oversold', 30)
+    """RSI-based trading strategy."""
+    def __init__(self, broker, data, params=None, config=None):
+        super().__init__(broker, data, params=params, config=config)
 
-    def generate_entry_signal(self, symbol=None):
-        """Generate entry signal based on RSI"""
-        data = self.fetch_data(symbol)
-        if data.empty:
-            self.logger.warning("No data available in database for RSI calculation")
-            return None
+    def init(self):
+        self.rsi = self.I(
+            ta.momentum.RSIIndicator,
+            close=self.data.Close,
+            window=self.params.get('period', 14)
+        ).rsi()
 
-        data['rsi'] = ta.momentum.RSIIndicator(data['close'], window=self.period).rsi()
-        if len(data) < 2:
-            return None
-
-        latest_rsi = data['rsi'].iloc[-1]
-        previous_rsi = data['rsi'].iloc[-2]
-
-        # Entry signal: RSI crosses oversold (buy) or overbought (sell)
-        if previous_rsi >= self.oversold and latest_rsi < self.oversold:
-            self.logger.info(f"RSI Buy signal for {symbol or self.symbol}")
-            return {'symbol': symbol or self.symbol, 'action': 'buy', 'volume': self.volume}
-        elif previous_rsi <= self.overbought and latest_rsi > self.overbought:
-            self.logger.info(f"RSI Sell signal for {symbol or self.symbol}")
-            return {'symbol': symbol or self.symbol, 'action': 'sell', 'volume': self.volume}
-        return None
-
-    def generate_exit_signal(self, position):
-        """Generate exit signal based on RSI reversal"""
-        data = self.fetch_data(position.symbol)
-        if data.empty:
-            self.logger.warning("No data available in database for RSI exit signal")
-            return None
-
-        data['rsi'] = ta.momentum.RSIIndicator(data['close'], window=self.period).rsi()
-        if len(data) < 2:
-            return None
-
-        latest_rsi = data['rsi'].iloc[-1]
-        previous_rsi = data['rsi'].iloc[-2]
-
-        # Exit signal: RSI reverses from overbought (close buy) or oversold (close sell)
-        if position.type == mt5.ORDER_TYPE_BUY:
-            if previous_rsi <= self.overbought and latest_rsi > self.overbought:
-                self.logger.info(f"RSI Exit signal to close buy position for {position.symbol}")
-                return True
-        elif position.type == mt5.ORDER_TYPE_SELL:
-            if previous_rsi >= self.oversold and latest_rsi < self.oversold:
-                self.logger.info(f"RSI Exit signal to close sell position for {position.symbol}")
-                return True
-        return None
+    def next(self):
+        if np.isnan(self.rsi[-1]):
+            self._logger.warning("Skipping signal due to invalid RSI value")
+            return
+        try:
+            if crossover(self.rsi, self.params.get('buy_threshold', 15)):
+                self.buy(size=self.lot_size)
+            elif crossunder(self.rsi, self.params.get('sell_threshold', 85)):
+                self.sell(size=self.lot_size)
+            self._logger.debug(f"Signal checked: RSI={self.rsi[-1]:.2f}, Lot Size={self.lot_size:.6f}")
+        except Exception as e:
+            self._logger.error(f"Trade execution failed: {e}")

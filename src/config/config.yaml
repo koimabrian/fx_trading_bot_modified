@@ -6,9 +6,9 @@ pairs:
   - symbol: XAUUSD
     timeframe: 30
   - symbol: XAUUSD
-    timeframe: 60  # 1H
+    timeframe: 60
   - symbol: XAUUSD
-    timeframe: 240 # 4H
+    timeframe: 240
   - symbol: USDJPY
     timeframe: 15
   - symbol: USDJPY

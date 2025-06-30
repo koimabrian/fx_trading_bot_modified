@@ -1,160 +1,133 @@
-# fx_trading_bot/src/database/db_manager.py
-# Purpose: Manage database connections and schema
+# src/database/db_manager.py
 import sqlite3
-import logging
-import os
 import pandas as pd
+import logging
+from abc import ABC, abstractmethod
 
-class DatabaseManager:
-    def __init__(self, db_path):
-        self.db_path = db_path
+from src.utils.logger import setup_logging
+
+setup_logging()
+
+class DatabaseConfig:
+    """Global configuration for database settings."""
+    TABLE_PREFIX = 'backtest_'
+    PARAMS_TABLE = 'optimal_params'
+
+class AbstractDatabaseManager(ABC):
+    """Abstract base class for database management."""
+    @abstractmethod
+    def connect(self):
+        pass
+
+    @abstractmethod
+    def close(self):
+        pass
+
+    @abstractmethod
+    def execute_query(self, query, params=None):
+        pass
+
+    @abstractmethod
+    def create_tables(self):
+        pass
+
+class DatabaseManager(AbstractDatabaseManager):
+    """Manages database connections and operations."""
+    def __init__(self, config):
+        self.config = config
         self.conn = None
         self.logger = logging.getLogger(__name__)
 
     def connect(self):
-        """Establish database connection"""
+        """Establish database connection."""
         try:
-            if not os.path.exists(os.path.dirname(self.db_path)):
-                self.logger.error(f"Database directory does not exist: {os.path.dirname(self.db_path)}")
-                raise FileNotFoundError(f"Database directory does not exist: {os.path.dirname(self.db_path)}")
-            self.conn = sqlite3.connect(self.db_path)
-            self.conn.row_factory = sqlite3.Row
+            self.conn = sqlite3.connect(self.config.get('path', 'src/data/backtest_data.sqlite'))
             self.logger.info("Database connection established")
         except sqlite3.Error as e:
-            self.logger.error(f"Failed to connect to database at {self.db_path}: {e}")
-            raise
-        except Exception as e:
-            self.logger.error(f"Unexpected error while connecting to database at {self.db_path}: {e}")
+            self.logger.error(f"Failed to connect to database: {e}")
             raise
 
     def close(self):
-        """Close database connection"""
+        """Close database connection."""
         if self.conn:
             self.conn.close()
             self.logger.info("Database connection closed")
 
-    def execute_query(self, query, params=()):
-        """Execute a database query"""
+    def execute_query(self, query, params=None):
+        """Execute a SQL query with optional parameters."""
         try:
             cursor = self.conn.cursor()
-            if isinstance(params, dict):
+            if params:
                 cursor.execute(query, params)
             else:
-                cursor.execute(query, params)
+                cursor.execute(query)
             self.conn.commit()
-            return [dict(row) for row in cursor.fetchall()]
+            return cursor.fetchall()
         except sqlite3.Error as e:
             self.logger.error(f"Query execution failed: {query}, Error: {e}")
             raise
 
     def create_tables(self):
-        """Create necessary database tables and indexes"""
-        create_market_data_table = """
-        CREATE TABLE IF NOT EXISTS market_data (
-            time TEXT,
-            open REAL,
-            high REAL,
-            low REAL,
-            close REAL,
-            tick_volume INTEGER,
-            spread INTEGER,
-            real_volume INTEGER,
-            symbol TEXT,
-            timeframe TEXT
-        )
-        """
-        create_strategies_table = """
-        CREATE TABLE IF NOT EXISTS strategies (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE,
-            parameters TEXT,
-            filters TEXT,
-            score REAL,
-            status TEXT,
-            is_ml BOOLEAN
-        )
-        """
-        create_trades_table = """
-        CREATE TABLE IF NOT EXISTS trades (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            strategy_id INTEGER,
-            pair TEXT,
-            entry_price REAL,
-            volume REAL,
-            timestamp TEXT,
-            mode TEXT,
-            order_id INTEGER,
-            deal_id INTEGER,
-            exit_price REAL,
-            exit_timestamp TEXT,
-            profit REAL
-        )
-        """
-        create_backtests_table = """
-        CREATE TABLE IF NOT EXISTS backtests (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            strategy_id INTEGER,
-            symbol TEXT,
-            timeframe TEXT,
-            parameters TEXT,
-            metrics TEXT,
-            start_date TEXT,
-            end_date TEXT,
-            sample_type TEXT,
-            robustness_score REAL,
-            timestamp TEXT,
-            FOREIGN KEY (strategy_id) REFERENCES strategies(id)
-        )
-        """
-        create_index_symbol = """
-        CREATE INDEX IF NOT EXISTS idx_market_data_symbol ON market_data (symbol)
-        """
-        create_index_timeframe = """
-        CREATE INDEX IF NOT EXISTS idx_market_data_timeframe ON market_data (timeframe)
-        """
-        create_index_backtest_strategy = """
-        CREATE INDEX IF NOT EXISTS idx_backtests_strategy ON backtests (strategy_id, symbol, timeframe)
-        """
+        """Create necessary database tables based on config."""
+        tables = {
+            f"{self.config.get('backtesting', {}).get('database', {}).get('table_prefix', DatabaseConfig.TABLE_PREFIX)}market_data": """
+                CREATE TABLE IF NOT EXISTS {table} (
+                    time TEXT PRIMARY KEY,
+                    symbol TEXT,
+                    timeframe TEXT,
+                    open REAL,
+                    high REAL,
+                    low REAL,
+                    close REAL,
+                    tick_volume INTEGER,
+                    spread REAL,
+                    real_volume INTEGER  -- Added to match MT5 data
+                )
+            """,
+            f"{self.config.get('backtesting', {}).get('database', {}).get('table_prefix', DatabaseConfig.TABLE_PREFIX)}strategies": """
+                CREATE TABLE IF NOT EXISTS {table} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT UNIQUE
+                )
+            """,
+            f"{self.config.get('backtesting', {}).get('database', {}).get('table_prefix', DatabaseConfig.TABLE_PREFIX)}backtests": """
+                CREATE TABLE IF NOT EXISTS {table} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    strategy_id INTEGER,
+                    metrics TEXT,
+                    timestamp TEXT,
+                    FOREIGN KEY (strategy_id) REFERENCES {prefix}strategies(id)
+                )
+            """,
+            f"{self.config.get('backtesting', {}).get('database', {}).get('table_prefix', '')}{DatabaseConfig.PARAMS_TABLE}": """
+                CREATE TABLE IF NOT EXISTS {table} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    symbol TEXT,
+                    timeframe TEXT,
+                    strategy_name TEXT,
+                    period INTEGER,
+                    volatility_factor REAL,
+                    lot_size REAL,
+                    buy_threshold INTEGER,
+                    sell_threshold INTEGER,
+                    sharpe_ratio REAL,
+                    timestamp TEXT
+                )
+            """
+        }
         try:
             cursor = self.conn.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='market_data'")
-            if cursor.fetchone():
-                cursor.execute("PRAGMA table_info(market_data)")
-                columns = cursor.fetchall()
-                time_column_type = next(col['type'] for col in columns if col['name'] == 'time')
-                if time_column_type != 'TEXT':
-                    self.logger.info("Migrating market_data table to change time column type to TEXT")
-                    cursor.execute("ALTER TABLE market_data RENAME TO market_data_old")
-                    self.execute_query(create_market_data_table)
-                    cursor.execute("SELECT * FROM market_data_old")
-                    old_data = cursor.fetchall()
-                    for row in old_data:
-                        row_dict = dict(row)
-                        try:
-                            time_value = pd.to_datetime(int(row_dict['time']), unit='s').strftime('%Y-%m-%d %H:%M:%S')
-                        except (ValueError, TypeError):
-                            time_value = row_dict['time']
-                        self.execute_query(
-                            """
-                            INSERT INTO market_data (time, open, high, low, close, tick_volume, spread, real_volume, symbol, timeframe)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
-                            (time_value, row_dict['open'], row_dict['high'], row_dict['low'], row_dict['close'],
-                             row_dict['tick_volume'], row_dict['spread'], row_dict['real_volume'],
-                             row_dict['symbol'], row_dict['timeframe'])
-                        )
-                    cursor.execute("DROP TABLE market_data_old")
-                    self.logger.info("Migration of market_data table completed successfully")
-            else:
-                self.execute_query(create_market_data_table)
-
-            self.execute_query(create_strategies_table)
-            self.execute_query(create_trades_table)
-            self.execute_query(create_backtests_table)
-            self.execute_query(create_index_symbol)
-            self.execute_query(create_index_timeframe)
-            self.execute_query(create_index_backtest_strategy)
+            for table_name, create_stmt in tables.items():
+                cursor.execute(create_stmt.format(table=table_name, prefix=self.config.get('backtesting', {}).get('database', {}).get('table_prefix', DatabaseConfig.TABLE_PREFIX)))
+            self.conn.commit()
             self.logger.info("Database tables and indexes created successfully")
         except sqlite3.Error as e:
-            self.logger.error(f"Failed to create tables or indexes: {e}")
+            self.logger.error(f"Failed to create tables: {e}")
             raise
+
+    def get_optimized_params(self, symbol, timeframe, strategy_name):
+        """Retrieve optimized parameters from the database."""
+        table = f"{self.config.get('backtesting', {}).get('database', {}).get('table_prefix', '')}{DatabaseConfig.PARAMS_TABLE}"
+        query = f"SELECT * FROM {table} WHERE symbol = ? AND timeframe = ? AND strategy_name = ? ORDER BY timestamp DESC LIMIT 1"
+        result = self.execute_query(query, (symbol, timeframe, strategy_name))
+        return result[0] if result else None
