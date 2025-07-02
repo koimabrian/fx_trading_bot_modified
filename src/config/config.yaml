@@ -1,14 +1,14 @@
 # src/config/config.yaml
-# Purpose: Stores configuration settings for live trading
+# Purpose: Stores configuration settings for live and backtesting modes
 pairs:
   - symbol: XAUUSD
     timeframe: 15
   - symbol: XAUUSD
-    timeframe: 30
-  - symbol: XAUUSD
     timeframe: 60
   - symbol: XAUUSD
     timeframe: 240
+  - symbol: XAUUSD
+    timeframe: 1440
   - symbol: USDJPY
     timeframe: 15
   - symbol: USDJPY
@@ -46,17 +46,13 @@ strategies:
       slow_period: 26
       signal_period: 9
       volume: 0.01
-ml:
-  - name: random_forest
-    params:
-      symbol: USDJPY
-  - name: lstm
-    params:
-      symbol: USDJPY
-      lookback: 20
 mt5:
   login: 210468396
   password: Brian@2025
   server: Exness-MT5Trial9
+  timeout: 30000
+  default_symbol: XAUUSD
+  default_volume: 0.01
 database:
-  path: src/data/market_data.sqlite
+  live_path: src/data/market_data.sqlite
+  backtest_path: src/data/backtest_data.sqlite
