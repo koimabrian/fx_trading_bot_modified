@@ -1,38 +1,12 @@
-# src/config/config.yaml
-# Purpose: Stores configuration settings for live and backtesting modes
+# fx_trading_bot/src/config/config.yaml
+# Purpose: Stores configuration settings for live trading and backtesting
 pairs:
   - symbol: XAUUSD
     timeframe: 15
   - symbol: XAUUSD
     timeframe: 60
-  - symbol: XAUUSD
-    timeframe: 240
-  - symbol: XAUUSD
-    timeframe: 1440
   - symbol: USDJPY
     timeframe: 15
-  - symbol: USDJPY
-    timeframe: 30
-  - symbol: USDJPY
-    timeframe: 60
-  - symbol: USDJPY
-    timeframe: 240
-  - symbol: USDCNH
-    timeframe: 15
-  - symbol: USDCNH
-    timeframe: 30
-  - symbol: USDCNH
-    timeframe: 60
-  - symbol: USDCNH
-    timeframe: 240
-  - symbol: BTCUSD
-    timeframe: 15
-  - symbol: BTCUSD
-    timeframe: 30
-  - symbol: BTCUSD
-    timeframe: 60
-  - symbol: BTCUSD
-    timeframe: 240
 strategies:
   - name: rsi
     params:
@@ -46,13 +20,33 @@ strategies:
       slow_period: 26
       signal_period: 9
       volume: 0.01
+ml:
+  - name: random_forest
+    params:
+      symbol: USDJPY
+  - name: lstm
+    params:
+      symbol: USDJPY
+      lookback: 20
 mt5:
-  login: 210468396
+  login: 210848957
   password: Brian@2025
   server: Exness-MT5Trial9
-  timeout: 30000
-  default_symbol: XAUUSD
-  default_volume: 0.01
 database:
-  live_path: src/data/market_data.sqlite
-  backtest_path: src/data/backtest_data.sqlite
+  path: src/data/market_data.sqlite
+data:
+  fetch_limit: 1000
+risk_management:
+  stop_loss_percent: 1.0
+  take_profit_percent: 2.0
+backtesting:
+  data_range: "2024-01-01:2025-07-01"
+  optimization:
+    rsi:
+      period: [10, 12, 14, 16]
+      overbought: [60, 70, 80]
+      oversold: [20, 30, 40]
+    macd:
+      fast_period: [8, 12, 16]
+      slow_period: [20, 26, 32]
+      signal_period: [6, 9, 12]

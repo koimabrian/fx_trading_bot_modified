@@ -7,8 +7,6 @@ PyYAML
 backtesting
 matplotlib
 dash
-plotly
 scikit-learn
 numba
-geneal
-stratestic
+

@@ -1,14 +1,10 @@
-# src/ui/cli.py
-# Purpose: Command-line interface argument parsing
+# fx_trading_bot/src/ui/cli.py
+# Purpose: Defines command-line interface arguments
 import argparse
 
 def setup_parser():
-    """Set up argument parser for CLI."""
+    """Set up argument parser for CLI"""
     parser = argparse.ArgumentParser(description="FX Trading Bot")
-    parser.add_argument('--mode', choices=['live', 'backtest', 'gui', 'sync', 'migrate', 'optimize'], default='live',
-                        help='Mode to run the bot in: live, backtest, gui, sync, migrate, or optimize')
-    parser.add_argument('--strategy', type=str, default=None,
-                        help='Strategy to use (e.g., rsi, macd)')
-    parser.add_argument('--symbol', type=str, default=None,
-                        help='Symbol to trade or backtest (e.g., XAUUSD)')
+    parser.add_argument('--mode', choices=['live', 'gui'], default='live', help="Operation mode: live trading or GUI")
+    parser.add_argument('--strategy', default=None, help="Specific strategy to use (e.g., rsi, macd)")
     return parser

@@ -1,32 +1,36 @@
 # fx_trading_bot/src/utils/logger.py
-# Purpose: Centralized logging setup
+# Purpose: Configures logging for the application
 import logging
 import os
-import sys
+from datetime import datetime
+
+# Global flag to prevent multiple logging initializations
+_logging_configured = False
 
 def setup_logging():
-    """Set up logging configuration for the application"""
-    # Ensure logs directory exists
+    """Configure logging for the application"""
+    global _logging_configured
+    if _logging_configured:
+        return logging.getLogger(__name__)
+
     log_dir = 'logs'
     os.makedirs(log_dir, exist_ok=True)
-
-    # Create logger
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)  # Capture all levels internally
-
-    # File handler for ERROR and above
-    file_handler = logging.FileHandler(os.path.join(log_dir, 'terminal_log.txt'))
-    file_handler.setLevel(logging.ERROR)
-    file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    file_handler.setFormatter(file_formatter)
-
-    # Console handler for INFO only
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
-    console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    console_handler.setFormatter(console_formatter)
-
-    # Clear existing handlers to avoid duplicates
-    logger.handlers = []
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
+    
+    log_file = os.path.join(log_dir, f'terminal_log.txt')
+    
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler()
+        ]
+    )
+    
+    # Suppress matplotlib debug messages
+    logging.getLogger('matplotlib').setLevel(logging.INFO)
+    
+    _logging_configured = True
+    logger = logging.getLogger(__name__)
+    logger.info(f"Logging initialized. Log file: {log_file}")
+    return logger

@@ -1,70 +1,82 @@
-# src/strategies/macd_strategy.py
-from src.core.base_strategy import BaseStrategy
+# fx_trading_bot/src/strategies/macd_strategy.py
+# Purpose: Implements MACD-based trading strategy
+import pandas as pd
 import ta
 import logging
-import pandas as pd
-import MetaTrader5 as mt5
+from src.core.base_strategy import BaseStrategy
+from backtesting import Strategy
 
 class MACDStrategy(BaseStrategy):
-    """MACD-based trading strategy."""
     def __init__(self, params, db, config, mode='live'):
         super().__init__(params, db, config, mode)
         self.fast_period = params.get('fast_period', 12)
         self.slow_period = params.get('slow_period', 26)
         self.signal_period = params.get('signal_period', 9)
+        self.backtest_strategy = self.BacktestMACDStrategy
 
     def generate_entry_signal(self, symbol=None):
-        """Generate an entry signal based on MACD."""
+        """Generate entry signal based on MACD"""
         data = self.fetch_data(symbol)
         if data.empty:
             self.logger.warning(f"No data available for {symbol or self.symbol}")
             return None
-        macd = ta.trend.MACD(
-            close=data['close'],
-            window_fast=self.fast_period,
-            window_slow=self.slow_period,
-            window_sign=self.signal_period
-        )
-        macd_line = macd.macd()
-        signal_line = macd.macd_signal()
-        if len(macd_line) < 2 or len(signal_line) < 2:
-            self.logger.warning(f"Insufficient data for MACD calculation for {symbol or self.symbol}")
+
+        macd = ta.MACD(data['close'], window_fast=self.fast_period, window_slow=self.slow_period, window_sign=self.signal_period)
+        data['macd'] = macd.macd()
+        data['macd_signal'] = macd.macd_signal()
+        data['macd_hist'] = macd.macd_diff()
+        latest = data.iloc[-1]
+        prev = data.iloc[-2] if len(data) > 1 else None
+
+        if prev is None:
             return None
-        latest_macd = macd_line.iloc[-1]
-        prev_macd = macd_line.iloc[-2]
-        latest_signal = signal_line.iloc[-1]
-        prev_signal = signal_line.iloc[-2]
-        # Buy signal: MACD crosses above signal line
-        if prev_macd <= prev_signal and latest_macd > latest_signal:
-            return {'symbol': symbol or self.symbol, 'action': 'buy', 'volume': self.volume}
-        # Sell signal: MACD crosses below signal line
-        elif prev_macd >= prev_signal and latest_macd < latest_signal:
-            return {'symbol': symbol or self.symbol, 'action': 'sell', 'volume': self.volume}
+
+        signal = {
+            'symbol': symbol or self.symbol,
+            'volume': self.volume,
+            'timeframe': self.timeframe
+        }
+
+        if latest['macd'] > latest['macd_signal'] and prev['macd'] <= prev['macd_signal']:
+            signal['action'] = 'buy'
+            self.logger.debug(f"Buy signal generated for {signal['symbol']}: MACD crossover")
+            return signal
+        elif latest['macd'] < latest['macd_signal'] and prev['macd'] >= prev['macd_signal']:
+            signal['action'] = 'sell'
+            self.logger.debug(f"Sell signal generated for {signal['symbol']}: MACD crossunder")
+            return signal
         return None
 
     def generate_exit_signal(self, position):
-        """Generate an exit signal for an open position."""
+        """Generate exit signal based on MACD"""
         data = self.fetch_data(position.symbol)
         if data.empty:
             self.logger.warning(f"No data available for {position.symbol}")
-            return None
-        macd = ta.trend.MACD(
-            close=data['close'],
-            window_fast=self.fast_period,
-            window_slow=self.slow_period,
-            window_sign=self.signal_period
-        )
-        macd_line = macd.macd()
-        signal_line = macd.macd_signal()
-        if len(macd_line) < 1 or len(signal_line) < 1:
-            self.logger.warning(f"Insufficient data for MACD calculation for {position.symbol}")
-            return None
-        latest_macd = macd_line.iloc[-1]
-        latest_signal = signal_line.iloc[-1]
-        # Exit buy position: MACD crosses below signal line
-        if position.type == mt5.ORDER_TYPE_BUY and latest_macd < latest_signal:
-            return {'symbol': position.symbol, 'action': 'sell', 'volume': position.volume}
-        # Exit sell position: MACD crosses above signal line
-        elif position.type == mt5.ORDER_TYPE_SELL and latest_macd > latest_signal:
-            return {'symbol': position.symbol, 'action': 'buy', 'volume': position.volume}
-        return None
+            return False
+
+        macd = ta.MACD(data['close'], window_fast=self.fast_period, window_slow=self.slow_period, window_sign=self.signal_period)
+        data['macd'] = macd.macd()
+        data['macd_signal'] = macd.macd_signal()
+        latest = data.iloc[-1]
+
+        if position.type == 0:  # Buy position
+            if latest['macd'] < latest['macd_signal']:
+                self.logger.debug(f"Exit buy signal for {position.symbol}: MACD crossunder")
+                return True
+        else:  # Sell position
+            if latest['macd'] > latest['macd_signal']:
+                self.logger.debug(f"Exit sell signal for {position.symbol}: MACD crossover")
+                return True
+        return False
+
+    class BacktestMACDStrategy(Strategy):
+        def init(self):
+            macd = ta.MACD(pd.Series(self.data.Close), window_fast=self.fast_period, window_slow=self.slow_period, window_sign=self.signal_period)
+            self.macd = self.I(macd.macd)
+            self.signal = self.I(macd.macd_signal)
+
+        def next(self):
+            if self.macd[-1] > self.signal[-1] and self.macd[-2] <= self.signal[-2]:
+                self.buy(size=self.volume)
+            elif self.macd[-1] < self.signal[-1] and self.macd[-2] >= self.signal[-2]:
+                self.sell(size=self.volume)

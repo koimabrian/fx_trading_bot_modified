@@ -8,10 +8,11 @@ import os
 import webbrowser
 
 class Dashboard(QMainWindow):
-    def __init__(self, db):
-        """Initialize the dashboard with database connection"""
+    def __init__(self, db, config):
+        """Initialize the dashboard with database connection and config"""
         super().__init__()
         self.db = db
+        self.config = config
         self.logger = logging.getLogger(__name__)
         self.init_ui()
 
@@ -32,9 +33,10 @@ class Dashboard(QMainWindow):
         # Filters
         filter_layout = QVBoxLayout()
         self.symbol_filter = QComboBox()
-        self.symbol_filter.addItems(['All', 'XAUUSD', 'USDJPY', 'EURUSD'])
+        self.symbol_filter.addItems(['All'] + sorted(set([p['symbol'] for p in self.config.get('pairs', [])])))
         self.timeframe_filter = QComboBox()
-        self.timeframe_filter.addItems(['All', 'M15', 'M30'])
+        timeframes = sorted(set([f"M{p['timeframe']}" if p['timeframe'] < 60 else f"H{p['timeframe']//60}" for p in self.config.get('pairs', [])]))
+        self.timeframe_filter.addItems(['All'] + timeframes)
         filter_layout.addWidget(QLabel("Symbol:"))
         filter_layout.addWidget(self.symbol_filter)
         filter_layout.addWidget(QLabel("Timeframe:"))
@@ -78,8 +80,8 @@ class Dashboard(QMainWindow):
             timeframe = self.timeframe_filter.currentText()
             query = """
                 SELECT b.strategy_id, s.name AS strategy_name, b.symbol, b.timeframe, b.metrics
-                FROM backtests b
-                JOIN strategies s ON b.strategy_id = s.id
+                FROM backtest_backtests b
+                JOIN backtest_strategies s ON b.strategy_id = s.id
                 WHERE (:symbol = 'All' OR b.symbol = :symbol)
                 AND (:timeframe = 'All' OR b.timeframe = :timeframe)
             """
@@ -121,8 +123,8 @@ class Dashboard(QMainWindow):
         try:
             heatmap_file = os.path.abspath('backtests/results/rsi_optimization_heatmap.html')
             if os.path.exists(heatmap_file):
-                webbrowser.open(f'file://{heatmap_file}')
                 self.logger.debug("Opened optimization heatmap")
+                webbrowser.open(f'file://{heatmap_file}')
             else:
                 self.logger.warning("Optimization heatmap not found")
         except Exception as e:

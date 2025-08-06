@@ -1,43 +1,75 @@
-# src/strategies/rsi_strategy.py
-from src.core.base_strategy import BaseStrategy
+# fx_trading_bot/src/strategies/rsi_strategy.py
+# Purpose: Implements RSI-based trading strategy
+import pandas as pd
 import ta
 import logging
-import pandas as pd
-import MetaTrader5 as mt5
+from src.core.base_strategy import BaseStrategy
+from backtesting import Strategy
 
 class RSIStrategy(BaseStrategy):
-    """RSI-based trading strategy."""
     def __init__(self, params, db, config, mode='live'):
         super().__init__(params, db, config, mode)
         self.period = params.get('period', 14)
         self.overbought = params.get('overbought', 70)
         self.oversold = params.get('oversold', 30)
+        self.backtest_strategy = self.BacktestRSIStrategy
 
     def generate_entry_signal(self, symbol=None):
-        """Generate an entry signal based on RSI."""
+        """Generate entry signal based on RSI"""
         data = self.fetch_data(symbol)
         if data.empty:
             self.logger.warning(f"No data available for {symbol or self.symbol}")
             return None
-        rsi = ta.momentum.RSIIndicator(close=data['close'], window=self.period).rsi()
-        latest_rsi = rsi.iloc[-1]
-        prev_rsi = rsi.iloc[-2] if len(rsi) > 1 else latest_rsi
-        if prev_rsi <= self.oversold < latest_rsi:
-            return {'symbol': symbol or self.symbol, 'action': 'buy', 'volume': self.volume}
-        elif prev_rsi >= self.overbought > latest_rsi:
-            return {'symbol': symbol or self.symbol, 'action': 'sell', 'volume': self.volume}
+
+        data['rsi'] = ta.RSIIndicator(data['close'], window=self.period).rsi()
+        latest = data.iloc[-1]
+        prev = data.iloc[-2] if len(data) > 1 else None
+
+        if prev is None:
+            return None
+
+        signal = {
+            'symbol': symbol or self.symbol,
+            'volume': self.volume,
+            'timeframe': self.timeframe
+        }
+
+        if latest['rsi'] < self.oversold and prev['rsi'] >= self.oversold:
+            signal['action'] = 'buy'
+            self.logger.debug(f"Buy signal generated for {signal['symbol']}: RSI={latest['rsi']:.2f}")
+            return signal
+        elif latest['rsi'] > self.overbought and prev['rsi'] <= self.overbought:
+            signal['action'] = 'sell'
+            self.logger.debug(f"Sell signal generated for {signal['symbol']}: RSI={latest['rsi']:.2f}")
+            return signal
         return None
 
     def generate_exit_signal(self, position):
-        """Generate an exit signal for an open position."""
+        """Generate exit signal based on RSI"""
         data = self.fetch_data(position.symbol)
         if data.empty:
             self.logger.warning(f"No data available for {position.symbol}")
-            return None
-        rsi = ta.momentum.RSIIndicator(close=data['close'], window=self.period).rsi()
-        latest_rsi = rsi.iloc[-1]
-        if position.type == mt5.ORDER_TYPE_BUY and latest_rsi >= self.overbought:
-            return {'symbol': position.symbol, 'action': 'sell', 'volume': position.volume}
-        elif position.type == mt5.ORDER_TYPE_SELL and latest_rsi <= self.oversold:
-            return {'symbol': position.symbol, 'action': 'buy', 'volume': position.volume}
-        return None
+            return False
+
+        data['rsi'] = ta.RSIIndicator(data['close'], window=self.period).rsi()
+        latest = data.iloc[-1]
+
+        if position.type == 0:  # Buy position
+            if latest['rsi'] > self.overbought:
+                self.logger.debug(f"Exit buy signal for {position.symbol}: RSI={latest['rsi']:.2f}")
+                return True
+        else:  # Sell position
+            if latest['rsi'] < self.oversold:
+                self.logger.debug(f"Exit sell signal for {position.symbol}: RSI={latest['rsi']:.2f}")
+                return True
+        return False
+
+    class BacktestRSIStrategy(Strategy):
+        def init(self):
+            self.rsi = self.I(lambda x: ta.RSIIndicator(pd.Series(x), window=self.period).rsi(), self.data.Close)
+
+        def next(self):
+            if self.rsi[-1] < self.oversold and self.rsi[-2] >= self.oversold:
+                self.buy(size=self.volume)
+            elif self.rsi[-1] > self.overbought and self.rsi[-2] <= self.overbought:
+                self.sell(size=self.volume)
