@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*cpython-310.pyc
 
 # Virtual environment
 .venv/
