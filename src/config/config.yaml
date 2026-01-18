@@ -65,7 +65,7 @@ risk_management:
   take_profit_percent: 2.0
   max_open_positions: 10  # Maximum number of concurrent open positions
 backtesting:
-  data_range: "2024-01-01:2025-07-01"
+  data_range: "2025-11-27:2026-01-18"
   optimization:
     rsi:
       period: [10, 12, 14, 16]

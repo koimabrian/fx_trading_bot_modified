@@ -116,28 +116,32 @@ class MACDStrategy(BaseStrategy):
         return False
 
     class BacktestMACDStrategy(Strategy):  # pylint: disable=too-few-public-methods
-        params = dict(fast_period=12, slow_period=26, signal_period=9, volume=0.01)
+        """MACD Strategy for backtesting.py framework."""
+
+        # Define parameters as class attributes - REQUIRED by backtesting.py
+        # backtesting.py validates params using hasattr(), so each parameter
+        # must be defined as an individual class attribute, not in a params dict
+        fast_period = 12
+        slow_period = 26
+        signal_period = 9
+        volume = 0.01
         macd = None  # type: ignore
         signal = None  # type: ignore
 
         def init(self):
             """Initialize MACD indicator for backtesting."""
-            fast_period = self.params["fast_period"]
-            slow_period = self.params["slow_period"]
-            signal_period = self.params["signal_period"]
             macd = ta.trend.MACD(
                 pd.Series(self.data.Close),
-                window_fast=fast_period,
-                window_slow=slow_period,
-                window_sign=signal_period,
+                window_fast=self.fast_period,
+                window_slow=self.slow_period,
+                window_sign=self.signal_period,
             )
             self.macd = self.I(macd.macd)
             self.signal = self.I(macd.macd_signal)
 
         def next(self):
             """Generate buy/sell signals based on MACD crossovers."""
-            volume = self.params["volume"]
             if self.macd[-1] > self.signal[-1] and self.macd[-2] <= self.signal[-2]:
-                self.buy(size=volume)
+                self.buy(size=self.volume)
             elif self.macd[-1] < self.signal[-1] and self.macd[-2] >= self.signal[-2]:
-                self.sell(size=volume)
+                self.sell(size=self.volume)

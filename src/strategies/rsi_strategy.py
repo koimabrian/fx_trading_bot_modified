@@ -98,23 +98,29 @@ class RSIStrategy(BaseStrategy):
         return False
 
     class BacktestRSIStrategy(Strategy):  # pylint: disable=too-few-public-methods
-        params = dict(period=14, overbought=70, oversold=30, volume=0.01)
+        """RSI Strategy for backtesting.py framework."""
+
+        # Define parameters as class attributes - REQUIRED by backtesting.py
+        # backtesting.py validates params using hasattr(), so each parameter
+        # must be defined as an individual class attribute, not in a params dict
+        period = 14
+        overbought = 70
+        oversold = 30
+        volume = 0.01
         rsi = None  # type: ignore
 
         def init(self):
             """Initialize RSI indicator for backtesting."""
-            period = self.params["period"]
             self.rsi = self.I(
-                lambda x: ta.momentum.RSIIndicator(pd.Series(x), window=period).rsi(),
+                lambda x: ta.momentum.RSIIndicator(
+                    pd.Series(x), window=self.period
+                ).rsi(),
                 self.data.Close,
             )
 
         def next(self):
             """Generate buy/sell signals based on RSI crossovers."""
-            overbought = self.params["overbought"]
-            oversold = self.params["oversold"]
-            volume = self.params["volume"]
-            if self.rsi[-1] < oversold and self.rsi[-2] >= oversold:
-                self.buy(size=volume)
-            elif self.rsi[-1] > overbought and self.rsi[-2] <= overbought:
-                self.sell(size=volume)
+            if self.rsi[-1] < self.oversold and self.rsi[-2] >= self.oversold:
+                self.buy(size=self.volume)
+            elif self.rsi[-1] > self.overbought and self.rsi[-2] <= self.overbought:
+                self.sell(size=self.volume)

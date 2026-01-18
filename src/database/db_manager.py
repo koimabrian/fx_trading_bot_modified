@@ -66,6 +66,8 @@ class DatabaseManager(AbstractDatabaseManager):
             # Auto-create src/data directory if it doesn't exist
             os.makedirs(os.path.dirname(db_path), exist_ok=True)
             self.conn = sqlite3.connect(db_path)
+            # Set row_factory to return dicts instead of tuples for easier access
+            self.conn.row_factory = sqlite3.Row
             self.logger.info("Database connection established")
         except sqlite3.Error as e:
             self.logger.error("Failed to connect to database: %s", e)
