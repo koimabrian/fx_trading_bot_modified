@@ -1,12 +1,34 @@
 # fx_trading_bot/src/config/config.yaml
 # Purpose: Stores configuration settings for live trading and backtesting
+
+# Trading pairs with timeframes (in minutes)
+# Top 5 major crypto pairs × 2 timeframes (M15 & H1)
 pairs:
-  - symbol: XAUUSD
-    timeframe: 15
-  - symbol: XAUUSD
-    timeframe: 60
-  - symbol: USDJPY
-    timeframe: 15
+  # Bitcoin
+  - symbol: BTCUSD
+    timeframe: 15      # 15 minutes
+  - symbol: BTCUSD
+    timeframe: 60      # 1 hour
+  # Ethereum
+  - symbol: ETHUSD
+    timeframe: 15      # 15 minutes
+  - symbol: ETHUSD
+    timeframe: 60      # 1 hour
+  # Ripple
+  - symbol: XRPUSD
+    timeframe: 15      # 15 minutes
+  - symbol: XRPUSD
+    timeframe: 60      # 1 hour
+  # Binance Coin
+  - symbol: BNBUSD
+    timeframe: 15      # 15 minutes
+  - symbol: BNBUSD
+    timeframe: 60      # 1 hour
+  # Cardano
+  - symbol: ADAUSD
+    timeframe: 15      # 15 minutes
+  - symbol: ADAUSD
+    timeframe: 60      # 1 hour
 strategies:
   - name: rsi
     params:
@@ -29,16 +51,19 @@ ml:
       symbol: USDJPY
       lookback: 20
 mt5:
-  login: 210848957
+  login: 297864944
   password: Brian@2025
   server: Exness-MT5Trial9
 database:
   path: src/data/market_data.sqlite
 data:
-  fetch_limit: 1000
+  fetch_limit: 1000    # Max rows to fetch from database per query
+  fetch_count: 5000    # How many candles to fetch from MT5 API per pair
+  min_rows_threshold: 5000  # Minimum rows required per symbol/timeframe before trading
 risk_management:
   stop_loss_percent: 1.0
   take_profit_percent: 2.0
+  max_open_positions: 10  # Maximum number of concurrent open positions
 backtesting:
   data_range: "2024-01-01:2025-07-01"
   optimization:
