@@ -88,11 +88,13 @@ def main():
         db.create_tables()
         db.create_indexes()
 
-        # Validate and initialize data quality (for live/gui modes)
-        logger.info("Running data validation and initialization...")
-        mt5_conn_temp = MT5Connector(db)
-        validator = DataValidator(db, config, mt5_conn_temp)
-        validator.validate_and_init()  # Auto-fill missing data (5000 rows per symbol/timeframe)
+        # Validate and initialize data quality (for live modes only, not GUI)
+        # GUI mode only reads existing data, doesn't need MT5 connection
+        if args.mode != "gui":
+            logger.info("Running data validation and initialization...")
+            mt5_conn_temp = MT5Connector(db)
+            validator = DataValidator(db, config, mt5_conn_temp)
+            validator.validate_and_init()  # Auto-fill missing data (5000 rows per symbol/timeframe)
 
         # Initialize MT5 connection
         mt5_conn = MT5Connector(db)
@@ -140,7 +142,9 @@ def main():
                 time.sleep(20)
         elif args.mode == "gui":
             logger.info("Launching web dashboard...")
-            dashboard = DashboardServer(db, config)
+            host = config.get("web", {}).get("host", "127.0.0.1")
+            port = config.get("web", {}).get("port", 5000)
+            dashboard = DashboardServer(config, host=host, port=port)
             dashboard.run(debug=False)
         else:
             raise ValueError("Invalid mode specified. Use 'sync', 'live', or 'gui'.")

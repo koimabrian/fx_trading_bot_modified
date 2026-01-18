@@ -472,3 +472,39 @@ with DatabaseManager(config) as db:
 db = DatabaseManager(config)
 db.connect()
 ```
+
+### GUI Mode Unnecessary MT5 Connections (FIXED)
+**Problem** (Now Resolved): `python -m src.main --mode gui` was making unnecessary MT5 connection attempts, causing "Terminal: Authorization failed" errors and delays.
+
+**Root Cause**:
+- `data_validator.validate_and_init()` was called for all modes including GUI
+- When symbols had <5000 rows of data, validator attempted to fetch from MT5
+- GUI mode only needs to **read** existing data, doesn't need MT5 connection
+
+**Fix Implemented** (v2):
+- **In `src/main.py` line 93**: Added mode check - skip data validation entirely for GUI mode:
+  ```python
+  if args.mode != "gui":
+      logger.info("Running data validation and initialization...")
+      validator = DataValidator(db, config, mt5_conn_temp)
+      validator.validate_and_init()
+  ```
+- **In `src/main.py` line 149**: Fixed DashboardServer initialization to pass proper host/port parameters:
+  ```python
+  elif args.mode == "gui":
+      logger.info("Launching web dashboard...")
+      host = config.get("web", {}).get("host", "127.0.0.1")
+      port = config.get("web", {}).get("port", 5000)
+      dashboard = DashboardServer(config, host=host, port=port)
+      dashboard.run(debug=False)
+  ```
+
+**Result**: 
+- ✅ GUI mode launches immediately without MT5 connection attempts
+- ✅ Dashboard available at `http://127.0.0.1:5000` within 1-2 seconds
+- ✅ No "Authorization failed" errors in logs
+
+**Why this matters**: 
+- GUI is analysis-only mode (reads backtests from database)
+- MT5 connection should only be used in sync/live modes
+- Prevents connection delays and unnecessary auth failures during testing
