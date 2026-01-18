@@ -1,16 +1,20 @@
-# fx_trading_bot/src/utils/logger.py
-# Purpose: Configures logging for the application
+"""Centralized logging configuration for the FX Trading Bot.
+
+Sets up file and console handlers with appropriate log levels
+and formatting for development and production environments.
+"""
+
 import logging
 import os
 
 # Global flag to prevent multiple logging initializations
-_logging_configured = False
+LOGGING_CONFIGURED = False
 
 
 def setup_logging():
     """Configure logging for the application"""
-    global _logging_configured  # pylint: disable=global-statement
-    if _logging_configured:
+    global LOGGING_CONFIGURED  # pylint: disable=global-statement
+    if LOGGING_CONFIGURED:
         return logging.getLogger(__name__)
 
     log_dir = "logs"
@@ -27,7 +31,7 @@ def setup_logging():
     # Suppress matplotlib debug messages
     logging.getLogger("matplotlib").setLevel(logging.INFO)
 
-    _logging_configured = True
+    LOGGING_CONFIGURED = True
     logger = logging.getLogger(__name__)
     logger.info("Logging initialized. Log file: %s", log_file)
     return logger

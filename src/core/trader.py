@@ -1,5 +1,9 @@
-# fx_trading_bot/src/core/trader.py
-# Purpose: Executes trades based on strategy signals
+"""Trade execution engine with risk management.
+
+Executes trades based on strategy signals, enforces position limits,
+applies trading rules, and manages MT5 order placement.
+"""
+
 import logging
 import yaml
 from src.utils.trading_rules import TradingRules

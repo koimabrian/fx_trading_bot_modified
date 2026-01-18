@@ -1,5 +1,9 @@
-# fx_trading_bot/src/core/base_strategy.py
-# Purpose: Abstract base class for trading strategies
+"""Abstract base class for trading strategies.
+
+Defines the interface that all trading strategies must implement,
+including signal generation, data fetching, and backtesting support.
+"""
+
 import logging
 from abc import ABC, abstractmethod
 

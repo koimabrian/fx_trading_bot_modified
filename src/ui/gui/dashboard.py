@@ -1,5 +1,10 @@
-# fx_trading_bot/src/ui/gui/dashboard.py
-# Purpose: Implements the main GUI dashboard for the FX Trading Bot
+"""Main GUI dashboard for the FX Trading Bot.
+
+Provides interactive backtesting results visualization with dynamic filtering,
+equity curve viewing, and optimization heatmap analysis. All data loaded from
+the backtest database in real-time.
+"""
+
 # pylint: disable=no-name-in-module
 import json
 import logging
@@ -44,31 +49,42 @@ class Dashboard(QMainWindow):
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
 
-        title_label = QLabel("FX Trading Bot Dashboard")
+        title_label = QLabel(
+            "FX Trading Bot Dashboard - Backtest Results Analysis & Visualization"
+        )
         title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("font-size: 24px; font-weight: bold;")
+        title_label.setStyleSheet("font-size: 18px; font-weight: bold;")
         layout.addWidget(title_label)
 
-        # Filters
+        # Filters - Load from database
         filter_layout = QVBoxLayout()
-        self.symbol_filter = QComboBox()
-        self.symbol_filter.addItems(
-            ["All"] + sorted(set([p["symbol"] for p in self.config.get("pairs", [])]))
-        )
-        self.timeframe_filter = QComboBox()
-        timeframes = sorted(
-            set(
-                [
-                    (
-                        f"M{p['timeframe']}"
-                        if p["timeframe"] < 60
-                        else f"H{p['timeframe']//60}"
-                    )
-                    for p in self.config.get("pairs", [])
-                ]
+
+        # Get symbols from database
+        try:
+            symbols_result = self.db.execute_query(
+                "SELECT DISTINCT symbol FROM backtest_backtests ORDER BY symbol"
             )
-        )
-        self.timeframe_filter.addItems(["All"] + timeframes)
+            symbols = ["All"] + [row["symbol"] for row in symbols_result]
+        except (RuntimeError, ValueError, KeyError):
+            symbols = ["All"]
+
+        self.symbol_filter = QComboBox()
+        self.symbol_filter.addItems(symbols)
+        self.symbol_filter.currentIndexChanged.connect(self.refresh_results)
+
+        # Get timeframes from database
+        try:
+            timeframes_result = self.db.execute_query(
+                "SELECT DISTINCT timeframe FROM backtest_backtests ORDER BY timeframe"
+            )
+            timeframes = ["All"] + [row["timeframe"] for row in timeframes_result]
+        except (RuntimeError, ValueError, KeyError):
+            timeframes = ["All"]
+
+        self.timeframe_filter = QComboBox()
+        self.timeframe_filter.addItems(timeframes)
+        self.timeframe_filter.currentIndexChanged.connect(self.refresh_results)
+
         filter_layout.addWidget(QLabel("Symbol:"))
         filter_layout.addWidget(self.symbol_filter)
         filter_layout.addWidget(QLabel("Timeframe:"))
@@ -179,29 +195,103 @@ class Dashboard(QMainWindow):
             self.logger.error("Failed to load backtest results: %s", e)
 
     def view_equity_curves(self):
-        """Open equity curve plot in browser"""
+        """Open equity curve plot in browser for selected symbol and strategy"""
         try:
+            symbol = self.symbol_filter.currentText()
+            if symbol == "All":
+                self.logger.warning(
+                    "Please select a specific symbol to view equity curve"
+                )
+                return
+
+            # Get selected row strategy
+            selected_rows = self.results_table.selectionModel().selectedRows()
+            if not selected_rows:
+                self.logger.warning(
+                    "Please select a backtest result to view its equity curve"
+                )
+                return
+
+            row = selected_rows[0].row()
+            strategy_item = self.results_table.item(row, 0)
+            if not strategy_item:
+                self.logger.warning("Could not retrieve strategy name")
+                return
+
+            strategy_name = strategy_item.text()
             equity_file = os.path.abspath(
-                "backtests/results/equity_curve_comparison.html"
+                f"backtests/results/equity_curve_{symbol}_{strategy_name}.html"
             )
+
             if os.path.exists(equity_file):
-                webbrowser.open(f"file://{equity_file}")
-                self.logger.debug("Opened equity curve plot")
+                webbrowser.open(f"file:///{equity_file}")
+                self.logger.info("Opened equity curve: %s", equity_file)
             else:
-                self.logger.warning("Equity curve plot not found")
+                # Try to find any available equity curve file for this symbol
+                results_dir = "backtests/results"
+                if os.path.exists(results_dir):
+                    files = [
+                        f
+                        for f in os.listdir(results_dir)
+                        if f.startswith(f"equity_curve_{symbol}")
+                        and f.endswith(".html")
+                    ]
+                    if files:
+                        fallback_file = os.path.abspath(
+                            os.path.join(results_dir, files[0])
+                        )
+                        webbrowser.open(f"file:///{fallback_file}")
+                        self.logger.info(
+                            "Opened available equity curve: %s", fallback_file
+                        )
+                    else:
+                        self.logger.warning("No equity curve found for %s", symbol)
+                else:
+                    self.logger.warning("Results directory not found")
         except (RuntimeError, OSError, ValueError) as e:
-            self.logger.error("Failed to open equity curve plot: %s", e)
+            self.logger.error("Failed to open equity curve: %s", e)
 
     def view_heatmap(self):
-        """Open optimization heatmap in browser"""
+        """Open optimization heatmap in browser for selected symbol and timeframe"""
         try:
+            symbol = self.symbol_filter.currentText()
+            timeframe = self.timeframe_filter.currentText()
+
+            if symbol == "All" or timeframe == "All":
+                self.logger.warning(
+                    "Please select a specific symbol and timeframe to view heatmap"
+                )
+                return
+
             heatmap_file = os.path.abspath(
-                "backtests/results/rsi_optimization_heatmap.html"
+                f"backtests/results/rsi_optimization_heatmap_{symbol}_{timeframe}.png"
             )
+
             if os.path.exists(heatmap_file):
-                self.logger.debug("Opened optimization heatmap")
-                webbrowser.open(f"file://{heatmap_file}")
+                webbrowser.open(f"file:///{heatmap_file}")
+                self.logger.info("Opened heatmap: %s", heatmap_file)
             else:
-                self.logger.warning("Optimization heatmap not found")
+                # Try to find any available heatmap file for this symbol/timeframe
+                results_dir = "backtests/results"
+                if os.path.exists(results_dir):
+                    files = [
+                        f
+                        for f in os.listdir(results_dir)
+                        if f"optimization_heatmap_{symbol}_{timeframe}" in f
+                    ]
+                    if files:
+                        fallback_file = os.path.abspath(
+                            os.path.join(results_dir, files[0])
+                        )
+                        webbrowser.open(f"file:///{fallback_file}")
+                        self.logger.info("Opened available heatmap: %s", fallback_file)
+                    else:
+                        self.logger.warning(
+                            "No heatmap found for %s (%s). Run optimization first.",
+                            symbol,
+                            timeframe,
+                        )
+                else:
+                    self.logger.warning("Results directory not found")
         except (RuntimeError, OSError, ValueError) as e:
-            self.logger.error("Failed to open optimization heatmap: %s", e)
+            self.logger.error("Failed to open heatmap: %s", e)

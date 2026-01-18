@@ -1,5 +1,10 @@
-# fx_trading_bot/src/mt5_connector.py
-# Purpose: Manages connection and operations with MetaTrader 5
+"""MetaTrader5 connection and data management.
+
+Handles MT5 API communication, order placement, market data retrieval,
+and account management. Provides context manager interface for safe
+connection handling.
+"""
+
 # pylint: disable=no-member
 import logging
 import os

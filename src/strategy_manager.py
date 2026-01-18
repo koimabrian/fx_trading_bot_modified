@@ -1,5 +1,11 @@
-# fx_trading_bot/src/strategy_manager.py
-# Purpose: Manages dynamic loading and execution of rule-based trading strategies
+"""Strategy management with caching and signal generation.
+
+Manages dynamic loading of trading strategies with performance
+optimization via TTL-based data caching. Supports both live and
+backtest modes with automatic signal generation across multiple
+timeframes and symbols.
+"""
+
 import logging
 import time
 from typing import List, Dict, Any, Optional
@@ -69,15 +75,17 @@ class DataCache:
 class StrategyManager:
     """Manages dynamic loading and execution of rule-based trading strategies."""
 
-    def __init__(self, db, mode="live"):
+    def __init__(self, db, mode="live", symbol=None):
         """Initialize strategy manager with config and database.
 
         Args:
             db: Database manager instance
             mode: Trading mode ('live' or 'backtest')
+            symbol: Optional specific trading symbol to focus on
         """
         self.db = db
         self.mode = mode
+        self.symbol = symbol  # Store symbol filter if provided
         self.strategies = []
         self.data_cache = DataCache(ttl_seconds=20)
         self.logger = logging.getLogger(__name__)
@@ -119,7 +127,7 @@ class StrategyManager:
 
         Iterates through all pairs from config and generates entry signals
         for each pair/strategy combination. If symbol is specified, only
-        that symbol is processed.
+        that symbol is processed. Uses self.symbol if no symbol arg provided.
         """
         signals = []
 
@@ -128,8 +136,14 @@ class StrategyManager:
             dict.fromkeys([p["symbol"] for p in self.config.get("pairs", [])])
         )
 
-        # If specific symbol requested, use only that
-        symbols_to_process = [symbol] if symbol else config_symbols
+        # Determine which symbol(s) to process
+        # Priority: method arg > instance symbol > all config symbols
+        if symbol:
+            symbols_to_process = [symbol]
+        elif self.symbol:
+            symbols_to_process = [self.symbol]
+        else:
+            symbols_to_process = config_symbols
 
         for pair_symbol in symbols_to_process:
             for strategy in self.strategies:
