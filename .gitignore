@@ -33,16 +33,3 @@ logs/*
 # Source code
 !src/config/
 !src/data/
-src/core/__pycache__/__init__.cpython-310.pyc
-src/core/__pycache__/base_strategy.cpython-310.pyc
-src/database/__pycache__/__init__.cpython-310.pyc
-src/database/__pycache__/db_manager.cpython-310.pyc
-src/strategies/__pycache__/__init__.cpython-310.pyc
-src/strategies/__pycache__/macd_strategy.cpython-310.pyc
-src/strategies/__pycache__/rsi_strategy.cpython-310.pyc
-src/ui/__pycache__/__init__.cpython-310.pyc
-src/ui/__pycache__/cli.cpython-310.pyc
-src/ui/gui/__pycache__/__init__.cpython-310.pyc
-src/ui/gui/__pycache__/dashboard.cpython-310.pyc
-src/utils/__pycache__/__init__.cpython-310.pyc
-src/utils/__pycache__/logger.cpython-310.pyc
