@@ -2,33 +2,218 @@
 # Purpose: Stores configuration settings for live trading and backtesting
 
 # Trading pairs with timeframes (in minutes)
-# Top 5 major crypto pairs × 2 timeframes (M15 & H1)
+# 50 major pairs across 5 categories × 2 timeframes (M15 & H1) = 100 backtests
 pairs:
-  # Bitcoin
+  # FOREX - 10 Major Currency Pairs
+  - symbol: EURUSD
+    timeframe: 15
+  - symbol: EURUSD
+    timeframe: 60
+  - symbol: GBPUSD
+    timeframe: 15
+  - symbol: GBPUSD
+    timeframe: 60
+  - symbol: USDJPY
+    timeframe: 15
+  - symbol: USDJPY
+    timeframe: 60
+  - symbol: USDCHF
+    timeframe: 15
+  - symbol: USDCHF
+    timeframe: 60
+  - symbol: AUDUSD
+    timeframe: 15
+  - symbol: AUDUSD
+    timeframe: 60
+  - symbol: NZDUSD
+    timeframe: 15
+  - symbol: NZDUSD
+    timeframe: 60
+  - symbol: USDCAD
+    timeframe: 15
+  - symbol: USDCAD
+    timeframe: 60
+  - symbol: EURJPY
+    timeframe: 15
+  - symbol: EURJPY
+    timeframe: 60
+  - symbol: GBPJPY
+    timeframe: 15
+  - symbol: GBPJPY
+    timeframe: 60
+  - symbol: EURGBP
+    timeframe: 15
+  - symbol: EURGBP
+    timeframe: 60
+
+  # STOCKS - 10 Major Stock Indices
+  - symbol: AAPL
+    timeframe: 15
+  - symbol: AAPL
+    timeframe: 60
+  - symbol: MSFT
+    timeframe: 15
+  - symbol: MSFT
+    timeframe: 60
+  - symbol: GOOGL
+    timeframe: 15
+  - symbol: GOOGL
+    timeframe: 60
+  - symbol: AMZN
+    timeframe: 15
+  - symbol: AMZN
+    timeframe: 60
+  - symbol: NVDA
+    timeframe: 15
+  - symbol: NVDA
+    timeframe: 60
+  - symbol: TSLA
+    timeframe: 15
+  - symbol: TSLA
+    timeframe: 60
+  - symbol: JPM
+    timeframe: 15
+  - symbol: JPM
+    timeframe: 60
+  - symbol: V
+    timeframe: 15
+  - symbol: V
+    timeframe: 60
+  - symbol: WMT
+    timeframe: 15
+  - symbol: WMT
+    timeframe: 60
+  - symbol: JNJ
+    timeframe: 15
+  - symbol: JNJ
+    timeframe: 60
+
+  # COMMODITIES - 10 Metals, Energies, Agriculture
+  - symbol: XAUUSD
+    timeframe: 15
+  - symbol: XAUUSD
+    timeframe: 60
+  - symbol: XAGUSD
+    timeframe: 15
+  - symbol: XAGUSD
+    timeframe: 60
+  - symbol: XPDUSD
+    timeframe: 15
+  - symbol: XPDUSD
+    timeframe: 60
+  - symbol: XPTUSD
+    timeframe: 15
+  - symbol: XPTUSD
+    timeframe: 60
+  - symbol: WTIUSD
+    timeframe: 15
+  - symbol: WTIUSD
+    timeframe: 60
+  - symbol: BRNUSD
+    timeframe: 15
+  - symbol: BRNUSD
+    timeframe: 60
+  - symbol: NGAS
+    timeframe: 15
+  - symbol: NGAS
+    timeframe: 60
+  - symbol: CORN
+    timeframe: 15
+  - symbol: CORN
+    timeframe: 60
+  - symbol: SOYBEAN
+    timeframe: 15
+  - symbol: SOYBEAN
+    timeframe: 60
+  - symbol: WHEAT
+    timeframe: 15
+  - symbol: WHEAT
+    timeframe: 60
+
+  # INDICES - 10 Major Market Indices
+  - symbol: SP500
+    timeframe: 15
+  - symbol: SP500
+    timeframe: 60
+  - symbol: DAX40
+    timeframe: 15
+  - symbol: DAX40
+    timeframe: 60
+  - symbol: FTSE100
+    timeframe: 15
+  - symbol: FTSE100
+    timeframe: 60
+  - symbol: CAC40
+    timeframe: 15
+  - symbol: CAC40
+    timeframe: 60
+  - symbol: NIKKEI225
+    timeframe: 15
+  - symbol: NIKKEI225
+    timeframe: 60
+  - symbol: ASX200
+    timeframe: 15
+  - symbol: ASX200
+    timeframe: 60
+  - symbol: HSI50
+    timeframe: 15
+  - symbol: HSI50
+    timeframe: 60
+  - symbol: SENSEX50
+    timeframe: 15
+  - symbol: SENSEX50
+    timeframe: 60
+  - symbol: MOEX10
+    timeframe: 15
+  - symbol: MOEX10
+    timeframe: 60
+  - symbol: MXX
+    timeframe: 15
+  - symbol: MXX
+    timeframe: 60
+
+  # CRYPTOCURRENCIES - 10 Major Digital Assets
   - symbol: BTCUSD
-    timeframe: 15      # 15 minutes
+    timeframe: 15
   - symbol: BTCUSD
-    timeframe: 60      # 1 hour
-  # Ethereum
+    timeframe: 60
   - symbol: ETHUSD
-    timeframe: 15      # 15 minutes
+    timeframe: 15
   - symbol: ETHUSD
-    timeframe: 60      # 1 hour
-  # Ripple
+    timeframe: 60
   - symbol: XRPUSD
-    timeframe: 15      # 15 minutes
+    timeframe: 15
   - symbol: XRPUSD
-    timeframe: 60      # 1 hour
-  # Binance Coin
+    timeframe: 60
   - symbol: BNBUSD
-    timeframe: 15      # 15 minutes
+    timeframe: 15
   - symbol: BNBUSD
-    timeframe: 60      # 1 hour
-  # Cardano
+    timeframe: 60
   - symbol: ADAUSD
-    timeframe: 15      # 15 minutes
+    timeframe: 15
   - symbol: ADAUSD
-    timeframe: 60      # 1 hour
+    timeframe: 60
+  - symbol: DOGEUSD
+    timeframe: 15
+  - symbol: DOGEUSD
+    timeframe: 60
+  - symbol: SOLUSD
+    timeframe: 15
+  - symbol: SOLUSD
+    timeframe: 60
+  - symbol: POLKAUSD
+    timeframe: 15
+  - symbol: POLKAUSD
+    timeframe: 60
+  - symbol: LINKUSD
+    timeframe: 15
+  - symbol: LINKUSD
+    timeframe: 60
+  - symbol: LITEUSD
+    timeframe: 15
+  - symbol: LITEUSD
+    timeframe: 60
+
 strategies:
   - name: rsi
     params:
