@@ -30,7 +30,7 @@ class Trader:
         try:
             with open("src/config/config.yaml", "r", encoding="utf-8") as file:
                 return yaml.safe_load(file)
-        except Exception as e:
+        except (FileNotFoundError, PermissionError, yaml.YAMLError) as e:
             self.logger.error("Failed to load config: %s", e)
             return {}
 

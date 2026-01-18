@@ -435,6 +435,6 @@ class DatabaseManager(AbstractDatabaseManager):
             )
             return backtest_result_id
 
-        except Exception as e:
+        except sqlite3.Error as e:
             self.logger.error("Failed to save backtest results: %s", e)
             return None
