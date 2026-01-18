@@ -7,7 +7,7 @@
 - **Multi-asset support**: 50 pairs × 3 timeframes (M15/H1/H4) = 150+ asset-timeframe combinations
 - **Two extensible strategies**: RSI and MACD (both implement `BaseStrategy` interface)
 - **Complete 3-step workflow**: Sync data → Backtest/optimize → Live trade with adaptive/fixed modes
-- **Interactive web dashboard**: Flask-based results analysis at `http://127.0.0.1:5000`
+- **Interactive web dashboard**: Flask-based results analysis at `http://127.0.0.1:2000`
 
 **Critical pattern**: Everything is database-driven. Backtest results stored in `optimal_params` table drive live strategy selection via `StrategySelector` (queries by rank_score, confidence thresholds).
 
@@ -38,7 +38,7 @@ python -m src.backtesting.backtest_manager --mode multi-backtest --strategy macd
 ```bash
 python -m src.main --mode live              # Adaptive: queries optimal_params, picks top strategies
 python -m src.main --mode live --strategy rsi --symbol BTCUSD  # Fixed: uses specified strategy
-python -m src.main --mode gui               # Web dashboard (http://127.0.0.1:5000)
+python -m src.main --mode gui               # Web dashboard (http://127.0.0.1:2000)
 ```
 - **Adaptive mode** (recommended): `AdaptiveTrader` → `StrategySelector` queries DB → returns top-3 strategies with confidence scores
 - **Fixed mode**: Single strategy for specific pair
@@ -165,7 +165,7 @@ This creates 150+ trading combos (50 symbols × 3 timeframes)
 - **`strategies`**: Strategy parameters (RSI period, MACD fast/slow, volumes)
 - **`mt5`**: MT5 credentials (login, server, password)
 - **`risk_management`**: Position limits, stop-loss/take-profit percentages
-- **`data`**: Fetch limits (1000 max rows per query, 5000 from MT5 API, 5000 minimum before trading)
+- **`data`**: Fetch limits (1000 max rows per query, 2000 from MT5 API, 2000 minimum before trading)
 - **`backtesting.optimization`**: Parameter ranges for each strategy (e.g., RSI period: [10, 12, 14, 16])
 
 **Auto-generated on startup**: `pairs` list populated from `pair_config` categories + timeframes (150+ combos).
@@ -478,7 +478,7 @@ db.connect()
 
 **Root Cause**:
 - `data_validator.validate_and_init()` was called for all modes including GUI
-- When symbols had <5000 rows of data, validator attempted to fetch from MT5
+- When symbols had <2000 rows of data, validator attempted to fetch from MT5
 - GUI mode only needs to **read** existing data, doesn't need MT5 connection
 
 **Fix Implemented** (v2):
@@ -494,14 +494,14 @@ db.connect()
   elif args.mode == "gui":
       logger.info("Launching web dashboard...")
       host = config.get("web", {}).get("host", "127.0.0.1")
-      port = config.get("web", {}).get("port", 5000)
+      port = config.get("web", {}).get("port", 2000)
       dashboard = DashboardServer(config, host=host, port=port)
       dashboard.run(debug=False)
   ```
 
 **Result**: 
 - ✅ GUI mode launches immediately without MT5 connection attempts
-- ✅ Dashboard available at `http://127.0.0.1:5000` within 1-2 seconds
+- ✅ Dashboard available at `http://127.0.0.1:2000` within 1-2 seconds
 - ✅ No "Authorization failed" errors in logs
 
 **Why this matters**: 

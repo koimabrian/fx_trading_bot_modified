@@ -94,7 +94,7 @@ def main():
             logger.info("Running data validation and initialization...")
             mt5_conn_temp = MT5Connector(db)
             validator = DataValidator(db, config, mt5_conn_temp)
-            validator.validate_and_init()  # Auto-fill missing data (5000 rows per symbol/timeframe)
+            validator.validate_and_init()  # Auto-fill missing data (2000 rows per symbol/timeframe)
 
         # Initialize MT5 connection
         mt5_conn = MT5Connector(db)
@@ -128,12 +128,29 @@ def main():
             else:
                 logger.info("Trading all configured symbols")
 
-            while True:
-                # Use batch sync for parallel fetching (more efficient with multiple pairs)
-                # Uncomment to use: data_fetcher.sync_data_batch()
-                data_fetcher.sync_data()  # Sequential mode (works with single pair)
+            # Separate timer for incremental sync (every 4 minutes instead of every 20 seconds)
+            last_incremental_sync = 0
+            incremental_sync_interval = 240  # 4 minutes in seconds
 
-                # Execute trades based on mode
+            while True:
+                current_time = time.time()
+
+                # Conditional sync strategy:
+                # 1. If no data exists → Full sync (fetch_count rows) to initialize
+                # 2. If data >= fetch_count AND 4 minutes elapsed → Incremental sync (only new rows since last timestamp)
+                fetch_count = config.get("data", {}).get("fetch_count", 2000)
+                has_sufficient_data = data_fetcher.has_sufficient_data(fetch_count)
+                time_since_last_sync = current_time - last_incremental_sync
+
+                if not has_sufficient_data:
+                    data_fetcher.sync_data()  # Full sync to initialize
+                    last_incremental_sync = current_time  # Reset timer after full sync
+                elif time_since_last_sync >= incremental_sync_interval:
+                    logger.info("4 minutes elapsed - performing incremental sync")
+                    data_fetcher.sync_data_incremental()  # Only fetch new rows since last timestamp
+                    last_incremental_sync = current_time  # Update timer
+
+                # Execute trades based on mode (runs every 20 seconds)
                 if use_adaptive:
                     adaptive_trader.execute_adaptive_trades()
                 else:
@@ -143,7 +160,7 @@ def main():
         elif args.mode == "gui":
             logger.info("Launching web dashboard...")
             host = config.get("web", {}).get("host", "127.0.0.1")
-            port = config.get("web", {}).get("port", 5000)
+            port = config.get("web", {}).get("port", 2000)
             dashboard = DashboardServer(config, host=host, port=port)
             dashboard.run(debug=False)
         else:

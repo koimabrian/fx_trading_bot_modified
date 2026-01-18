@@ -11,11 +11,11 @@ pair_config:
     stocks:
       symbols: [AAPL, MSFT, GOOGL, AMZN, NVDA, TSLA, JPM, V, WMT, JNJ]
     commodities:
-      symbols: [XAUUSD, XAGUSD, XPDUSD, XPTUSD, WTIUSD, BRNUSD, NGAS, CORN, SOYBEAN, WHEAT]
+      symbols: [XAUUSD, XAGUSD, XPDUSD, XPTUSD, USOIL, UKOIL, NGAS, CORN, SOYBEAN, WHEAT]
     indices:
-      symbols: [SP500, DAX40, FTSE100, CAC40, NIKKEI225, ASX200, HSI50, SENSEX50, MOEX10, MXX]
+      symbols: [SP500, DAX40, UK100 , FR40 , JP225, AUS200, HK50, AUS200]
     crypto:
-      symbols: [BTCUSD, ETHUSD, XRPUSD, BNBUSD, ADAUSD, DOGEUSD, SOLUSD, POLKAUSD, LINKUSD, LITEUSD]
+      symbols: [BTCUSD, ETHUSD]
 
 # Flat pairs list (auto-generated from pair_config on startup)
 pairs: []
@@ -49,8 +49,8 @@ database:
   path: src/data/market_data.sqlite
 data:
   fetch_limit: 1000    # Max rows to fetch from database per query
-  fetch_count: 5000    # How many candles to fetch from MT5 API per pair
-  min_rows_threshold: 5000  # Minimum rows required per symbol/timeframe before trading
+  fetch_count: 2000    # How many candles to fetch from MT5 API per pair
+  min_rows_threshold: 1000  # Minimum rows required per symbol/timeframe before trading
 risk_management:
   stop_loss_percent: 1.0
   take_profit_percent: 2.0

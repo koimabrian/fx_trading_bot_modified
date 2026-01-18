@@ -78,9 +78,47 @@ class MT5Connector:
             return False
 
     def fetch_market_data(self, symbol, timeframe, count=1000):
-        """Fetch market data from MT5 with improved error handling and logging."""
+        """Fetch market data from MT5 with improved error handling and logging.
+
+        Uses mt5.copy_rates_range for more reliable fetching instead of copy_rates_from_pos.
+
+        Args:
+            symbol: Trading symbol (e.g., 'EURUSD')
+            timeframe: MT5 timeframe constant (e.g., mt5.TIMEFRAME_M15)
+            count: Number of candles to fetch
+        """
         try:
-            rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, count)
+            # Handle None timeframe by using a safe default
+            if timeframe is None:
+                self.logger.warning(
+                    "Timeframe is None for %s, using TIMEFRAME_M15 as default", symbol
+                )
+                timeframe = mt5.TIMEFRAME_M15
+
+            # Get current UTC time to fetch recent data
+            import time as time_module
+
+            now = time_module.time()
+
+            # Calculate date range: from 'count' periods ago to now
+            # For MT5 timeframe objects, extract the minutes value
+            # MT5 constants: TIMEFRAME_M1=1, M15=15, H1=60, H4=240, D1=1440, etc.
+            timeframe_minutes = getattr(timeframe, "_value_", timeframe)
+            if isinstance(timeframe_minutes, int):
+                # If it's already numeric (minutes), use it directly
+                seconds_back = count * timeframe_minutes * 60
+            else:
+                # Fallback to 15 minutes if we can't determine the timeframe
+                self.logger.warning(
+                    "Could not determine timeframe value, using 15 minutes"
+                )
+                seconds_back = count * 15 * 60
+
+            start_time = now - seconds_back
+
+            # Use copy_rates_range which is more reliable than copy_rates_from_pos
+            rates = mt5.copy_rates_range(symbol, timeframe, int(start_time), int(now))
+
             if rates is None or len(rates) == 0:
                 self.logger.error(
                     "Failed to fetch market data for %s: %s. Check if the symbol is available and has historical data.",
@@ -92,7 +130,7 @@ class MT5Connector:
             df["time"] = pd.to_datetime(df["time"], unit="s")
             self.logger.debug("Fetched %d rows of market data for %s", len(df), symbol)
             return df
-        except (RuntimeError, OSError, ValueError) as e:
+        except (RuntimeError, OSError, ValueError, SystemError, TypeError) as e:
             self.logger.error("Error fetching market data for %s: %s", symbol, e)
             return None
 
