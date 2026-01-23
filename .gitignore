@@ -23,9 +23,6 @@ build/
 logs/*
 !logs/terminal_log.txt
 
-# Ignore all files in this folder
-/*
-
 # Allow this .gitignore file itself
 !.gitignore
 !.github/
@@ -33,3 +30,5 @@ logs/*
 # Source code
 !src/config/
 !src/data/
+/backtests/results
+/src/data/market_data.sqlite

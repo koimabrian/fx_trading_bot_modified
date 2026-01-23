@@ -105,15 +105,38 @@ class DatabaseManager(AbstractDatabaseManager):
         """Create indexes on frequently queried columns for performance."""
         try:
             cursor = self.conn.cursor()
+            # Check which tables exist before creating indexes
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            existing_tables = set(row[0] for row in cursor.fetchall())
+
             indexes = [
-                "CREATE INDEX IF NOT EXISTS idx_market_data_symbol_timeframe ON market_data(symbol, timeframe, time DESC)",
-                "CREATE INDEX IF NOT EXISTS idx_market_data_time ON market_data(time DESC)",
-                "CREATE INDEX IF NOT EXISTS idx_backtest_market_data_symbol_timeframe ON backtest_market_data(symbol, timeframe, time DESC)",
-                "CREATE INDEX IF NOT EXISTS idx_trades_strategy_id ON trades(strategy_id)",
-                "CREATE INDEX IF NOT EXISTS idx_trades_pair ON trades(pair)",
+                (
+                    "market_data",
+                    "CREATE INDEX IF NOT EXISTS idx_market_data_symbol_timeframe ON market_data(symbol, timeframe, time DESC)",
+                ),
+                (
+                    "market_data",
+                    "CREATE INDEX IF NOT EXISTS idx_market_data_time ON market_data(time DESC)",
+                ),
+                (
+                    "backtest_market_data",
+                    "CREATE INDEX IF NOT EXISTS idx_backtest_market_data_symbol_timeframe ON backtest_market_data(symbol, timeframe, time DESC)",
+                ),
+                (
+                    "trades",
+                    "CREATE INDEX IF NOT EXISTS idx_trades_strategy_id ON trades(strategy_id)",
+                ),
+                (
+                    "trades",
+                    "CREATE INDEX IF NOT EXISTS idx_trades_pair ON trades(pair)",
+                ),
             ]
-            for index_sql in indexes:
-                cursor.execute(index_sql)
+
+            for table_name, index_sql in indexes:
+                # Only create index if the table exists
+                if table_name in existing_tables:
+                    cursor.execute(index_sql)
+
             self.conn.commit()
             self.logger.info("Database indexes created successfully")
         except sqlite3.Error as e:

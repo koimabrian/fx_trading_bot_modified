@@ -7,13 +7,13 @@ pair_config:
   timeframes: [15, 60, 240]  # M15 (15 min), H1 (60 min), H4 (240 min)
   categories:
     forex:
-      symbols: [EURUSD, GBPUSD, USDJPY, USDCHF, AUDUSD, NZDUSD, USDCAD, EURJPY, GBPJPY, EURGBP]
+      symbols: [EURUSD, GBPUSD, USDJPY, USDCHF, AUDUSD, NZDUSD, USDCAD, EURJPY, GBPJPY]
     stocks:
       symbols: [AAPL, MSFT, GOOGL, AMZN, NVDA, TSLA, JPM, V, WMT, JNJ]
     commodities:
-      symbols: [XAUUSD, XAGUSD, XPDUSD, XPTUSD, USOIL, UKOIL, NGAS, CORN, SOYBEAN, WHEAT]
+      symbols: [XAUUSD, XAGUSD, XPDUSD, XPTUSD, USOIL, UKOIL]
     indices:
-      symbols: [SP500, DAX40, UK100 , FR40 , JP225, AUS200, HK50, AUS200]
+      symbols: [USOIL, UKOIL, UK100 , FR40 , JP225, AUS200, HK50]
     crypto:
       symbols: [BTCUSD, ETHUSD]
 
@@ -54,7 +54,7 @@ data:
 risk_management:
   stop_loss_percent: 1.0
   take_profit_percent: 2.0
-  max_open_positions: 10  # Maximum number of concurrent open positions
+  max_open_positions: 10 # Maximum number of concurrent open positions
 backtesting:
   data_range: "2025-11-27:2026-01-18"
   optimization:

@@ -1,0 +1,63 @@
+ 1) Navigate to project directory
+cd C:\Users\koima\Desktop\code\fx_trading_bot_modified
+
+# 2) Remove old files (clean slate)
+Remove-Item -Recurse -Force .venv -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force src\data -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force logs -ErrorAction SilentlyContinue
+
+# 3) Create data and logs directories
+mkdir src\data -Force
+mkdir logs -Force
+
+# 4) Create fresh virtual environment
+python -m venv .venv
+
+# 5) Enable script execution for this session
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force
+
+# 6) Activate virtual environment
+.venv\Scripts\Activate.ps1
+
+# 7) Upgrade pip and install dependencies
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+
+# 8) Verify installation
+python -V
+pip list
+
+# Daily routine commands
+Remove-Item -Recurse -Force src\data -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force logs -ErrorAction SilentlyContinue
+mkdir src\data -Force
+mkdir logs -Force
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force
+.venv\Scripts\Activate.ps1
+
+# Morning: sync fresh data
+python -m src.main --mode sync
+
+# Morning: update strategies (optional, once per week)
+python -m src.backtesting.backtest_manager --mode multi-backtest --strategy rsi
+python -m src.backtesting.backtest_manager --mode multi-backtest --strategy macd
+python -m src.main --mode live
+
+
+# Option A: Launch the web dashboard (recommended for analysis)
+python -m src.main --mode gui
+# Opens automatically at: http://127.0.0.1:5000
+
+# Option B: Trade all day with best strategies (continuous trading)
+python -m src.main --mode live
+
+# Testing & Verification
+pytest
+python tests/verify_implementation.py
+python tests/verify_system.py
+python tests/verify_web_dashboard.py            
+
+# Option 2: Fresh start (recommended)
+rm src/data/market_data.sqlite
+python -m src.main --mode sync
+python -m src.backtesting.backtest_manager --mode multi-backtest --strategy rsi

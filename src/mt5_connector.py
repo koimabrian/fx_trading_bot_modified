@@ -8,6 +8,7 @@ connection handling.
 # pylint: disable=no-member
 import logging
 import os
+import time
 from datetime import datetime
 
 import MetaTrader5 as mt5
@@ -95,28 +96,50 @@ class MT5Connector:
                 )
                 timeframe = mt5.TIMEFRAME_M15
 
-            # Get current UTC time to fetch recent data
-            import time as time_module
+            self.logger.debug(
+                "fetch_market_data: symbol=%s, timeframe=%s (type=%s), count=%d",
+                symbol,
+                timeframe,
+                type(timeframe),
+                count,
+            )
 
-            now = time_module.time()
+            # Get current UTC time to fetch recent data
+            now = time.time()
 
             # Calculate date range: from 'count' periods ago to now
-            # For MT5 timeframe objects, extract the minutes value
-            # MT5 constants: TIMEFRAME_M1=1, M15=15, H1=60, H4=240, D1=1440, etc.
-            timeframe_minutes = getattr(timeframe, "_value_", timeframe)
-            if isinstance(timeframe_minutes, int):
-                # If it's already numeric (minutes), use it directly
-                seconds_back = count * timeframe_minutes * 60
-            else:
-                # Fallback to 15 minutes if we can't determine the timeframe
-                self.logger.warning(
-                    "Could not determine timeframe value, using 15 minutes"
-                )
-                seconds_back = count * 15 * 60
+            # Determine timeframe_minutes for date range calculation
+            # MT5 constants: M15=15, H1=16385, H4=16388
+            # Use numeric equivalents for calculation: M15=15min, H1=60min, H4=240min
+            timeframe_minutes_map = {
+                mt5.TIMEFRAME_M15: 15,
+                mt5.TIMEFRAME_H1: 60,
+                mt5.TIMEFRAME_H4: 240,
+                15: 15,
+                60: 60,
+                240: 240,
+                16385: 60,
+                16388: 240,
+            }
+
+            timeframe_minutes = timeframe_minutes_map.get(timeframe, 15)
+
+            seconds_back = count * timeframe_minutes * 60
 
             start_time = now - seconds_back
 
-            # Use copy_rates_range which is more reliable than copy_rates_from_pos
+            self.logger.debug(
+                "Fetching %s bars for %s from %d to %d (timeframe: %d min)",
+                count,
+                symbol,
+                int(start_time),
+                int(now),
+                timeframe_minutes,
+            )
+
+            # Use copy_rates_range with the ORIGINAL timeframe parameter (constant or numeric)
+            # MT5 accepts: mt5.TIMEFRAME_M15 (15), mt5.TIMEFRAME_H1 (16385), mt5.TIMEFRAME_H4 (16388)
+            # NOT numeric 60/240 - those fail with "Invalid params"
             rates = mt5.copy_rates_range(symbol, timeframe, int(start_time), int(now))
 
             if rates is None or len(rates) == 0:
@@ -302,7 +325,7 @@ class MT5Connector:
                                 symbol,
                                 pos.type,
                                 pos.volume,
-                                "%s Exit Signal" % strategy_name,
+                                f"{strategy_name} Exit Signal",
                             )
         except (RuntimeError, OSError, ValueError) as e:
             self.logger.error("Error monitoring positions: %s", e)

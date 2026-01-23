@@ -94,7 +94,7 @@ def main():
             logger.info("Running data validation and initialization...")
             mt5_conn_temp = MT5Connector(db)
             validator = DataValidator(db, config, mt5_conn_temp)
-            validator.validate_and_init()  # Auto-fill missing data (2000 rows per symbol/timeframe)
+            validator.validate_and_init(symbol=args.symbol)  # Pass symbol parameter
 
         # Initialize MT5 connection
         mt5_conn = MT5Connector(db)
@@ -106,22 +106,28 @@ def main():
         strategy_manager = StrategyManager(db, mode=args.mode, symbol=args.symbol)
         data_fetcher = DataFetcher(mt5_conn, db, config)
         trader = Trader(strategy_manager, mt5_conn)
-        trade_monitor = TradeMonitor(strategy_manager, mt5_conn)
         adaptive_trader = AdaptiveTrader(strategy_manager, mt5_conn, db)
+        trade_monitor = TradeMonitor(strategy_manager, mt5_conn)
 
         # Run the appropriate mode
         if args.mode == "live":
             logger.info("Starting live trading mode...")
 
-            # Determine if using adaptive trading (no --strategy specified)
-            use_adaptive = args.strategy is None
+            # Determine if using adaptive trading:
+            # - Use adaptive if NO --strategy specified AND no --symbol specified (all symbols)
+            # - Use fixed strategy if --strategy is specified OR only one symbol is specified
+            use_adaptive = args.strategy is None and not args.symbol
 
             if use_adaptive:
                 logger.info(
-                    "Adaptive strategy selection enabled (no --strategy specified)"
+                    "Adaptive strategy selection enabled (no --strategy, trading all symbols)"
                 )
-            else:
+            elif args.strategy:
                 logger.info("Fixed strategy mode: using %s", args.strategy)
+            else:
+                logger.info(
+                    "Fixed strategy mode: trading single symbol %s", args.symbol
+                )
 
             if args.symbol:
                 logger.info("Trading specific symbol: %s", args.symbol)
@@ -139,20 +145,26 @@ def main():
                 # 1. If no data exists → Full sync (fetch_count rows) to initialize
                 # 2. If data >= fetch_count AND 4 minutes elapsed → Incremental sync (only new rows since last timestamp)
                 fetch_count = config.get("data", {}).get("fetch_count", 2000)
-                has_sufficient_data = data_fetcher.has_sufficient_data(fetch_count)
+                has_sufficient_data = data_fetcher.has_sufficient_data(
+                    fetch_count, symbol=args.symbol
+                )
                 time_since_last_sync = current_time - last_incremental_sync
 
                 if not has_sufficient_data:
-                    data_fetcher.sync_data()  # Full sync to initialize
+                    data_fetcher.sync_data(
+                        symbol=args.symbol
+                    )  # Full sync to initialize (respects --symbol)
                     last_incremental_sync = current_time  # Reset timer after full sync
                 elif time_since_last_sync >= incremental_sync_interval:
                     logger.info("4 minutes elapsed - performing incremental sync")
-                    data_fetcher.sync_data_incremental()  # Only fetch new rows since last timestamp
+                    data_fetcher.sync_data_incremental(
+                        symbol=args.symbol
+                    )  # Only fetch new rows (respects --symbol)
                     last_incremental_sync = current_time  # Update timer
 
                 # Execute trades based on mode (runs every 20 seconds)
                 if use_adaptive:
-                    adaptive_trader.execute_adaptive_trades()
+                    adaptive_trader.execute_adaptive_trades(symbol=args.symbol)
                 else:
                     trader.execute_trades(args.strategy)
                 trade_monitor.monitor_positions(args.strategy)
