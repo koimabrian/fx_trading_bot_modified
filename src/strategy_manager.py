@@ -107,10 +107,6 @@ class StrategyManager:
                     )
                     strategy.data_cache = self.data_cache
                     self.strategies.append(strategy)
-                    self.db.execute_query(
-                        "INSERT OR REPLACE INTO strategies (name, parameters, filters, score, status, is_ml) VALUES (?, ?, ?, ?, ?, ?)",
-                        (strategy_name, str(params), "{}", 0.0, self.mode, False),
-                    )
                 except (ImportError, KeyError, ValueError, TypeError) as e:
                     self.logger.error(
                         "Failed to load strategy %s: %s", strategy_name, e
@@ -121,7 +117,7 @@ class StrategyManager:
             raise
 
     def generate_signals(
-        self, strategy_name: str = None, symbol: str = None
+        self, strategy_name: Optional[str] = None, symbol: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Generate signals for all configured pairs and strategies.
 
@@ -129,39 +125,49 @@ class StrategyManager:
         for each pair/strategy combination. If symbol is specified, only
         that symbol is processed. Uses self.symbol if no symbol arg provided.
         """
-        signals = []
+        try:
+            signals = []
 
-        # Get all unique symbols from config
-        config_symbols = list(
-            dict.fromkeys([p["symbol"] for p in self.config.get("pairs", [])])
-        )
+            # Get all unique symbols from config
+            pairs_list = self.config.get("pairs", [])
+            if not pairs_list:
+                self.logger.debug("No pairs configured for signal generation")
+                return []  # Return empty list if no pairs configured
 
-        # Determine which symbol(s) to process
-        # Priority: method arg > instance symbol > all config symbols
-        if symbol:
-            symbols_to_process = [symbol]
-        elif self.symbol:
-            symbols_to_process = [self.symbol]
-        else:
-            symbols_to_process = config_symbols
+            config_symbols = list(dict.fromkeys([p["symbol"] for p in pairs_list]))
 
-        for pair_symbol in symbols_to_process:
-            for strategy in self.strategies:
-                # Filter by strategy name if specified
-                if strategy_name and not strategy.__class__.__name__.lower().startswith(
-                    strategy_name.lower()
-                ):
-                    continue
+            # Determine which symbol(s) to process
+            # Priority: method arg > instance symbol > all config symbols
+            if symbol:
+                symbols_to_process = [symbol]
+            elif self.symbol:
+                symbols_to_process = [self.symbol]
+            else:
+                symbols_to_process = config_symbols
 
-                # Generate signal for this symbol/strategy combination
-                signal = strategy.generate_entry_signal(symbol=pair_symbol)
-                if signal:
-                    signals.append(signal)
-                    self.logger.debug(
-                        "Generated signal from %s for %s: %s",
-                        strategy.__class__.__name__,
-                        pair_symbol,
-                        signal,
-                    )
+            for pair_symbol in symbols_to_process:
+                for strategy in self.strategies:
+                    # Filter by strategy name if specified
+                    if (
+                        strategy_name
+                        and not strategy.__class__.__name__.lower().startswith(
+                            strategy_name.lower()
+                        )
+                    ):
+                        continue
 
-        return signals
+                    # Generate signal for this symbol/strategy combination
+                    signal = strategy.generate_entry_signal(symbol=pair_symbol)
+                    if signal:
+                        signals.append(signal)
+                        self.logger.debug(
+                            "Generated signal from %s for %s: %s",
+                            strategy.__class__.__name__,
+                            pair_symbol,
+                            signal,
+                        )
+
+            return signals
+        except (KeyError, ValueError, TypeError, AttributeError) as e:
+            self.logger.error("Error generating signals: %s", e)
+            return []  # Always return list on error

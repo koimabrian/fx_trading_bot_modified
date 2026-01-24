@@ -1,6 +1,15 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """Test config structure and pair generation"""
 import yaml
+import sys
+import os
+
+# Fix encoding on Windows
+if sys.platform == "win32":
+    import io
+
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
 # Test loading config and generating pairs
 with open("src/config/config.yaml", "r", encoding="utf-8") as file:
@@ -26,23 +35,23 @@ if "pair_config" in config:
         for data in categories.values()
     )
 
-    print("✅ CONFIG STRUCTURE VALIDATION")
+    print("[OK] CONFIG STRUCTURE VALIDATION")
     print("=" * 70)
     print(f"Total Categories: {len(categories)}")
     print(f"Total Symbols: {total_symbols}")
     print(f"Total Timeframes: {len(timeframes)} {timeframes}")
-    print(f"Total Pairs Generated: {len(pairs)} ({total_symbols} × {len(timeframes)})")
+    print(f"Total Pairs Generated: {len(pairs)} ({total_symbols} x {len(timeframes)})")
     print()
-    print("📊 BREAKDOWN BY CATEGORY:")
+    print("BREAKDOWN BY CATEGORY:")
     print("=" * 70)
     for category, data in categories.items():
         symbols = data.get("symbols", []) if isinstance(data, dict) else data
         num_pairs = len(symbols) * len(timeframes)
         print(
-            f"{category.upper():15} {len(symbols):3} symbols × {len(timeframes)} TF = {num_pairs:3} backtests"
+            f"{category.upper():15} {len(symbols):3} symbols x {len(timeframes)} TF = {num_pairs:3} backtests"
         )
     print()
-    print("✅ SAMPLE PAIRS GENERATED:")
+    print("[OK] SAMPLE PAIRS GENERATED:")
     print("=" * 70)
     for i, pair in enumerate(pairs[:15]):
         tf_str = (
@@ -53,6 +62,6 @@ if "pair_config" in config:
         print(f'{i+1:3}. {pair["symbol"]:10} {tf_str}')
     print(f"... and {len(pairs) - 15} more")
     print()
-    print("✅ All checks passed! Config is valid and ready for backtesting.")
+    print("[OK] All checks passed! Config is valid and ready for backtesting.")
 else:
-    print("❌ pair_config not found in config.yaml")
+    print("[FAIL] pair_config not found in config.yaml")

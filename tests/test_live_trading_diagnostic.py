@@ -60,18 +60,22 @@ def test_data_availability():
 
         # Check market_data table
         query = "SELECT COUNT(*) as cnt FROM market_data"
-        result = db.execute_query(query)
-        count = result[0]["cnt"]
+        cursor = db.execute_query(query)
+        result = cursor.fetchall()
+        count = result[0][0] if result else 0
 
         if count > 0:
             print(f"[OK] Found {count} market data rows")
 
             # Check which symbols have data
-            query = "SELECT DISTINCT symbol, COUNT(*) as cnt FROM market_data GROUP BY symbol"
-            results = db.execute_query(query)
+            query = "SELECT DISTINCT tp.symbol, COUNT(*) as cnt FROM market_data md JOIN tradable_pairs tp ON md.symbol_id = tp.id GROUP BY tp.symbol"
+            cursor = db.execute_query(query)
+            results = cursor.fetchall()
             print("    Symbols with data:")
             for r in results[:10]:
-                print(f"      - {r['symbol']:8}: {r['cnt']:5} rows")
+                symbol = r[0]
+                cnt = r[1]
+                print(f"      - {symbol:8}: {cnt:5} rows")
             return True
         else:
             print("[FAIL] No market data in database")

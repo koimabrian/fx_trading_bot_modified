@@ -11,6 +11,11 @@ from typing import List, Dict, Optional
 from src.core.strategy_selector import StrategySelector
 from src.strategies.factory import StrategyFactory
 from src.utils.trading_rules import TradingRules
+from src.utils.backtesting_utils import (
+    volatility_rank_pairs,
+    get_strategy_parameters_from_optimal,
+    query_top_strategies_by_rank_score,
+)
 import yaml
 
 
@@ -130,6 +135,14 @@ class AdaptiveTrader:
         signals = []
 
         try:
+            # Check trading rules (weekend, market hours, etc.)
+            if not self.trading_rules.can_trade(symbol):
+                self.logger.warning(
+                    "Trading disabled for %s - market closed (weekend or non-trading hours)",
+                    symbol,
+                )
+                return []
+
             # Get timeframes - try pairs list first, then pair_config
             pair_timeframes = [
                 p["timeframe"]
@@ -209,6 +222,142 @@ class AdaptiveTrader:
         except (KeyError, ValueError, TypeError, AttributeError, RuntimeError) as e:
             self.logger.error("Error generating adaptive signals for %s: %s", symbol, e)
             return []
+
+    def run_pre_signal_checks(
+        self, active_symbols: Optional[List[str]] = None
+    ) -> Dict[str, Dict[str, Optional[tuple]]]:
+        """Execute Pre-Signal Checks (Step A-D of live workflow).
+
+        Implements strict order:
+          Step A: Load active pairs
+          Step B: Volatility ranking - select top N by ATR
+          Step C: Parameter selection - optimal → fallback to backtest results
+          Step D: Cache strategies
+
+        Args:
+            active_symbols: List of symbols to check. If None, load all from tradable_pairs.
+
+        Returns:
+            Dict mapping {symbol: {timeframe: (strategy_name, parameters)}}
+        """
+        logger = self.logger
+        selected_pairs = {}
+
+        try:
+            # Step A: Load active pairs from tradable_pairs table
+            if active_symbols:
+                active_pairs = active_symbols
+                logger.info(f"Step A: Using specified symbols: {active_symbols}")
+            else:
+                # Load from tradable_pairs table
+                query = "SELECT DISTINCT symbol FROM tradable_pairs"
+                result = self.db.execute_query(query)
+                active_pairs = [row["symbol"] for row in result] if result else []
+                logger.info(
+                    f"Step A: Loaded {len(active_pairs)} active pairs from database"
+                )
+
+            if not active_pairs:
+                logger.warning("No active pairs found in tradable_pairs table")
+                return {}
+
+            # Get timeframes from config
+            timeframes = self.config.get("timeframes", [60, 240, 1440])
+
+            # Step B: Volatility Ranking
+            volatility_config = self.config.get("volatility", {})
+            atr_period = volatility_config.get("atr_period", 14)
+            lookback_bars = volatility_config.get("lookback_bars", 200)
+            min_threshold = volatility_config.get("min_threshold", 0.001)
+            top_n_pairs = volatility_config.get("top_n_pairs", 10)
+
+            for timeframe in timeframes:
+                tf_str = f"M{timeframe}" if timeframe < 60 else f"H{timeframe // 60}"
+
+                logger.info(f"Step B: Volatility Ranking for {tf_str}...")
+                ranked_pairs = volatility_rank_pairs(
+                    self.db.conn,
+                    active_pairs,
+                    tf_str,
+                    atr_period=atr_period,
+                    lookback_bars=lookback_bars,
+                    min_threshold=min_threshold,
+                    top_n=top_n_pairs,
+                )
+
+                if not ranked_pairs:
+                    logger.warning(f"No pairs passed volatility filter for {tf_str}")
+                    continue
+
+                logger.info(
+                    f"Step B: {tf_str} - Selected {len(ranked_pairs)} pairs by volatility. "
+                    f"Top 3: {list(ranked_pairs.items())[:3]}"
+                )
+
+                # Step C & D: Parameter selection and strategy caching
+                for symbol in ranked_pairs.keys():
+                    logger.debug(
+                        f"Step C-D: Selecting parameters for {symbol} ({tf_str})..."
+                    )
+
+                    # Priority 1: Query optimal_parameters
+                    optimal = get_strategy_parameters_from_optimal(
+                        self.db.conn, symbol, tf_str
+                    )
+
+                    if optimal:
+                        strategy_name, params = optimal
+                        logger.info(
+                            f"  Priority 1 (Optimal): {symbol} ({tf_str}) → {strategy_name}"
+                        )
+                        # Cache strategy
+                        strategy = self._get_strategy_instance(
+                            strategy_name, symbol, tf_str
+                        )
+                        if strategy:
+                            if symbol not in selected_pairs:
+                                selected_pairs[symbol] = {}
+                            selected_pairs[symbol][tf_str] = (strategy_name, params)
+                    else:
+                        # Fallback: Query backtest_backtests by rank_score
+                        fallback = query_top_strategies_by_rank_score(
+                            self.db.conn, symbol, tf_str, top_n=1
+                        )
+
+                        if fallback:
+                            strategy_name, metrics, rank_score = fallback[0]
+                            logger.info(
+                                f"  Fallback (Adaptive): {symbol} ({tf_str}) → {strategy_name} "
+                                f"(rank={rank_score:.4f})"
+                            )
+                            # Extract params from metrics
+                            from src.utils.backtesting_utils import (
+                                extract_strategy_params_from_metrics,
+                            )
+
+                            params = extract_strategy_params_from_metrics(metrics)
+
+                            # Cache strategy
+                            strategy = self._get_strategy_instance(
+                                strategy_name, symbol, tf_str
+                            )
+                            if strategy:
+                                if symbol not in selected_pairs:
+                                    selected_pairs[symbol] = {}
+                                selected_pairs[symbol][tf_str] = (strategy_name, params)
+                        else:
+                            logger.warning(
+                                f"  No strategy found for {symbol} ({tf_str}). Skipping."
+                            )
+
+            logger.info(
+                f"Step D: Cached strategies. Total pairs selected: {len(selected_pairs)}"
+            )
+            return selected_pairs
+
+        except Exception as e:
+            logger.error(f"Error in pre-signal checks: {e}")
+            return {}
 
     def execute_adaptive_trades(self, symbol: Optional[str] = None) -> None:
         """Execute trades using adaptive strategy selection.

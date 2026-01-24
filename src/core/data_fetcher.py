@@ -6,8 +6,7 @@ data validation and caching interfaces for strategy backtesting.
 
 import logging
 import sqlite3
-import threading
-from typing import Dict, Optional
+from typing import Tuple
 
 import MetaTrader5 as mt5
 import pandas as pd
@@ -71,11 +70,12 @@ class DataFetcher:
                 tf_str = f"M{tf}" if tf < 60 else f"H{tf // 60}"
 
                 # Query row count for this pair
-                query = f"SELECT COUNT(*) as count FROM {table} WHERE symbol = ? AND timeframe = ?"
-                result = self.db.execute_query(query, (sym, tf_str))
+                query = f"SELECT COUNT(*) as count FROM {table} md JOIN tradable_pairs tp ON md.symbol_id = tp.id WHERE tp.symbol = ? AND md.timeframe = ?"
+                cursor = self.db.execute_query(query, (sym, tf_str))
+                result = cursor.fetchone()
 
                 if result:
-                    row_count = result[0]["count"]
+                    row_count = result["count"]
                     if row_count < min_rows:
                         insufficient_pairs.append(
                             f"{sym} ({tf_str}): {row_count}/{min_rows} rows"
@@ -140,7 +140,7 @@ class DataFetcher:
         # Ensure timeframe is a string (e.g., 'M15', 'H1') for database queries
         tf_str = f"M{timeframe}" if timeframe < 60 else f"H{timeframe//60}"
         try:
-            query = f"SELECT * FROM {table} WHERE symbol = ? AND timeframe = ? ORDER BY time DESC LIMIT ?"
+            query = f"SELECT * FROM {table} md JOIN tradable_pairs tp ON md.symbol_id = tp.id WHERE tp.symbol = ? AND md.timeframe = ? ORDER BY md.time DESC LIMIT ?"
             data = pd.read_sql(query, self.db.conn, params=(symbol, tf_str, limit))
             if data.empty:
                 self.logger.warning(
@@ -160,9 +160,7 @@ class DataFetcher:
             self.logger.error("Failed to fetch data for %s (%s): %s", symbol, tf_str, e)
             return pd.DataFrame()
 
-    def sync_data(
-        self, symbol=None, timeframe=None, mt5_timeframe=None, table="market_data"
-    ) -> None:
+    def sync_data(self, symbol=None, mt5_timeframe=None, table="market_data") -> None:
         """Fetch and sync OHLCV market data for all configured pairs or specific symbol/timeframe.
         Supports separate tables (market_data for live, backtest_market_data for backtesting).
         Deduplicates based on time to avoid duplicates.
@@ -229,15 +227,55 @@ class DataFetcher:
                         )
                         data[col] = None
 
+                # Rename tick_volume to volume for database compatibility
+                if "tick_volume" in data.columns:
+                    data.rename(columns={"tick_volume": "volume"}, inplace=True)
+
                 data["symbol"] = sym
                 data["timeframe"] = tf_str
 
-                # Check for duplicates in target table
+                # Add type field to distinguish historical vs. live data
+                if table == "backtest_market_data":
+                    data["type"] = "historical"
+                else:
+                    data["type"] = "live"  # Default to live for market_data
+
+                # Get symbol_id from tradable_pairs table
+                try:
+                    cursor = self.db.conn.cursor()
+                    cursor.execute(
+                        "SELECT id FROM tradable_pairs WHERE symbol = ?", (sym,)
+                    )
+                    result = cursor.fetchone()
+                    symbol_id = result[0] if result else None
+
+                    if not symbol_id:
+                        self.logger.warning(
+                            "Symbol %s not found in tradable_pairs. Adding it now.", sym
+                        )
+                        cursor.execute(
+                            "INSERT OR IGNORE INTO tradable_pairs (symbol) VALUES (?)",
+                            (sym,),
+                        )
+                        self.db.conn.commit()
+                        cursor.execute(
+                            "SELECT id FROM tradable_pairs WHERE symbol = ?", (sym,)
+                        )
+                        symbol_id = cursor.fetchone()[0]
+
+                    # Replace symbol with symbol_id in dataframe
+                    data.drop(columns=["symbol"], inplace=True)
+                    data["symbol_id"] = symbol_id
+                except (sqlite3.Error, AttributeError) as e:
+                    self.logger.error("Failed to get symbol_id for %s: %s", sym, e)
+                    continue
+
+                # Check for duplicates in target table (now use symbol_id)
                 try:
                     existing_data = pd.read_sql(
-                        f"SELECT time FROM {table} WHERE symbol = ? AND timeframe = ?",
+                        f"SELECT time FROM {table} WHERE symbol_id = ? AND timeframe = ?",
                         self.db.conn,
-                        params=(sym, tf_str),
+                        params=(symbol_id, tf_str),
                     )
                     self.logger.debug(
                         "Found %s existing rows for %s (%s) in %s",
@@ -263,6 +301,21 @@ class DataFetcher:
                     )
 
                 if not data.empty:
+                    # Select only columns that match the database schema
+                    schema_cols = [
+                        "symbol_id",
+                        "timeframe",
+                        "time",
+                        "open",
+                        "high",
+                        "low",
+                        "close",
+                        "volume",
+                        "type",
+                    ]
+                    available_cols = [col for col in schema_cols if col in data.columns]
+                    data = data[available_cols]
+
                     data.to_sql(table, self.db.conn, if_exists="append", index=False)
                     self.db.conn.commit()
                     self.logger.info(
@@ -282,7 +335,7 @@ class DataFetcher:
                 )
 
     def sync_data_incremental(
-        self, symbol=None, timeframe=None, mt5_timeframe=None, table="market_data"
+        self, symbol=None, mt5_timeframe=None, table="market_data"
     ) -> None:
         """Incremental data sync: only fetch data newer than the last timestamp in the database.
 
@@ -325,12 +378,13 @@ class DataFetcher:
 
             try:
                 # Get the latest timestamp from the database
-                query = f"SELECT MAX(time) as latest_time FROM {table} WHERE symbol = ? AND timeframe = ?"
-                result = self.db.execute_query(query, (sym, tf_str))
+                query = f"SELECT MAX({table}.time) as latest_time FROM {table} JOIN tradable_pairs tp ON {table}.symbol_id = tp.id WHERE tp.symbol = ? AND {table}.timeframe = ?"
+                cursor = self.db.execute_query(query, (sym, tf_str))
+                result = cursor.fetchone()
 
                 latest_time = None
-                if result and result[0]["latest_time"]:
-                    latest_time = pd.to_datetime(result[0]["latest_time"])
+                if result and result["latest_time"]:
+                    latest_time = pd.to_datetime(result["latest_time"])
                     self.logger.debug(
                         "Latest data for %s (%s): %s", sym, tf_str, latest_time
                     )
@@ -386,3 +440,156 @@ class DataFetcher:
                 self.logger.debug(
                     "Completed incremental sync attempt for %s (%s)", sym, tf_str
                 )
+
+    def sync_data_for_pair(
+        self,
+        symbol: str,
+        timeframe: int,
+        start_date,
+        end_date,
+        table: str = "market_data",
+        data_type: str = "live",
+    ) -> int:
+        """Synchronize data for a single pair (used by init mode).
+
+        Args:
+            symbol: Trading symbol
+            timeframe: Timeframe in minutes
+            start_date: Start date for historical data
+            end_date: End date for historical data
+            table: Target table name
+            data_type: Data type ('historical' or 'live')
+
+        Returns:
+            Number of rows added
+        """
+        try:
+            tf_str = self.format_timeframe(timeframe)
+
+            # Convert start_date and end_date to datetime if needed
+            if isinstance(start_date, str):
+                from datetime import datetime
+
+                start_date = datetime.strptime(start_date, "%Y-%m-%d")
+            if isinstance(end_date, str):
+                from datetime import datetime
+
+                end_date = datetime.strptime(end_date, "%Y-%m-%d")
+
+            # Fetch data from MT5
+            timeframe_mt5 = self.get_mt5_timeframe(timeframe)
+            data = self.mt5_conn.fetch_market_data(symbol, timeframe_mt5, count=2000)
+
+            if data is None or data.empty:
+                self.logger.warning("No data available for %s (%s)", symbol, tf_str)
+                return 0
+
+            # Rename tick_volume to volume for database compatibility
+            if "tick_volume" in data.columns:
+                data.rename(columns={"tick_volume": "volume"}, inplace=True)
+
+            # Prepare data
+            data["symbol"] = symbol
+            data["timeframe"] = tf_str
+            data["type"] = data_type
+
+            # Get symbol_id from tradable_pairs table
+            try:
+                cursor = self.db.conn.cursor()
+                cursor.execute(
+                    "SELECT id FROM tradable_pairs WHERE symbol = ?", (symbol,)
+                )
+                result = cursor.fetchone()
+                symbol_id = result[0] if result else None
+
+                if not symbol_id:
+                    # Insert if doesn't exist
+                    cursor.execute(
+                        "INSERT OR IGNORE INTO tradable_pairs (symbol) VALUES (?)",
+                        (symbol,),
+                    )
+                    self.db.conn.commit()
+                    cursor.execute(
+                        "SELECT id FROM tradable_pairs WHERE symbol = ?", (symbol,)
+                    )
+                    symbol_id = cursor.fetchone()[0]
+
+                # Replace symbol with symbol_id
+                data.drop(columns=["symbol"], inplace=True)
+                data["symbol_id"] = symbol_id
+            except (sqlite3.Error, AttributeError) as e:
+                self.logger.error("Failed to get symbol_id for %s: %s", symbol, e)
+                return 0
+
+            # Select only schema-required columns
+            schema_cols = [
+                "symbol_id",
+                "timeframe",
+                "time",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "type",
+            ]
+            available_cols = [col for col in schema_cols if col in data.columns]
+            data = data[available_cols]
+
+            # Insert data
+            data.to_sql(table, self.db.conn, if_exists="append", index=False)
+            self.db.conn.commit()
+
+            rows_added = len(data)
+            self.logger.info(
+                "Added %d rows for %s (%s) from %s to %s",
+                rows_added,
+                symbol,
+                tf_str,
+                start_date.date(),
+                end_date.date(),
+            )
+
+            return rows_added
+
+        except (OSError, ValueError, sqlite3.Error) as e:
+            self.logger.error("Failed to sync data for %s (%s): %s", symbol, tf_str, e)
+            return 0
+
+    def format_timeframe(self, timeframe_minutes: int) -> str:
+        """Convert timeframe from minutes to string format.
+
+        Args:
+            timeframe_minutes: Timeframe in minutes
+
+        Returns:
+            Formatted timeframe string (e.g., 'M15', 'H1')
+        """
+        if timeframe_minutes < 60:
+            return f"M{timeframe_minutes}"
+        elif timeframe_minutes < 1440:
+            return f"H{timeframe_minutes // 60}"
+        else:
+            return f"D{timeframe_minutes // 1440}"
+
+    def get_mt5_timeframe(self, timeframe_minutes: int):
+        """Get MT5 timeframe enum from minutes.
+
+        Args:
+            timeframe_minutes: Timeframe in minutes
+
+        Returns:
+            MT5 timeframe constant
+        """
+        timeframe_map = {
+            1: mt5.TIMEFRAME_M1,
+            5: mt5.TIMEFRAME_M5,
+            15: mt5.TIMEFRAME_M15,
+            30: mt5.TIMEFRAME_M30,
+            60: mt5.TIMEFRAME_H1,
+            240: mt5.TIMEFRAME_H4,
+            1440: mt5.TIMEFRAME_D1,
+            10080: mt5.TIMEFRAME_W1,
+            43200: mt5.TIMEFRAME_MN1,
+        }
+        return timeframe_map.get(timeframe_minutes, mt5.TIMEFRAME_M15)

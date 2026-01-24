@@ -233,32 +233,7 @@ class MT5Connector:
                 result.order,
                 result.deal,
             )
-            try:
-                strategy_id = self.db.execute_query(
-                    "SELECT id FROM strategies WHERE name = ? LIMIT 1",
-                    (strategy_name.lower(),),
-                )[0]["id"]
-                self.db.execute_query(
-                    "INSERT INTO trades (strategy_id, pair, entry_price, volume, timestamp, mode, order_id, deal_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        strategy_id,
-                        symbol,
-                        price,
-                        volume,
-                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "live",
-                        result.order,
-                        result.deal,
-                    ),
-                )
-                self.logger.debug(
-                    "Logged trade to database: Strategy %s, Symbol %s, Order ID %s",
-                    strategy_name,
-                    symbol,
-                    result.order,
-                )
-            except (KeyError, ValueError, TypeError) as e:
-                self.logger.error("Failed to log trade to database: %s", e)
+            # Trade is logged in main.py loop to avoid schema conflicts
             return True
         except (RuntimeError, OSError, ValueError) as e:
             self.logger.error("Error placing order for %s: %s", symbol, e)

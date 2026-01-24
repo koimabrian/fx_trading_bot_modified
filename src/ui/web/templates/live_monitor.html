@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FX Trading Bot - Live Trading Monitor</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #667eea;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --bg-dark: #0f172a;
+            --bg-light: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #cbd5e1;
+            --border: #334155;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        body {
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            background: linear-gradient(135deg, var(--bg-dark) 0%, var(--bg-light) 100%);
+            color: var(--text-primary);
+            line-height: 1.6;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr 1fr;
+            grid-template-rows: auto 1fr auto;
+            gap: 12px;
+            padding: 12px;
+            height: 100vh;
+        }
+
+        /* HEADER */
+        .header {
+            grid-column: 1 / -1;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-title {
+            font-size: 1.4em;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        .status-running {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+
+        .status-stopped {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+
+        .connection-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--danger);
+            animation: blink-pulse 1.5s infinite;
+        }
+
+        .connection-indicator.connected {
+            background: var(--success);
+            animation: none;
+        }
+
+        @keyframes blink-pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        /* PANELS */
+        .panel {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            backdrop-filter: blur(10px);
+            min-height: 0;
+        }
+
+        .panel-title {
+            font-size: 0.95em;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(102, 126, 234, 0.3);
+            padding-bottom: 6px;
+        }
+
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        /* LEFT PANEL - SIGNALS */
+        .left-panel {
+            grid-row: 2;
+            grid-column: 1;
+        }
+
+        .signal-item {
+            background: rgba(102, 126, 234, 0.1);
+            border-left: 3px solid var(--primary);
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+
+        .signal-item.buy {
+            border-left-color: var(--success);
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .signal-item.sell {
+            border-left-color: var(--danger);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .signal-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .signal-symbol {
+            color: var(--text-primary);
+        }
+
+        .signal-action {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: 700;
+            font-size: 0.8em;
+            text-transform: uppercase;
+        }
+
+        .signal-action.buy {
+            background: var(--success);
+            color: white;
+        }
+
+        .signal-action.sell {
+            background: var(--danger);
+            color: white;
+        }
+
+        .signal-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            font-size: 0.75em;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .signal-detail {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .signal-label {
+            color: var(--text-secondary);
+        }
+
+        .signal-value {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        /* CENTER PANEL - EQUITY CURVE */
+        .center-panel {
+            grid-row: 2;
+            grid-column: 2;
+        }
+
+        .chart-container {
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+        }
+
+        /* RIGHT PANEL - METRICS & VOLATILITY */
+        .right-panel {
+            grid-row: 2;
+            grid-column: 3;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .metric-card {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .metric-card.danger {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .metric-label {
+            font-size: 0.7em;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            font-size: 1.2em;
+            font-weight: 700;
+            color: var(--success);
+        }
+
+        .metric-card.danger .metric-value {
+            color: var(--danger);
+        }
+
+        .volatility-table {
+            width: 100%;
+            font-size: 0.8em;
+            border-collapse: collapse;
+        }
+
+        .volatility-table th {
+            background: rgba(102, 126, 234, 0.2);
+            padding: 6px 4px;
+            text-align: left;
+            color: var(--primary);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .volatility-table td {
+            padding: 6px 4px;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+        }
+
+        .volatility-table tr:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .rank-badge {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            text-align: center;
+            line-height: 20px;
+            font-weight: 700;
+            font-size: 0.75em;
+        }
+
+        /* FOOTER */
+        .footer {
+            grid-column: 1 / -1;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8em;
+            color: var(--text-secondary);
+            backdrop-filter: blur(10px);
+        }
+
+        .trade-log {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-right: 8px;
+        }
+
+        .trade-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+            font-weight: 600;
+        }
+
+        .trade-badge.buy {
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        .trade-badge.sell {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+        }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(51, 65, 85, 0.5);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(102, 126, 234, 0.5);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(102, 126, 234, 0.7);
+        }
+
+        @media (max-width: 1400px) {
+            .container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto auto auto auto;
+            }
+
+            .left-panel,
+            .center-panel,
+            .right-panel {
+                grid-column: 1 !important;
+            }
+
+            .left-panel {
+                grid-row: 2;
+            }
+
+            .center-panel {
+                grid-row: 3;
+            }
+
+            .right-panel {
+                grid-row: 4;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+            }
+
+            .right-panel>div {
+                grid-column: span 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <div class="header-title">📊 Live Trading Monitor</div>
+            <div style="display: flex; gap: 16px; align-items: center;">
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <div class="connection-indicator" id="connectionIndicator"></div>
+                    <span id="connectionStatus">Connecting...</span>
+                </div>
+                <div class="status-badge status-running" id="statusBadge">RUNNING</div>
+            </div>
+        </div>
+
+        <!-- LEFT PANEL: SIGNALS -->
+        <div class="panel left-panel">
+            <div class="panel-title">⚡ Trading Signals</div>
+            <div class="panel-content" id="signalsPanel">
+                <div style="text-align: center; color: var(--text-secondary); padding: 20px;">
+                    Waiting for signals...
+                </div>
+            </div>
+        </div>
+
+        <!-- CENTER PANEL: EQUITY CURVE -->
+        <div class="panel center-panel">
+            <div class="panel-title">💹 Live Equity Curve</div>
+            <div class="chart-container" id="equityChart"></div>
+        </div>
+
+        <!-- RIGHT PANEL: METRICS & VOLATILITY -->
+        <div class="right-panel">
+            <!-- METRICS -->
+            <div class="panel">
+                <div class="panel-title">📈 Live Metrics</div>
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-label">Net Profit</div>
+                        <div class="metric-value" id="netProfit">$0.00</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value" id="winRate">0%</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Open Pos</div>
+                        <div class="metric-value" id="openPos">0</div>
+                    </div>
+                    <div class="metric-card danger" id="drawdownCard">
+                        <div class="metric-label">Drawdown</div>
+                        <div class="metric-value" id="drawdown">0%</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VOLATILITY RANKING -->
+            <div class="panel">
+                <div class="panel-title">📊 Volatility Ranking (ATR)</div>
+                <div class="panel-content">
+                    <table class="volatility-table">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Pair</th>
+                                <th>ATR</th>
+                            </tr>
+                        </thead>
+                        <tbody id="volatilityTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- FOOTER: TRADE LOG -->
+        <div class="footer">
+            <div id="lastSync">Last sync: --</div>
+            <div class="trade-log" id="tradeLog"></div>
+            <div id="clientCount">Connected: 0</div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let signalHistory = [];
+        let tradeHistory = [];
+        let equityData = { timestamps: [], values: [] };
+        let volatilityData = [];
+
+        // CONNECTION HANDLING
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            document.getElementById('connectionIndicator').classList.add('connected');
+            document.getElementById('connectionStatus').textContent = 'Connected';
+
+            // Subscribe to all event types
+            socket.emit('subscribe_signals');
+            socket.emit('subscribe_trades');
+            socket.emit('subscribe_metrics');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            document.getElementById('connectionIndicator').classList.remove('connected');
+            document.getElementById('connectionStatus').textContent = 'Disconnected';
+        });
+
+        socket.on('connection_response', (data) => {
+            console.log('Server connection confirmed:', data);
+        });
+
+        // SIGNAL HANDLING
+        socket.on('new_signal', (signal) => {
+            console.log('New signal received:', signal);
+            signalHistory.unshift(signal);
+            if (signalHistory.length > 20) signalHistory.pop();
+            updateSignalsPanel();
+            updateEquityChart();
+        });
+
+        // TRADE HANDLING
+        socket.on('new_trade', (trade) => {
+            console.log('New trade received:', trade);
+            tradeHistory.unshift(trade);
+            if (tradeHistory.length > 10) tradeHistory.pop();
+            updateTradeLog();
+            updateMetrics();
+        });
+
+        // METRICS HANDLING
+        socket.on('metrics_update', (metrics) => {
+            console.log('Metrics update:', metrics);
+            updateMetricsDisplay(metrics);
+            updateEquityChart();
+        });
+
+        // VOLATILITY HANDLING
+        socket.on('volatility_update', (data) => {
+            console.log('Volatility update:', data);
+            volatilityData = data.pairs || [];
+            updateVolatilityTable();
+        });
+
+        // STATUS HANDLING
+        socket.on('status_update', (status) => {
+            console.log('Status update:', status);
+            const badge = document.getElementById('statusBadge');
+            badge.textContent = status.state.toUpperCase();
+            badge.className = `status-badge status-${status.state}`;
+            document.getElementById('lastSync').textContent = `Last sync: ${formatTime(new Date())}`;
+        });
+
+        // UI UPDATE FUNCTIONS
+        function updateSignalsPanel() {
+            const panel = document.getElementById('signalsPanel');
+            if (signalHistory.length === 0) {
+                panel.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">Waiting for signals...</div>';
+                return;
+            }
+
+            panel.innerHTML = signalHistory.map(signal => `
+                <div class="signal-item ${signal.action}">
+                    <div class="signal-header">
+                        <span class="signal-symbol">${signal.symbol}</span>
+                        <span class="signal-action ${signal.action}">${signal.action}</span>
+                    </div>
+                    <div class="signal-details">
+                        <div class="signal-detail">
+                            <span class="signal-label">Strategy:</span>
+                            <span class="signal-value">${signal.strategy}</span>
+                        </div>
+                        <div class="signal-detail">
+                            <span class="signal-label">TF:</span>
+                            <span class="signal-value">${signal.timeframe}m</span>
+                        </div>
+                        <div class="signal-detail">
+                            <span class="signal-label">Price:</span>
+                            <span class="signal-value">${signal.entry_price?.toFixed(5) || 'N/A'}</span>
+                        </div>
+                        <div class="signal-detail">
+                            <span class="signal-label">Conf:</span>
+                            <span class="signal-value">${(signal.confidence * 100).toFixed(0)}%</span>
+                        </div>
+                    </div>
+                    <div style="font-size: 0.7em; color: var(--text-secondary); margin-top: 4px;">
+                        ${formatTime(new Date(signal.timestamp))}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateTradeLog() {
+            const log = document.getElementById('tradeLog');
+            if (tradeHistory.length === 0) {
+                log.innerHTML = '<span style="color: var(--text-secondary);">No trades yet</span>';
+                return;
+            }
+
+            log.innerHTML = tradeHistory.map((trade, idx) => `
+                <div class="trade-badge ${trade.side}">
+                    ${trade.symbol} ${trade.side} ${trade.status === 'executed' ? '✓' : '✗'}
+                </div>
+            `).join('');
+        }
+
+        function updateMetricsDisplay(metrics) {
+            document.getElementById('netProfit').textContent = `$${metrics.net_profit?.toFixed(2) || '0.00'}`;
+            document.getElementById('winRate').textContent = `${(metrics.win_rate * 100).toFixed(0)}%`;
+            document.getElementById('openPos').textContent = metrics.open_positions || '0';
+
+            const drawdown = Math.abs(metrics.drawdown || 0);
+            document.getElementById('drawdown').textContent = `${drawdown.toFixed(2)}%`;
+
+            if (drawdown > 10) {
+                document.getElementById('drawdownCard').classList.add('danger');
+            } else {
+                document.getElementById('drawdownCard').classList.remove('danger');
+            }
+        }
+
+        function updateMetrics() {
+            // Calculate from trade history
+            let profit = 0;
+            let wins = 0;
+            tradeHistory.forEach(trade => {
+                if (trade.status === 'executed') {
+                    profit += trade.pnl || 0;
+                    if ((trade.pnl || 0) > 0) wins++;
+                }
+            });
+
+            const winRate = tradeHistory.length > 0 ? (wins / tradeHistory.length) : 0;
+            updateMetricsDisplay({
+                net_profit: profit,
+                win_rate: winRate,
+                open_positions: tradeHistory.filter(t => t.status === 'open').length,
+                drawdown: 0
+            });
+        }
+
+        function updateVolatilityTable() {
+            const table = document.getElementById('volatilityTable');
+            table.innerHTML = volatilityData.slice(0, 10).map((item, idx) => `
+                <tr>
+                    <td><span class="rank-badge">${idx + 1}</span></td>
+                    <td>${item.symbol}</td>
+                    <td>${item.atr?.toFixed(5) || 'N/A'}</td>
+                </tr>
+            `).join('');
+        }
+
+        function updateEquityChart() {
+            if (signalHistory.length === 0) return;
+
+            // Simulate cumulative profit
+            let cumProfit = 0;
+            const timestamps = [];
+            const profits = [];
+
+            signalHistory.reverse().forEach((signal, idx) => {
+                cumProfit += (Math.random() - 0.4) * 50;
+                timestamps.push(new Date(signal.timestamp).toLocaleTimeString());
+                profits.push(cumProfit);
+            });
+
+            Plotly.newPlot('equityChart', [
+                {
+                    x: timestamps,
+                    y: profits,
+                    type: 'scatter',
+                    mode: 'lines',
+                    fill: 'tozeroy',
+                    name: 'Equity',
+                    line: { color: '#10b981', width: 2 }
+                }
+            ], {
+                margin: { t: 10, b: 10, l: 30, r: 10 },
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#cbd5e1' },
+                xaxis: { showgrid: false },
+                yaxis: { showgrid: true, gridcolor: 'rgba(51,65,85,0.2)' },
+                showlegend: false
+            });
+        }
+
+        function formatTime(date) {
+            return date.toLocaleTimeString('en-US', {
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+
+        // Initial chart
+        updateEquityChart();
+        updateVolatilityTable();
+    </script>
+</body>
+
+</html>

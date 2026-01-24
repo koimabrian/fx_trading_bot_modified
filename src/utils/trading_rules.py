@@ -40,17 +40,25 @@ class TradingRules:
             with open("src/config/config.yaml", "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
 
-            pair_config = config.get("pair_config", {})
-            categories = pair_config.get("categories", {})
+            pair_config = config.get("pair_config", {}) or {}
+            categories = pair_config.get("categories", {}) or {}
 
-            # Initialize sets from config
-            cls._CRYPTO_SYMBOLS = set(categories.get("crypto", {}).get("symbols", []))
-            cls._FOREX_SYMBOLS = set(categories.get("forex", {}).get("symbols", []))
-            cls._STOCKS_SYMBOLS = set(categories.get("stocks", {}).get("symbols", []))
-            cls._COMMODITIES_SYMBOLS = set(
-                categories.get("commodities", {}).get("symbols", [])
+            # Initialize sets from config - handle None gracefully
+            cls._CRYPTO_SYMBOLS = set(
+                categories.get("crypto", {}).get("symbols", []) or []
             )
-            cls._INDICES_SYMBOLS = set(categories.get("indices", {}).get("symbols", []))
+            cls._FOREX_SYMBOLS = set(
+                categories.get("forex", {}).get("symbols", []) or []
+            )
+            cls._STOCKS_SYMBOLS = set(
+                categories.get("stocks", {}).get("symbols", []) or []
+            )
+            cls._COMMODITIES_SYMBOLS = set(
+                categories.get("commodities", {}).get("symbols", []) or []
+            )
+            cls._INDICES_SYMBOLS = set(
+                categories.get("indices", {}).get("symbols", []) or []
+            )
 
             # Build symbol-to-category mapping for quick lookup
             cls._SYMBOLS_TO_CATEGORY = {}
@@ -76,86 +84,12 @@ class TradingRules:
                 len(cls._INDICES_SYMBOLS),
             )
         except (FileNotFoundError, KeyError, yaml.YAMLError) as e:
-            logging.getLogger(__name__).error(
-                "Failed to load pair_config from config.yaml: %s. Using fallback symbols.",
+            logging.getLogger(__name__).warning(
+                "Failed to load pair_config from config.yaml: %s. Pair categories will be empty until configured via init mode.",
                 e,
             )
-            # Fallback to minimal set if config not found
-            cls._CRYPTO_SYMBOLS = {
-                "BTCUSD",
-                "ETHUSD",
-                "XRPUSD",
-                "BNBUSD",
-                "ADAUSD",
-                "DOGEUSD",
-                "SOLUSD",
-                "POLKAUSD",
-                "LINKUSD",
-                "LITEUSD",
-            }
-            cls._FOREX_SYMBOLS = {
-                "EURUSD",
-                "GBPUSD",
-                "USDJPY",
-                "USDCHF",
-                "AUDUSD",
-                "NZDUSD",
-                "USDCAD",
-                "EURJPY",
-                "GBPJPY",
-                "EURGBP",
-            }
-            cls._STOCKS_SYMBOLS = {
-                "AAPL",
-                "MSFT",
-                "GOOGL",
-                "AMZN",
-                "NVDA",
-                "TSLA",
-                "JPM",
-                "V",
-                "WMT",
-                "JNJ",
-            }
-            cls._COMMODITIES_SYMBOLS = {
-                "XAUUSD",
-                "XAGUSD",
-                "XPDUSD",
-                "XPTUSD",
-                "WTIUSD",
-                "BRNUSD",
-                "NGAS",
-                "CORN",
-                "SOYBEAN",
-                "WHEAT",
-            }
-            cls._INDICES_SYMBOLS = {
-                "SP500",
-                "DAX40",
-                "FTSE100",
-                "CAC40",
-                "NIKKEI225",
-                "ASX200",
-                "HSI50",
-                "SENSEX50",
-                "MOEX10",
-                "MXX",
-            }
+            # Initialize empty sets - user must configure pairs via init mode GUI
             cls._INITIALIZED = True
-            cls._STOCKS_SYMBOLS = set()
-            cls._COMMODITIES_SYMBOLS = {
-                "XAUUSD",
-                "XAGUSD",
-                "XPDUSD",
-                "XPTUSD",
-                "WTIUSD",
-                "BRNUSD",
-                "NGAS",
-                "CORN",
-                "SOYBEAN",
-                "WHEAT",
-            }
-            cls._INDICES_SYMBOLS = set()
 
     @staticmethod
     def get_symbol_category(symbol):

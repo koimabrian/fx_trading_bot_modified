@@ -1,25 +1,55 @@
 # fx_trading_bot/src/config/config.yaml
-# Purpose: Stores configuration settings for live trading and backtesting
+# Purpose: Hybrid workflow configuration for FX Trading Bot
+# Six modes: init, sync, backtest, live, gui, test
+# Reference: new_plan_workflow.yaml & new_plan.md
 
-# Trading pairs organized by category with multiple timeframes
-# 50 major pairs × 3 timeframes (M15, H1, H4) = 150 total backtests
+# ============================
+# MT5 Connection
+# ============================
+mt5:
+  login: 297864944
+  password: Brian@2025
+  server: Exness-MT5Trial9
+
+# ============================
+# Database Configuration
+# ============================
+database:
+  path: src/data/market_data.sqlite
+
+# ============================
+# Trading Pairs (Dynamically loaded from MT5)
+# ============================
+# Pairs are auto-discovered from MT5 during init mode
+# Symbols stored in tradable_pairs table, not hardcoded here
+timeframes: [15, 60, 240]  # M15 (15 min), H1 (60 min), H4 (240 min)
+pairs: []  # Auto-populated from tradable_pairs table on startup
+
+# ============================
+# Pair Configuration (used for testing and fallback)
+# ============================
 pair_config:
-  timeframes: [15, 60, 240]  # M15 (15 min), H1 (60 min), H4 (240 min)
+  timeframes: [15, 60, 240]   # M15, H1, H4
   categories:
     forex:
-      symbols: [EURUSD, GBPUSD, USDJPY, USDCHF, AUDUSD, NZDUSD, USDCAD, EURJPY, GBPJPY]
+      symbols:
+        # - EURUSD
+        # - GBPUSD
+        # - USDJPY
+        # - AUDUSD
     stocks:
-      symbols: [AAPL, MSFT, GOOGL, AMZN, NVDA, TSLA, JPM, V, WMT, JNJ]
-    commodities:
-      symbols: [XAUUSD, XAGUSD, XPDUSD, XPTUSD, USOIL, UKOIL]
-    indices:
-      symbols: [USOIL, UKOIL, UK100 , FR40 , JP225, AUS200, HK50]
+      symbols:
+        # - AAPL
+        # - MSFT
+        # - TSLA
     crypto:
-      symbols: [BTCUSD, ETHUSD]
+      symbols:
+        # - BTCUSD
+        # - ETHUSD
 
-# Flat pairs list (auto-generated from pair_config on startup)
-pairs: []
-
+# ============================
+# Strategies
+# ============================
 strategies:
   - name: rsi
     params:
@@ -33,36 +63,71 @@ strategies:
       slow_period: 26
       signal_period: 9
       volume: 0.01
-ml:
-  - name: random_forest
-    params:
-      symbol: USDJPY
-  - name: lstm
-    params:
-      symbol: USDJPY
-      lookback: 20
-mt5:
-  login: 297864944
-  password: Brian@2025
-  server: Exness-MT5Trial9
-database:
-  path: src/data/market_data.sqlite
-data:
-  fetch_limit: 1000    # Max rows to fetch from database per query
-  fetch_count: 2000    # How many candles to fetch from MT5 API per pair
-  min_rows_threshold: 1000  # Minimum rows required per symbol/timeframe before trading
+
+# ============================
+# Data Synchronization
+# ============================
+sync:
+  start_date: "2025-11-27"      # Historical data range start (YYYY-MM-DD)
+  end_date: "2026-01-18"        # Historical data range end (YYYY-MM-DD)
+  fetch_count: 10000            # Candles to fetch per symbol/timeframe
+  min_rows_threshold: 1000      # Minimum rows required before trading
+  incremental_interval_min: 4   # Sync frequency in minutes (live mode)
+
+# ============================
+# Risk Management
+# ============================
 risk_management:
-  stop_loss_percent: 1.0
-  take_profit_percent: 2.0
-  max_open_positions: 10 # Maximum number of concurrent open positions
+  stop_loss_percent: 1.0        # Stop loss as % of entry price
+  take_profit_percent: 2.0      # Take profit as % of entry price
+  lot_size: 0.01                # Default volume per trade
+  max_positions: 5              # Maximum concurrent open positions
+
+# ============================
+# Volatility Filtering
+# ============================
+volatility:
+  atr_period: 14                # ATR calculation period
+  min_threshold: 0.001          # Minimum ATR threshold
+  top_n_pairs: 10               # Select top N most volatile pairs
+  lookback_bars: 200            # Bars to look back for ATR calculation
+
+# ============================
+# Backtesting & Optimization
+# ============================
 backtesting:
   data_range: "2025-11-27:2026-01-18"
   optimization:
+    max_combos: 200             # Maximum parameter combinations to test
     rsi:
-      period: [10, 12, 14, 16]
-      overbought: [60, 70, 80]
-      oversold: [20, 30, 40]
+      period: [10, 12, 14, 16, 18, 20]
+      overbought: [65, 70, 75, 80]
+      oversold: [20, 25, 30, 35, 40]
     macd:
-      fast_period: [8, 12, 16]
-      slow_period: [20, 26, 32]
-      signal_period: [6, 9, 12]
+      fast_period: [8, 10, 12, 14, 16]
+      slow_period: [20, 24, 26, 28, 32]
+      signal_period: [6, 8, 9, 10, 12]
+
+# ============================
+# Mode Chaining (Optional)
+# ============================
+modes:
+  # Uncomment to run multiple modes in sequence
+  # full_run: [init, backtest, live]
+  # Just use individual CLI commands for now
+
+# ============================
+# GUI/Dashboard Configuration
+# ============================
+gui:
+  host: "127.0.0.1"             # Flask server host
+  port: 5000                    # Flask server port
+
+# ============================
+# Logging Configuration
+# ============================
+logging:
+  level: INFO                   # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "[%(asctime)s] %(levelname)s - %(name)s - %(message)s"
+  file: logs/bot.log
+  console: true                 # Enable console output

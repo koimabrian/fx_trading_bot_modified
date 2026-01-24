@@ -8,7 +8,6 @@ import argparse
 import json
 import logging
 import os
-import webbrowser
 from datetime import datetime
 from itertools import product
 
@@ -17,6 +16,7 @@ import numpy as np
 import pandas as pd
 import yaml
 from backtesting.lib import FractionalBacktest
+from tqdm import tqdm
 
 from src.core.data_handler import DataHandler
 from src.database.db_manager import DatabaseManager
@@ -53,7 +53,7 @@ class BacktestManager:
 
             try:
                 # Read from market_data (live data)
-                query = "SELECT * FROM market_data WHERE symbol = ? AND timeframe = ? ORDER BY time ASC"
+                query = "SELECT md.* FROM market_data md JOIN tradable_pairs tp ON md.symbol_id = tp.id WHERE tp.symbol = ? AND md.timeframe = ? ORDER BY md.time ASC"
                 data = pd.read_sql_query(query, self.db.conn, params=(symbol, tf_str))
 
                 if data.empty:
@@ -67,7 +67,7 @@ class BacktestManager:
                 # Check what's already in backtest_market_data to avoid duplicates
                 try:
                     existing = pd.read_sql_query(
-                        "SELECT time FROM backtest_market_data WHERE symbol = ? AND timeframe = ?",
+                        "SELECT bmd.time FROM backtest_market_data bmd JOIN tradable_pairs tp ON bmd.symbol_id = tp.id WHERE tp.symbol = ? AND bmd.timeframe = ?",
                         self.db.conn,
                         params=(symbol, tf_str),
                     )
@@ -105,16 +105,89 @@ class BacktestManager:
                 )
 
     def run_backtest(
-        self, symbol, strategy_name, start_date=None, end_date=None, timeframe=None
+        self,
+        symbol=None,
+        strategy_name=None,
+        start_date=None,
+        end_date=None,
+        timeframe=None,
     ):
         """Run backtest for specified symbol and strategy with parameter optimization
 
         Args:
-            symbol: Trading symbol (e.g., 'BTCUSD')
-            strategy_name: Name of strategy to backtest
+            symbol: Trading symbol (e.g., 'BTCUSD'), if None backtest all
+            strategy_name: Name of strategy to backtest, if None backtest all
             start_date: Optional start date (YYYY-MM-DD), falls back to config if not provided
             end_date: Optional end date (YYYY-MM-DD), falls back to config if not provided
             timeframe: Optional explicit timeframe (15 or 60), auto-detect if not provided
+        """
+        # If no strategy specified, backtest all configured strategies
+        if strategy_name is None:
+            strategies_to_test = self.config.get(
+                "strategies", [{"name": "rsi"}, {"name": "macd"}]
+            )
+        else:
+            strategies_to_test = [
+                s
+                for s in self.config.get("strategies", [])
+                if s["name"].lower() == strategy_name.lower()
+            ]
+            if not strategies_to_test:
+                self.logger.error("Strategy %s not found in config", strategy_name)
+                return
+
+        # If no symbol specified, get all symbols from database
+        if symbol is None:
+            cursor = self.db.conn.cursor()
+            cursor.execute("SELECT DISTINCT symbol FROM tradable_pairs")
+            symbols_to_test = [row[0] for row in cursor.fetchall()]
+            if not symbols_to_test:
+                self.logger.warning("No symbols found in tradable_pairs table")
+                return
+        else:
+            symbols_to_test = [symbol]
+
+        # Get all timeframes from config
+        pair_config = self.config.get("pair_config", {})
+        timeframes_to_test = pair_config.get("timeframes", [15, 60, 240])
+
+        # Calculate total tests for progress bar
+        total_tests = len(symbols_to_test) * len(strategies_to_test)
+        if timeframe is None:
+            total_tests *= len(timeframes_to_test)
+
+        # Create progress bar
+        progress_bar = tqdm(total=total_tests, desc="Backtesting", unit="test")
+
+        # Run backtest for each combination
+        for sym in symbols_to_test:
+            for strategy_config in strategies_to_test:
+                # If specific timeframe provided, use it; otherwise test all timeframes
+                if timeframe:
+                    self._run_single_backtest(
+                        sym, strategy_config["name"], start_date, end_date, timeframe
+                    )
+                    progress_bar.update(1)
+                else:
+                    for tf in timeframes_to_test:
+                        self._run_single_backtest(
+                            sym, strategy_config["name"], start_date, end_date, tf
+                        )
+                        progress_bar.update(1)
+
+        progress_bar.close()
+
+    def _run_single_backtest(
+        self, symbol, strategy_name, start_date=None, end_date=None, timeframe=None
+    ):
+        """Run backtest for a single symbol/strategy combination
+
+        Args:
+            symbol: Trading symbol (e.g., 'BTCUSD')
+            strategy_name: Name of strategy to backtest
+            start_date: Optional start date
+            end_date: Optional end date
+            timeframe: Optional explicit timeframe
         """
         strategy_config = next(
             (
@@ -152,6 +225,15 @@ class BacktestManager:
 
         tf_str = f"M{tf}" if tf < 60 else f"H{tf//60}"
 
+        self.logger.info("=" * 80)
+        self.logger.info(
+            "[BACKTEST] Strategy: %s | Pair: %s | Timeframe: %s [%s]",
+            strategy_name.upper(),
+            symbol,
+            tf_str,
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        )
+        self.logger.info("=" * 80)
         self.logger.info(
             "Running backtest for %s (%s) from %s to %s",
             symbol,
@@ -292,9 +374,9 @@ class BacktestManager:
                 existing_strat = self.db.execute_query(
                     "SELECT id FROM backtest_strategies WHERE name = ? LIMIT 1",
                     (strategy_name.lower(),),
-                )
+                ).fetchall()
                 if existing_strat:
-                    strategy_id = existing_strat[0]["id"]
+                    strategy_id = existing_strat[0][0]
                 else:
                     # Insert strategy if it doesn't exist
                     self.db.execute_query(
@@ -304,14 +386,42 @@ class BacktestManager:
                     result = self.db.execute_query(
                         "SELECT id FROM backtest_strategies WHERE name = ? LIMIT 1",
                         (strategy_name.lower(),),
-                    )
-                    strategy_id = result[0]["id"]
+                    ).fetchall()
+                    strategy_id = result[0][0]
+
+                # Get symbol_id from tradable_pairs
+                symbol_id_result = self.db.execute_query(
+                    "SELECT id FROM tradable_pairs WHERE symbol = ?",
+                    (symbol,),
+                ).fetchall()
+                if not symbol_id_result:
+                    self.logger.error("Symbol %s not found in tradable_pairs", symbol)
+                    return
+                symbol_id = symbol_id_result[0][0]
+
+                # Calculate rank_score from metrics
+                sharpe = metrics.get("sharpe_ratio", 0)
+                profit_factor = metrics.get("profit_factor", 0)
+                max_dd = (
+                    abs(metrics.get("max_drawdown", 0))
+                    if metrics.get("max_drawdown")
+                    else 0
+                )
+
+                # Simple rank score: higher sharpe, higher profit factor, lower drawdown
+                rank_score = (
+                    (sharpe / 10.0 if sharpe != 0 else 0)
+                    + (min(profit_factor / 5.0, 1.0) if profit_factor != 0 else 0)
+                    - (max_dd * 10 if max_dd != 0 else 0)
+                )
+                rank_score = max(0, min(1.0, rank_score))  # Clamp to 0-1
+                metrics["rank_score"] = rank_score
 
                 self.db.execute_query(
-                    "INSERT OR REPLACE INTO backtest_backtests (strategy_id, symbol, timeframe, metrics, timestamp) VALUES (?, ?, ?, ?, ?)",
+                    "INSERT OR REPLACE INTO backtest_backtests (strategy_id, symbol_id, timeframe, metrics, timestamp) VALUES (?, ?, ?, ?, ?)",
                     (
                         strategy_id,
-                        symbol,
+                        symbol_id,
                         tf_str,
                         json.dumps(metrics),
                         datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -324,38 +434,27 @@ class BacktestManager:
                     metrics,
                 )
 
-                # Save optimal parameters
+                # Save optimal parameters (update to use symbol_id)
                 param_values = (
-                    symbol,
+                    symbol_id,
                     tf_str,
                     strategy_name,
-                    best_params.get("period", best_params.get("fast_period", 0)),
-                    best_params.get("overbought", best_params.get("slow_period", 0)),
-                    best_params.get("oversold", best_params.get("signal_period", 0)),
-                    float(stats_dict.get("Sharpe Ratio", 0)),
+                    json.dumps(best_params),
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 )
                 self.db.execute_query(
-                    "INSERT INTO optimal_params (symbol, timeframe, strategy_name, period, buy_threshold, sell_threshold, sharpe_ratio, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT OR REPLACE INTO optimal_parameters (symbol_id, timeframe, strategy_name, parameter_value, last_optimized) VALUES (?, ?, ?, ?, ?)",
                     param_values,
                 )
             except (KeyError, TypeError, ValueError) as exc:
                 self.logger.error("Failed to save backtest results: %s", exc)
 
-            # Generate equity curve
-            os.makedirs("backtests/results", exist_ok=True)
-            equity_file = (
-                f"backtests/results/equity_curve_{symbol}_{strategy_name}.html"
-            )
-            try:
-                bt.plot(filename=equity_file)
-                self.logger.info("Saved equity curve to %s", equity_file)
-            except (IOError, OSError) as exc:
-                self.logger.error("Failed to generate equity curve: %s", exc)
+            # Note: Equity curve plotting removed per user request - only terminal progress required
+            # Files would be saved to: backtests/results/equity_curve_{symbol}_{strategy_name}.html
+            # View results in web dashboard instead: http://127.0.0.1:5000/backtest
 
             # Generate optimization heatmap (for RSI only, as example)
-            if strategy_name.lower() == "rsi":
-                self.generate_heatmap(results, symbol, tf_str)
+            # Note: Heatmap generation removed per user request - only terminal progress required
 
     def optimize(self, symbol, strategy_name, start_date=None, end_date=None):
         """Alias for run_backtest() - runs parameter optimization via backtest
@@ -437,13 +536,22 @@ class BacktestManager:
         )
         self.generate_multi_backtest_report(symbols, strategy_name)
 
-        # Auto-open dashboard in browser
-        dashboard_path = os.path.abspath("backtests/results/dashboard.html")
-        if os.path.exists(dashboard_path):
-            self.logger.info("Opening dashboard in browser: %s", dashboard_path)
-            webbrowser.open(f"file:///{dashboard_path}")
-        else:
-            self.logger.warning("Dashboard file not found at %s", dashboard_path)
+        # Print completion message with dashboard info
+        self.logger.info("=" * 80)
+        self.logger.info("[COMPLETE] BACKTEST SUMMARY")
+        self.logger.info("=" * 80)
+        self.logger.info(
+            "Backtest Results: backtests/results/multi_backtest_%s_report.csv",
+            strategy_name,
+        )
+        self.logger.info("Optimal Parameters: See optimal_parameters table in database")
+        self.logger.info("")
+        self.logger.info("[INFO] TO VIEW RESULTS:")
+        self.logger.info("  1. Backtest Dashboard: python -m src.main --mode gui")
+        self.logger.info("     Navigate to: http://127.0.0.1:5000/backtest")
+        self.logger.info("  2. Live Trading Dashboard: python -m src.main --mode live")
+        self.logger.info("     Navigate to: http://127.0.0.1:5000")
+        self.logger.info("=" * 80)
 
     def generate_multi_backtest_report(self, symbols, strategy_name):
         """Generate comparison report for multi-symbol backtests (all timeframes)"""
@@ -527,18 +635,6 @@ class BacktestManager:
             )
         except (IOError, OSError, ValueError) as exc:
             self.logger.error("Failed to generate heatmap: %s", exc)
-
-    def migrate(self):
-        """Migrate database by dropping and recreating tables"""
-        try:
-            self.db.execute_query("DROP TABLE IF EXISTS backtest_market_data")
-            self.db.execute_query("DROP TABLE IF EXISTS backtest_strategies")
-            self.db.execute_query("DROP TABLE IF EXISTS backtest_backtests")
-            self.db.execute_query("DROP TABLE IF EXISTS optimal_params")
-            self.db.create_tables()
-            self.logger.info("Database migration completed successfully")
-        except (OSError, TypeError) as exc:
-            self.logger.error("Database migration failed: %s", exc)
 
     def run(self):
         """Parse arguments and run the specified mode"""

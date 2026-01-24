@@ -57,7 +57,8 @@ class StrategySelector:
                     bb.timestamp
                 FROM backtest_backtests bb
                 JOIN backtest_strategies bs ON bb.strategy_id = bs.id
-                WHERE bb.symbol = ? AND bb.timeframe = ?
+                JOIN tradable_pairs tp ON bb.symbol_id = tp.id
+                WHERE tp.symbol = ? AND bb.timeframe = ?
                 ORDER BY bb.timestamp DESC
             """
 

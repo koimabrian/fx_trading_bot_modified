@@ -18,14 +18,12 @@ class MetricsEngine:
         self,
         trades: List[Dict],
         returns: pd.Series,
-        _starting_capital: float = 10000.0,
     ) -> Dict[str, float]:
         """Calculate all 15 metrics from trades and returns.
 
         Args:
             trades: List of trade dicts with entry_time, exit_time, profit, profit_pct
             returns: Series of daily returns (index=date, values=returns)
-            _starting_capital: Initial account balance (unused)
 
         Returns:
             Dictionary with all 15 metrics
@@ -106,12 +104,11 @@ class MetricsEngine:
         total_profit = sum(t.get("profit", 0) for t in trades)
         return total_profit * 100
 
-    def _sharpe_ratio(self, returns: pd.Series, _risk_free_rate: float = 0.02) -> float:
+    def _sharpe_ratio(self, returns: pd.Series) -> float:
         """Calculate Sharpe ratio using empyrical.
 
         Args:
             returns: Series of daily returns
-            _risk_free_rate: Annual risk-free rate (unused, default 2%)
 
         Returns:
             Sharpe ratio (annualized)
@@ -271,14 +268,11 @@ class MetricsEngine:
 
     # ========== BONUS METRICS (3) ==========
 
-    def _sortino_ratio(
-        self, returns: pd.Series, _risk_free_rate: float = 0.02
-    ) -> float:
+    def _sortino_ratio(self, returns: pd.Series) -> float:
         """Calculate Sortino ratio (return vs downside volatility).
 
         Args:
             returns: Series of daily returns
-            _risk_free_rate: Annual risk-free rate (unused)
 
         Returns:
             Sortino ratio (annualized)

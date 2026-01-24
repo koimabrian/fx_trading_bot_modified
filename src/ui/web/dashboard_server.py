@@ -9,9 +9,22 @@ import json
 import logging
 import math
 import os
+import time
 from flask import Flask, render_template, jsonify, request, send_file
 from flask_cors import CORS
+from flask_socketio import SocketIO
 from src.database.db_manager import DatabaseManager
+from src.ui.web.live_broadcaster import broadcaster
+
+
+class SafeJSONProvider(DefaultJSONProvider):
+    """Custom JSON encoder that converts NaN and Infinity to 0."""
+
+    def default(self, o):
+        if isinstance(o, float):
+            if math.isnan(o) or math.isinf(o):
+                return 0
+        return super().default(o)
 
 
 class DashboardServer:
@@ -40,7 +53,16 @@ class DashboardServer:
         self.app = Flask(
             __name__, template_folder=template_dir, static_folder=static_dir
         )
+        # Use custom JSON provider to handle NaN and Infinity
+        self.app.json = SafeJSONProvider(self.app)
         CORS(self.app)
+
+        # Initialize Socket.IO for live updates
+        self.socketio = broadcaster.init_socketio(self.app)
+
+        # Initialize database and report API
+        self.db = DatabaseManager(config)
+        self.db.connect()
 
         # Register routes
         self.app.add_url_rule("/", "index", self.index)
@@ -57,6 +79,9 @@ class DashboardServer:
         self.app.add_url_rule(
             "/api/heatmap/<symbol>/<timeframe>", "api_heatmap", self.api_heatmap
         )
+
+        # Register Phase 3 report API routes
+        self._register_report_routes()
         self.app.add_url_rule(
             "/view-equity-curve", "view_equity_curve", self.view_equity_curve
         )
@@ -64,6 +89,49 @@ class DashboardServer:
         self.app.add_url_rule(
             "/api/comparison", "api_comparison", self.api_comparison, methods=["GET"]
         )
+
+        # Optimal parameters endpoint
+        self.app.add_url_rule(
+            "/api/optimal-parameters",
+            "api_optimal_parameters",
+            self.api_optimal_parameters,
+            methods=["GET"],
+        )
+
+        # Trading pairs status endpoint
+        self.app.add_url_rule(
+            "/api/trading-pairs",
+            "api_trading_pairs",
+            self.api_trading_pairs,
+            methods=["GET"],
+        )
+
+        # Live trading statistics endpoint
+        self.app.add_url_rule(
+            "/api/live-statistics",
+            "api_live_statistics",
+            self.api_live_statistics,
+            methods=["GET"],
+        )
+
+        # Clear execution history endpoint
+        self.app.add_url_rule(
+            "/api/clear-execution-history",
+            "api_clear_execution_history",
+            self.api_clear_execution_history,
+            methods=["POST"],
+        )
+
+        # Live data endpoint (for unified dashboard)
+        self.app.add_url_rule(
+            "/api/live-data",
+            "api_live_data",
+            self.api_live_data,
+            methods=["GET"],
+        )
+
+        # Live trading monitor route
+        self.app.add_url_rule("/live", "live_monitor", self.live_monitor)
 
     def _get_db(self):
         """Get a fresh database connection for the current request thread.
@@ -74,17 +142,21 @@ class DashboardServer:
         return DatabaseManager(self.config)
 
     def index(self):
-        """Serve the main dashboard HTML."""
-        return render_template("dashboard.html")
+        """Serve the main dashboard HTML (unified live + backtest analysis)."""
+        return render_template("dashboard_unified.html")
+
+    def live_monitor(self):
+        """Serve the live trading monitor with WebSocket support."""
+        return render_template("live_monitor.html")
 
     def api_symbols(self):
         """Get available symbols from database."""
         try:
             with self._get_db() as db:
                 symbols_result = db.execute_query(
-                    "SELECT DISTINCT symbol FROM backtest_backtests ORDER BY symbol"
-                )
-                symbols = [row["symbol"] for row in symbols_result]
+                    "SELECT DISTINCT tp.symbol FROM backtest_backtests b JOIN tradable_pairs tp ON b.symbol_id = tp.id ORDER BY tp.symbol"
+                ).fetchall()
+                symbols = [row[0] for row in symbols_result]
             return jsonify({"symbols": symbols, "status": "success"})
         except (RuntimeError, ValueError, KeyError) as e:
             self.logger.error("Failed to fetch symbols: %s", e)
@@ -128,23 +200,61 @@ class DashboardServer:
 
     @staticmethod
     def _safe_round(value, decimals=2):
-        """Safely round a value, handling NaN and None.
+        """Safely round a value, handling NaN, Infinity, and None.
 
         Args:
             value: Value to round
             decimals: Number of decimal places
 
         Returns:
-            Rounded number, 0 if NaN/None, or original value if not numeric
+            Rounded number, 0 if NaN/Infinity/None, or original value if not numeric
         """
         if value is None:
             return 0
         try:
-            if math.isnan(value):
+            if math.isnan(value) or math.isinf(value):
                 return 0
             return round(value, decimals)
         except (TypeError, ValueError):
             return 0
+
+    @staticmethod
+    def _clean_metrics(metrics_dict):
+        """Clean all metrics to ensure they're JSON-serializable.
+
+        Converts NaN and Infinity to 0, and ensures all values are valid JSON.
+
+        Args:
+            metrics_dict: Dictionary of metrics from backtest results
+
+        Returns:
+            Cleaned dictionary with valid JSON values
+        """
+        if not metrics_dict:
+            return {}
+
+        cleaned = {}
+        for key, value in metrics_dict.items():
+            if value is None:
+                cleaned[key] = 0
+            elif isinstance(value, float):
+                if math.isnan(value) or math.isinf(value):
+                    cleaned[key] = 0
+                else:
+                    cleaned[key] = value
+            else:
+                try:
+                    # Try to convert to float and check again
+                    float_val = float(value)
+                    if math.isnan(float_val) or math.isinf(float_val):
+                        cleaned[key] = 0
+                    else:
+                        cleaned[key] = value
+                except (TypeError, ValueError):
+                    # Not numeric, keep as-is
+                    cleaned[key] = value
+
+        return cleaned
 
     def api_results(self):
         """Get backtest results with optional filtering.
@@ -164,28 +274,39 @@ class DashboardServer:
             timeframe = request.args.get("timeframe", "All")
 
             query = """
-                SELECT b.strategy_id, s.name AS strategy_name, b.symbol, b.timeframe, b.metrics
+                SELECT b.strategy_id, s.name AS strategy_name, tp.symbol, b.timeframe, b.metrics
                 FROM backtest_backtests b
                 JOIN backtest_strategies s ON b.strategy_id = s.id
-                WHERE (:symbol = 'All' OR b.symbol = :symbol)
+                JOIN tradable_pairs tp ON b.symbol_id = tp.id
+                WHERE (:symbol = 'All' OR tp.symbol = :symbol)
                 AND (:timeframe = 'All' OR b.timeframe = :timeframe)
-                ORDER BY b.symbol, b.timeframe
+                ORDER BY tp.symbol, b.timeframe
             """
 
             with self._get_db() as db:
                 results = db.execute_query(
                     query, {"symbol": symbol, "timeframe": timeframe}
-                )
+                ).fetchall()
 
                 # Convert results to serializable format, handling NaN values
                 formatted_results = []
                 for row in results:
-                    metrics = json.loads(row["metrics"]) if row["metrics"] else {}
+                    metrics = json.loads(row[4]) if row[4] else {}
+                    # Clean all metrics to remove NaN/Infinity
+                    metrics = self._clean_metrics(metrics)
                     formatted_results.append(
                         {
-                            "strategy": row["strategy_name"],
-                            "symbol": row["symbol"],
-                            "timeframe": row["timeframe"],
+                            "strategy_name": row[1],
+                            "symbol": row[2],
+                            "timeframe": row[3],
+                            "total_return": self._safe_round(
+                                metrics.get("total_return", 0), 2
+                            ),
+                            "total_trades": int(metrics.get("total_trades", 0)),
+                            "win_rate": self._safe_round(metrics.get("win_rate", 0), 2),
+                            "max_drawdown": self._safe_round(
+                                metrics.get("max_drawdown", 0), 2
+                            ),
                             "sharpe_ratio": self._safe_round(
                                 metrics.get("sharpe_ratio", 0), 2
                             ),
@@ -219,6 +340,413 @@ class DashboardServer:
         except (RuntimeError, ValueError, KeyError) as e:
             self.logger.error("Failed to fetch results: %s", e)
             return jsonify({"results": [], "status": "error", "message": str(e)}), 500
+
+    def api_optimal_parameters(self):
+        """Get optimal parameters from database.
+
+        Returns:
+            JSON with optimal parameters grouped by strategy
+        """
+        try:
+            with self._get_db() as db:
+                # Query optimal parameters with symbol JOIN
+                query = """
+                    SELECT tp.symbol, op.timeframe, op.strategy_name, 
+                           op.parameter_value, op.metrics, op.last_optimized
+                    FROM optimal_parameters op
+                    JOIN tradable_pairs tp ON op.symbol_id = tp.id
+                    ORDER BY op.strategy_name, tp.symbol, op.timeframe
+                """
+                results = db.execute_query(query).fetchall()
+
+                # Group by strategy
+                parameters_by_strategy = {}
+                for row in results:
+                    (
+                        symbol,
+                        timeframe,
+                        strategy_name,
+                        params_json,
+                        metrics_json,
+                        last_optimized,
+                    ) = row
+
+                    if strategy_name not in parameters_by_strategy:
+                        parameters_by_strategy[strategy_name] = []
+
+                    params = json.loads(params_json) if params_json else {}
+                    metrics = json.loads(metrics_json) if metrics_json else {}
+                    metrics = self._clean_metrics(metrics)
+
+                    parameters_by_strategy[strategy_name].append(
+                        {
+                            "symbol": symbol,
+                            "timeframe": self._timeframe_to_string(timeframe),
+                            "parameters": params,
+                            "metrics": {
+                                "total_return": self._safe_round(
+                                    metrics.get("total_return", 0), 2
+                                ),
+                                "total_trades": int(metrics.get("total_trades", 0)),
+                                "win_rate": self._safe_round(
+                                    metrics.get("win_rate", 0), 2
+                                ),
+                                "max_drawdown": self._safe_round(
+                                    metrics.get("max_drawdown", 0), 2
+                                ),
+                                "sharpe_ratio": self._safe_round(
+                                    metrics.get("sharpe_ratio", 0), 2
+                                ),
+                                "profit_factor": self._safe_round(
+                                    metrics.get("profit_factor", 0), 2
+                                ),
+                            },
+                            "last_optimized": last_optimized,
+                        }
+                    )
+
+                self.logger.debug(
+                    "Fetched optimal parameters for %d strategies",
+                    len(parameters_by_strategy),
+                )
+                return jsonify(
+                    {
+                        "parameters": parameters_by_strategy,
+                        "status": "success",
+                        "total_sets": sum(
+                            len(v) for v in parameters_by_strategy.values()
+                        ),
+                    }
+                )
+
+        except Exception as e:
+            self.logger.error("Failed to fetch optimal parameters: %s", e)
+            return (
+                jsonify({"parameters": {}, "status": "error", "message": str(e)}),
+                500,
+            )
+
+    def api_trading_pairs(self):
+        """Get list of trading pairs and their status.
+
+        Returns:
+            JSON with trading pairs and their configuration
+        """
+        try:
+            with self._get_db() as db:
+                # Query all tradable pairs with data count
+                query = """
+                    SELECT DISTINCT tp.symbol, COUNT(md.id) as data_points,
+                           MAX(md.time) as last_update
+                    FROM tradable_pairs tp
+                    LEFT JOIN market_data md ON tp.id = md.symbol_id
+                    GROUP BY tp.symbol
+                    ORDER BY tp.symbol
+                """
+                results = db.execute_query(query).fetchall()
+
+                pairs = []
+                for row in results:
+                    symbol, data_points, last_update = row
+                    pairs.append(
+                        {
+                            "symbol": symbol,
+                            "data_points": int(data_points) if data_points else 0,
+                            "last_update": last_update,
+                            "has_data": int(data_points) > 0 if data_points else False,
+                        }
+                    )
+
+                self.logger.debug(
+                    "Fetched trading pairs: %d pairs configured",
+                    len(pairs),
+                )
+                return jsonify(
+                    {
+                        "pairs": pairs,
+                        "status": "success",
+                        "total_pairs": len(pairs),
+                    }
+                )
+
+        except Exception as e:
+            self.logger.error("Failed to fetch trading pairs: %s", e)
+            return (
+                jsonify({"pairs": [], "status": "error", "message": str(e)}),
+                500,
+            )
+
+    def api_live_statistics(self):
+        """Get live trading statistics and recent trades.
+
+        Returns:
+            JSON with live trading stats including trades, P&L, signals
+        """
+        try:
+            with self._get_db() as db:
+                # Get recent trades (last 24 hours)
+                trades_query = """
+                    SELECT symbol, action, entry_price, exit_price, volume, 
+                           strategy, status, created_at, 
+                           CASE WHEN exit_price IS NOT NULL 
+                                THEN ((exit_price - entry_price) * volume)
+                                ELSE 0 
+                           END as pnl
+                    FROM trades
+                    WHERE created_at >= datetime('now', '-1 day')
+                    ORDER BY created_at DESC
+                    LIMIT 100
+                """
+                trades_result = db.execute_query(trades_query).fetchall()
+                trades = [dict(row) for row in trades_result] if trades_result else []
+
+                # Calculate statistics
+                total_trades = len(trades)
+                executed_trades = [
+                    t for t in trades if t.get("status") in ["executed", "closed"]
+                ]
+                pending_trades = [
+                    t
+                    for t in trades
+                    if t.get("status") in ["pending", "signal_generated"]
+                ]
+
+                total_pnl = sum(t.get("pnl", 0) for t in executed_trades)
+                winning_trades = len(
+                    [t for t in executed_trades if t.get("pnl", 0) > 0]
+                )
+                losing_trades = len([t for t in executed_trades if t.get("pnl", 0) < 0])
+
+                win_rate = (
+                    (winning_trades / len(executed_trades) * 100)
+                    if executed_trades
+                    else 0
+                )
+                avg_pnl = (total_pnl / len(executed_trades)) if executed_trades else 0
+
+                # Get active positions
+                active_query = """
+                    SELECT symbol, action, entry_price, volume, strategy
+                    FROM trades
+                    WHERE status IN ('executed', 'open')
+                    ORDER BY created_at DESC
+                """
+                active_result = db.execute_query(active_query).fetchall()
+                active_positions = (
+                    [dict(row) for row in active_result] if active_result else []
+                )
+
+                self.logger.debug(
+                    "Live statistics: %d total trades, %d executed, %d pending",
+                    total_trades,
+                    len(executed_trades),
+                    len(pending_trades),
+                )
+
+                return jsonify(
+                    {
+                        "status": "success",
+                        "summary": {
+                            "total_trades": total_trades,
+                            "executed_trades": len(executed_trades),
+                            "pending_trades": len(pending_trades),
+                            "total_pnl": self._safe_round(total_pnl, 2),
+                            "winning_trades": winning_trades,
+                            "losing_trades": losing_trades,
+                            "win_rate": self._safe_round(win_rate, 2),
+                            "avg_pnl_per_trade": self._safe_round(avg_pnl, 2),
+                        },
+                        "recent_trades": trades,
+                        "active_positions": active_positions,
+                        "timestamp": time.time(),
+                    }
+                )
+
+        except Exception as e:
+            self.logger.error("Failed to fetch live statistics: %s", e)
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": str(e),
+                        "summary": {
+                            "total_trades": 0,
+                            "executed_trades": 0,
+                            "pending_trades": 0,
+                            "total_pnl": 0,
+                            "win_rate": 0,
+                        },
+                        "recent_trades": [],
+                        "active_positions": [],
+                    }
+                ),
+                500,
+            )
+
+    def api_clear_execution_history(self):
+        """Clear the trade execution history.
+
+        Returns:
+            JSON with success/error status
+        """
+        try:
+            with self._get_db() as db:
+                # Delete all trades from the database
+                delete_query = "DELETE FROM trades"
+                db.execute_query(delete_query)
+                db.conn.commit()
+
+                self.logger.info("Execution history cleared")
+
+                return jsonify(
+                    {"status": "success", "message": "Execution history cleared"}
+                )
+
+        except Exception as e:
+            self.logger.error("Failed to clear execution history: %s", e)
+            return (
+                jsonify({"status": "error", "message": str(e)}),
+                500,
+            )
+
+    def api_live_data(self):
+        """Get live trading data for the unified dashboard.
+
+        Returns:
+            JSON with live trading info, signals, positions, and execution summary
+        """
+        try:
+            with self._get_db() as db:
+                # Get recent signals (last 10)
+                signals_query = """
+                    SELECT symbol, action as action, 0.0 as entry_price, 
+                           strategy_name, timeframe, status, open_time as timestamp,
+                           json_object('name', strategy_name, 'confidence', 0.5) as strategy_info
+                    FROM trades
+                    WHERE status = 'signal_generated'
+                    ORDER BY open_time DESC
+                    LIMIT 10
+                """
+                signals_result = db.execute_query(signals_query).fetchall()
+                signals = []
+                if signals_result:
+                    for row in signals_result:
+                        signal = dict(row)
+                        # Parse strategy_info if it's a JSON string
+                        if isinstance(signal.get("strategy_info"), str):
+                            try:
+                                import json
+
+                                signal["strategy_info"] = json.loads(
+                                    signal["strategy_info"]
+                                )
+                            except:
+                                signal["strategy_info"] = {
+                                    "name": signal.get("strategy_name", "N/A"),
+                                    "confidence": 0.5,
+                                }
+                        signals.append(signal)
+
+                # Get open/active positions
+                positions_query = """
+                    SELECT tp.symbol, trade_type as side, open_price as entry_price,
+                           open_price as current_price,
+                           (open_price - open_price) * volume as pnl,
+                           volume
+                    FROM trades t
+                    JOIN tradable_pairs tp ON t.symbol_id = tp.id
+                    WHERE status IN ('executed', 'open')
+                    ORDER BY open_time DESC
+                """
+                positions_result = db.execute_query(positions_query).fetchall()
+                positions = (
+                    [dict(row) for row in positions_result] if positions_result else []
+                )
+
+                # Get recent executed trades (last 5)
+                trades_query = """
+                    SELECT tp.symbol, trade_type as action, strategy_name,
+                           status, open_time as timestamp
+                    FROM trades t
+                    JOIN tradable_pairs tp ON t.symbol_id = tp.id
+                    WHERE status IN ('executed', 'closed')
+                    ORDER BY open_time DESC
+                    LIMIT 5
+                """
+                trades_result = db.execute_query(trades_query).fetchall()
+                recent_trades = (
+                    [dict(row) for row in trades_result] if trades_result else []
+                )
+
+                # Calculate live statistics
+                stats_query = """
+                    SELECT 
+                        COUNT(*) as total_trades,
+                        SUM(CASE WHEN status = 'executed' THEN 1 ELSE 0 END) as executed,
+                        SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open_count,
+                        SUM(CASE WHEN profit IS NOT NULL THEN profit ELSE 0 END) as total_profit,
+                        ROUND(
+                            CAST(SUM(CASE WHEN profit > 0 THEN 1 ELSE 0 END) AS FLOAT) 
+                            / NULLIF(COUNT(*), 0), 3
+                        ) as win_rate
+                    FROM trades
+                    WHERE open_time >= datetime('now', '-1 day')
+                """
+                stats_result = db.execute_query(stats_query).fetchone()
+
+                stats = {
+                    "net_profit": (
+                        self._safe_round(
+                            stats_result["total_profit"] if stats_result else 0, 2
+                        )
+                        if stats_result
+                        else 0
+                    ),
+                    "win_rate": (
+                        self._safe_round(
+                            stats_result["win_rate"] if stats_result else 0, 2
+                        )
+                        if stats_result
+                        else 0
+                    ),
+                    "total_trades": stats_result["total_trades"] if stats_result else 0,
+                    "open_positions": stats_result["open_count"] if stats_result else 0,
+                    "net_profit_change": 0.0,
+                }
+
+                return jsonify(
+                    {
+                        "status": "success",
+                        "statistics": stats,
+                        "recent_signals": signals,
+                        "open_positions": positions,
+                        "recent_trades": recent_trades,
+                        "equity_curve": {"timestamps": [], "values": []},
+                        "timestamp": time.time(),
+                    }
+                )
+
+        except Exception as e:
+            self.logger.error("Failed to fetch live data: %s", e)
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": str(e),
+                        "statistics": {
+                            "net_profit": 0,
+                            "win_rate": 0,
+                            "total_trades": 0,
+                            "open_positions": 0,
+                        },
+                        "recent_signals": [],
+                        "open_positions": [],
+                        "recent_trades": [],
+                        "equity_curve": {"timestamps": [], "values": []},
+                    }
+                ),
+                500,
+            )
 
     def api_equity_curve(self, symbol, strategy):
         """Get equity curve file path for symbol and strategy."""
@@ -477,6 +1005,63 @@ class DashboardServer:
                 jsonify({"comparison": [], "status": "error", "message": str(e)}),
                 500,
             )
+
+    def _register_report_routes(self):
+        """Register Phase 3 report generation API routes."""
+        from src.reports.report_generator import ReportGenerator
+
+        report_gen = ReportGenerator(self.db, self.config)
+
+        # Summary metrics endpoint
+        @self.app.route("/api/reports/summary", methods=["GET"])
+        def get_summary():
+            try:
+                summary = report_gen.get_summary_metrics()
+                if summary is None:
+                    return jsonify({"error": "No data found"}), 404
+                return jsonify({"status": "success", "data": summary})
+            except Exception as e:
+                self.logger.error(f"Error in summary endpoint: {e}")
+                return jsonify({"error": str(e)}), 500
+
+        # Volatility ranking endpoint
+        @self.app.route("/api/reports/volatility/<int:timeframe>", methods=["GET"])
+        def get_volatility(timeframe):
+            try:
+                df = report_gen.generate_volatility_ranking(timeframe)
+                if df is None:
+                    return jsonify({"error": "No data found"}), 404
+                return jsonify(
+                    {
+                        "status": "success",
+                        "count": len(df),
+                        "data": df.to_dict("records"),
+                    }
+                )
+            except Exception as e:
+                self.logger.error(f"Error in volatility endpoint: {e}")
+                return jsonify({"error": str(e)}), 500
+
+        # Multi-symbol comparison endpoint
+        @self.app.route("/api/reports/comparison/<int:timeframe>", methods=["GET"])
+        def get_multi_comparison(timeframe):
+            try:
+                strategy = request.args.get("strategy", "rsi")
+                df = report_gen.generate_multi_symbol_comparison(strategy, timeframe)
+                if df is None:
+                    return jsonify({"error": "No data found"}), 404
+                return jsonify(
+                    {
+                        "status": "success",
+                        "count": len(df),
+                        "data": df.to_dict("records"),
+                    }
+                )
+            except Exception as e:
+                self.logger.error(f"Error in comparison endpoint: {e}")
+                return jsonify({"error": str(e)}), 500
+
+        self.logger.info("Phase 3 report API routes registered")
 
     def run(self, debug=False):
         """Start the dashboard server."""

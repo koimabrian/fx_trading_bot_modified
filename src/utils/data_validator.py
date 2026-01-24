@@ -105,9 +105,19 @@ class DataValidator:
             Integer row count
         """
         try:
-            query = f"SELECT COUNT(*) as cnt FROM {table} WHERE symbol = ? AND timeframe = ?"
+            # Get symbol_id for the given symbol
+            sym_cursor = self.db.conn.cursor()
+            sym_result = sym_cursor.execute(
+                "SELECT id FROM tradable_pairs WHERE symbol = ?", (symbol,)
+            ).fetchone()
+
+            if not sym_result:
+                return 0
+
+            symbol_id = sym_result[0]
+            query = f"SELECT COUNT(*) as cnt FROM {table} WHERE symbol_id = ? AND timeframe = ?"
             result = (
-                self.db.conn.cursor().execute(query, (symbol, timeframe)).fetchone()
+                self.db.conn.cursor().execute(query, (symbol_id, timeframe)).fetchone()
             )
             return result[0] if result else 0
         except (RuntimeError, ValueError, KeyError, TypeError) as e:
@@ -147,7 +157,9 @@ class DataValidator:
                 mt5_tf = tf_map.get(tf, mt5.TIMEFRAME_M15)
 
                 data_fetcher = DataFetcher(self.mt5_conn, self.db, self.config)
-                data_fetcher.sync_data(symbol, tf, mt5_tf, table="market_data")
+                data_fetcher.sync_data(
+                    symbol, mt5_timeframe=mt5_tf, table="market_data"
+                )
 
                 new_count = self.get_row_count(symbol, tf_str, table="market_data")
                 self.logger.info(
@@ -169,7 +181,7 @@ class DataValidator:
         """
         try:
             tf_str = f"M{timeframe}" if timeframe < 60 else f"H{timeframe//60}"
-            query = "SELECT MAX(time) as latest_time FROM market_data WHERE symbol = ? AND timeframe = ?"
+            query = "SELECT MAX(md.time) as latest_time FROM market_data md JOIN tradable_pairs tp ON md.symbol_id = tp.id WHERE tp.symbol = ? AND md.timeframe = ?"
             result = self.db.conn.cursor().execute(query, (symbol, tf_str)).fetchone()
 
             if not result or not result[0]:
@@ -210,7 +222,7 @@ class DataValidator:
                 tf_str = f"M{tf}" if tf < 60 else f"H{tf//60}"
 
                 # Read from market_data
-                query = "SELECT * FROM market_data WHERE symbol = ? AND timeframe = ? ORDER BY time ASC"
+                query = "SELECT md.* FROM market_data md JOIN tradable_pairs tp ON md.symbol_id = tp.id WHERE tp.symbol = ? AND md.timeframe = ? ORDER BY md.time ASC"
                 data = pd.read_sql_query(query, self.db.conn, params=(symbol, tf_str))
 
                 if data.empty:
@@ -222,7 +234,7 @@ class DataValidator:
                 # Check for duplicates in backtest_market_data
                 try:
                     existing = pd.read_sql_query(
-                        "SELECT time FROM backtest_market_data WHERE symbol = ? AND timeframe = ?",
+                        "SELECT bmd.time FROM backtest_market_data bmd JOIN tradable_pairs tp ON bmd.symbol_id = tp.id WHERE tp.symbol = ? AND bmd.timeframe = ?",
                         self.db.conn,
                         params=(symbol, tf_str),
                     )

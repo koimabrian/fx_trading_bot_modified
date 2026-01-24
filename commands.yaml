@@ -1,63 +1,133 @@
- 1) Navigate to project directory
-cd C:\Users\koima\Desktop\code\fx_trading_bot_modified
+# ============================================================================
+# FX TRADING BOT - COMMAND REFERENCE
+# ============================================================================
+# See README.md for complete setup and daily routine commands
+# ============================================================================
 
-# 2) Remove old files (clean slate)
-Remove-Item -Recurse -Force .venv -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force src\data -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force logs -ErrorAction SilentlyContinue
+# ============================================================================
+# ENVIRONMENT ACTIVATION (Always First)
+# ============================================================================
 
-# 3) Create data and logs directories
-mkdir src\data -Force
-mkdir logs -Force
-
-# 4) Create fresh virtual environment
-python -m venv .venv
-
-# 5) Enable script execution for this session
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force
-
-# 6) Activate virtual environment
+# PowerShell (Recommended)
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 .venv\Scripts\Activate.ps1
 
-# 7) Upgrade pip and install dependencies
-python -m pip install --upgrade pip
+# Command Prompt (cmd.exe)
+.venv\Scripts\activate.bat
+
+# ============================================================================
+# BOT MODES - Choose One
+# ============================================================================
+
+# Initialize database (first time only)
+python -m src.main --mode init
+
+# Sync data from MT5 (get fresh market data)
+python -m src.main --mode sync
+
+# Run backtests (re-optimize strategy parameters)
+python -m src.main --mode backtest
+
+# Start live trading
+python -m src.main --mode live
+
+# Launch web dashboard (separate terminal)
+# View backtest results: http://127.0.0.1:5000
+# View live trading: http://127.0.0.1:5000/live
+python -m src.main --mode gui
+
+# Run test suite
+python -m src.main --mode test
+
+# ============================================================================
+# OPTIONAL FLAGS
+# ============================================================================
+
+# Trade specific symbol only
+python -m src.main --mode live --symbol EURUSD
+
+# Sync specific symbol
+python -m src.main --mode sync --symbol BTCUSD
+
+# Backtest specific strategy
+python -m src.main --mode backtest --strategy rsi
+
+# ============================================================================
+# TESTING
+# ============================================================================
+
+# Run all tests
+pytest tests/ -v
+
+# Test specific module
+pytest tests/test_imports.py -v
+pytest tests/test_adaptive_trader.py -v
+pytest tests/test_config.py -v
+
+# Run with coverage report
+pytest tests/ -v --cov=src
+
+# ============================================================================
+# MONITORING - Run in Separate Terminal
+# ============================================================================
+
+# View live trading logs
+Get-Content logs\terminal_log.txt -Wait
+
+# Check database
+sqlite3 src\data\market_data.sqlite .schema
+sqlite3 src\data\market_data.sqlite "SELECT COUNT(*) FROM market_data;"
+
+# ============================================================================
+# DATABASE OPERATIONS
+# ============================================================================
+
+# Check database file
+dir src\data\market_data.sqlite
+
+# View schema
+sqlite3 src\data\market_data.sqlite .schema
+
+# Count market data rows
+sqlite3 src\data\market_data.sqlite "SELECT COUNT(*) FROM market_data;"
+
+# View recent trades
+sqlite3 src\data\market_data.sqlite "SELECT * FROM trades LIMIT 10;"
+
+# Export trades to CSV
+sqlite3 src\data\market_data.sqlite "SELECT * FROM trades;" > trades_export.csv
+
+# Reset database (careful!)
+Remove-Item -Force src\data\market_data.sqlite
+python -m src.main --mode init
+
+# ============================================================================
+# COMPLETE WORKFLOW (Recommended First Run)
+# ============================================================================
+
+# Step 1: Setup environment
+.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 
-# 8) Verify installation
-python -V
-pip list
+# Step 2: Test (no MT5 required)
+pytest tests/test_imports.py -v
 
-# Daily routine commands
-Remove-Item -Recurse -Force src\data -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force logs -ErrorAction SilentlyContinue
-mkdir src\data -Force
-mkdir logs -Force
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force
-.venv\Scripts\Activate.ps1
+# Step 3: Configure MT5 credentials (edit src/config/config.yaml)
+# Update: mt5.login, mt5.password, mt5.server
 
-# Morning: sync fresh data
+# Step 4: Initialize database
+python -m src.main --mode init
+
+# Step 5: Sync market data
 python -m src.main --mode sync
 
-# Morning: update strategies (optional, once per week)
-python -m src.backtesting.backtest_manager --mode multi-backtest --strategy rsi
-python -m src.backtesting.backtest_manager --mode multi-backtest --strategy macd
+# Step 6: Run backtests (optional but recommended)
+python -m src.main --mode backtest
+
+# Step 7: Start live trading
 python -m src.main --mode live
 
-
-# Option A: Launch the web dashboard (recommended for analysis)
+# Step 8: Monitor (optional - separate terminal)
 python -m src.main --mode gui
-# Opens automatically at: http://127.0.0.1:5000
 
-# Option B: Trade all day with best strategies (continuous trading)
-python -m src.main --mode live
-
-# Testing & Verification
-pytest
-python tests/verify_implementation.py
-python tests/verify_system.py
-python tests/verify_web_dashboard.py            
-
-# Option 2: Fresh start (recommended)
-rm src/data/market_data.sqlite
-python -m src.main --mode sync
-python -m src.backtesting.backtest_manager --mode multi-backtest --strategy rsi
+# ============================================================================

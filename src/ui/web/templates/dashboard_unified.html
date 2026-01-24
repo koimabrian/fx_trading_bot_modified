@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FX Trading Bot - Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #667eea;
+            --secondary: #764ba2;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+            --bg-light: #f8fafc;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-light);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            background: white;
+            border-bottom: 2px solid var(--border);
+            padding: 16px 20px;
+            margin-bottom: 16px;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+        }
+
+        .header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .header-title {
+            font-size: 1.8em;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .header-subtitle {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            font-size: 0.9em;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85em;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+
+        /* ===== TAB SYSTEM ===== */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 16px;
+            border-bottom: 2px solid var(--border);
+            background: white;
+            padding: 0 20px;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .tab-button {
+            padding: 12px 20px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.95em;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            position: relative;
+            bottom: -2px;
+        }
+
+        .tab-button:hover {
+            color: var(--primary);
+        }
+
+        .tab-button.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ===== QUICK STATS ===== */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .stat-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: var(--shadow);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-label {
+            font-size: 0.75em;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .stat-value.positive {
+            color: var(--success);
+        }
+
+        .stat-value.negative {
+            color: var(--danger);
+        }
+
+        .stat-change {
+            font-size: 0.8em;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* ===== SECTION ===== */
+        .section {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: var(--shadow);
+        }
+
+        .section-title {
+            font-size: 1.1em;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--primary);
+        }
+
+        /* ===== LIVE TAB SPECIFIC ===== */
+        .live-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .signals-container {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .signal-card {
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-left: 4px solid var(--primary);
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            font-size: 0.9em;
+        }
+
+        .signal-card.buy {
+            border-left-color: var(--success);
+            background: rgba(16, 185, 129, 0.08);
+        }
+
+        .signal-card.sell {
+            border-left-color: var(--danger);
+            background: rgba(239, 68, 68, 0.08);
+        }
+
+        .signal-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 600;
+            margin-bottom: 6px;
+            align-items: center;
+        }
+
+        .signal-symbol {
+            font-size: 1.05em;
+            color: var(--text-primary);
+        }
+
+        .signal-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 700;
+            font-size: 0.75em;
+            text-transform: uppercase;
+        }
+
+        .signal-badge.buy {
+            background: var(--success);
+            color: white;
+        }
+
+        .signal-badge.sell {
+            background: var(--danger);
+            color: white;
+        }
+
+        .signal-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            font-size: 0.8em;
+            color: var(--text-secondary);
+        }
+
+        .signal-detail {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .signal-time {
+            font-size: 0.75em;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* ===== POSITIONS TABLE ===== */
+        .positions-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9em;
+        }
+
+        .positions-table thead {
+            background: var(--bg-light);
+        }
+
+        .positions-table th {
+            padding: 10px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border-bottom: 2px solid var(--border);
+        }
+
+        .positions-table td {
+            padding: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .positions-table tbody tr:hover {
+            background: var(--bg-light);
+        }
+
+        .symbol-cell {
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .side-cell {
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+            font-size: 0.85em;
+        }
+
+        .side-cell.buy {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+
+        .side-cell.sell {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+        }
+
+        .pnl-positive {
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        .pnl-negative {
+            color: var(--danger);
+            font-weight: 600;
+        }
+
+        /* ===== CHART CONTAINER ===== */
+        .chart-container {
+            width: 100%;
+            height: 300px;
+            margin-top: 12px;
+        }
+
+        /* ===== BACKTEST TAB SPECIFIC ===== */
+        .scrollable-section {
+            max-height: 600px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .strategy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .strategy-card {
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            transition: all 0.2s;
+        }
+
+        .strategy-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.15);
+        }
+
+        .strategy-name {
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 8px;
+            font-size: 1em;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 0.85em;
+        }
+
+        .metric-label {
+            color: var(--text-secondary);
+        }
+
+        .metric-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .metric-value.positive {
+            color: var(--success);
+        }
+
+        .metric-value.negative {
+            color: var(--danger);
+        }
+
+        /* ===== MATRIX TABLE ===== */
+        .matrix-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8em;
+            margin-top: 12px;
+        }
+
+        .matrix-table th,
+        .matrix-table td {
+            padding: 6px 8px;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .matrix-table th {
+            background: var(--bg-light);
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .matrix-cell-positive {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        .matrix-cell-negative {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            font-weight: 600;
+        }
+
+        .matrix-cell-neutral {
+            background: var(--bg-light);
+            color: var(--text-secondary);
+        }
+
+        /* ===== OPTIMAL PARAMETERS ===== */
+        .optimal-group {
+            background: var(--bg-light);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .optimal-header {
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 8px;
+            font-size: 0.95em;
+        }
+
+        .optimal-params {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+            font-size: 0.8em;
+        }
+
+        .param-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 8px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+        }
+
+        .param-name {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .param-value {
+            color: var(--primary);
+            font-weight: 600;
+            font-family: monospace;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 1200px) {
+            .live-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-row {
+                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 8px;
+            }
+
+            .header {
+                padding: 12px;
+            }
+
+            .header-title {
+                font-size: 1.4em;
+            }
+
+            .tabs {
+                padding: 0 12px;
+            }
+
+            .tab-button {
+                padding: 10px 12px;
+                font-size: 0.85em;
+            }
+
+            .section {
+                padding: 12px;
+            }
+
+            .stat-value {
+                font-size: 1.4em;
+            }
+
+            .scrollable-section {
+                max-height: none;
+            }
+        }
+
+        /* ===== NO DATA STATE ===== */
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+
+        .no-data-icon {
+            font-size: 3em;
+            margin-bottom: 12px;
+        }
+
+        .no-data-text {
+            font-size: 1.1em;
+            margin-bottom: 4px;
+        }
+
+        .no-data-subtext {
+            font-size: 0.9em;
+        }
+
+        /* ===== LOADING STATE ===== */
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            border: 3px solid var(--border);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <div class="header-top">
+                <div>
+                    <div class="header-title">📊 Trading Dashboard</div>
+                    <div class="header-subtitle">Unified Live Trading & Backtest Analysis</div>
+                </div>
+                <div class="header-actions">
+                    <div class="status-badge" id="lastUpdate">Last updated: --:--:--</div>
+                    <button class="btn btn-primary" onclick="refreshData()">🔄 Refresh</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB NAVIGATION -->
+        <div class="tabs">
+            <button class="tab-button active" onclick="switchTab('live', event)">
+                🚀 LIVE TRADING
+            </button>
+            <button class="tab-button" onclick="switchTab('backtest', event)">
+                📊 BACKTEST ANALYSIS
+            </button>
+        </div>
+
+        <!-- ========== LIVE TAB ========== -->
+        <div id="live" class="tab-content active">
+            <!-- LIVE STATS -->
+            <div class="stats-row" id="liveStats"></div>
+
+            <!-- LIVE GRID: SIGNALS + POSITIONS -->
+            <div class="live-grid">
+                <!-- SIGNALS SECTION -->
+                <div class="section">
+                    <div class="section-title">⚡ Recent Trading Signals</div>
+                    <div class="signals-container" id="signalsContainer"></div>
+                </div>
+
+                <!-- POSITIONS SECTION -->
+                <div class="section">
+                    <div class="section-title">📈 Current Positions</div>
+                    <div style="overflow-x: auto;">
+                        <table class="positions-table" id="positionsTable">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Side</th>
+                                    <th>Entry Price</th>
+                                    <th>Current</th>
+                                    <th>P&L</th>
+                                </tr>
+                            </thead>
+                            <tbody id="positionsBody">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: var(--text-secondary);">
+                                        No open positions
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LIVE P&L CHART -->
+            <div class="section">
+                <div class="section-title">💹 Live Equity Curve</div>
+                <div class="chart-container" id="liveChart"></div>
+            </div>
+
+            <!-- EXECUTION SUMMARY -->
+            <div class="section">
+                <div class="section-title">✓ Execution Summary (Last 5 Trades)</div>
+                <div style="overflow-x: auto;">
+                    <table class="positions-table">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Action</th>
+                                <th>Strategy</th>
+                                <th>Status</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="executionBody">
+                            <tr>
+                                <td colspan="5" style="text-align: center; color: var(--text-secondary);">
+                                    No recent trades
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== BACKTEST TAB ========== -->
+        <div id="backtest" class="tab-content">
+            <div class="scrollable-section">
+                <!-- BACKTEST STATS -->
+                <div class="stats-row" id="backtestStats"></div>
+
+                <!-- STRATEGY PERFORMANCE -->
+                <div class="section">
+                    <div class="section-title">🎯 Strategy Performance Overview</div>
+                    <div class="strategy-grid" id="strategyGrid"></div>
+                </div>
+
+                <!-- STRATEGY COMPARISON CHARTS -->
+                <div class="section">
+                    <div class="section-title">📈 Strategy Comparison</div>
+                    <div class="live-grid">
+                        <div>
+                            <strong
+                                style="display: block; margin-bottom: 10px; color: var(--text-secondary);">Profitability</strong>
+                            <div class="chart-container" id="profitChart" style="height: 250px;"></div>
+                        </div>
+                        <div>
+                            <strong style="display: block; margin-bottom: 10px; color: var(--text-secondary);">Win
+                                Rate</strong>
+                            <div class="chart-container" id="winRateChart" style="height: 250px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TIMEFRAME ANALYSIS -->
+                <div class="section">
+                    <div class="section-title">⏱️ Timeframe Performance</div>
+                    <table class="matrix-table" id="timeframeTable"></table>
+                </div>
+
+                <!-- STRATEGY x TIMEFRAME MATRIX -->
+                <div class="section">
+                    <div class="section-title">🔄 Strategy x Timeframe Performance Matrix</div>
+                    <table class="matrix-table" id="strategyTimeframeMatrix"></table>
+                </div>
+
+                <!-- OPTIMAL PARAMETERS -->
+                <div class="section">
+                    <div class="section-title">⚙️ Optimal Parameters</div>
+                    <div id="optimalParameters"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let liveData = {};
+        let backtestData = [];
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            refreshData();
+            // Auto-refresh live data every 10 seconds
+            setInterval(refreshLiveData, 10000);
+        });
+
+        // ===== TAB SWITCHING =====
+        function switchTab(tabName, event) {
+            event.preventDefault();
+
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Remove active class from all buttons
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected tab and mark button as active
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+
+            // Refresh data for the active tab
+            if (tabName === 'live') {
+                refreshLiveData();
+            } else {
+                refreshBacktestData();
+            }
+        }
+
+        // ===== DATA LOADING =====
+        function refreshData() {
+            refreshLiveData();
+            refreshBacktestData();
+        }
+
+        function refreshLiveData() {
+            fetch('/api/live-data')
+                .then(res => res.json())
+                .then(data => {
+                    liveData = data;
+                    updateLiveUI();
+                    updateTimestamp();
+                })
+                .catch(err => console.error('Failed to load live data:', err));
+        }
+
+        function refreshBacktestData() {
+            fetch('/api/results')
+                .then(res => res.json())
+                .then(data => {
+                    backtestData = data.results || data || [];
+                    Promise.all([
+                        loadOptimalParameters(),
+                        loadTradingPairs()
+                    ]).then(() => updateBacktestUI());
+                })
+                .catch(err => console.error('Failed to load backtest data:', err));
+        }
+
+        function loadOptimalParameters() {
+            return fetch('/api/optimal-parameters')
+                .then(res => res.json())
+                .then(data => data)
+                .catch(err => (console.error('Failed to load optimal parameters:', err), {}));
+        }
+
+        function loadTradingPairs() {
+            return fetch('/api/trading-pairs')
+                .then(res => res.json())
+                .then(data => data)
+                .catch(err => (console.error('Failed to load trading pairs:', err), {}));
+        }
+
+        function updateTimestamp() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent =
+                `Last updated: ${now.toLocaleTimeString()}`;
+        }
+
+        // ===== LIVE UI UPDATES =====
+        function updateLiveUI() {
+            updateLiveStats();
+            updateSignals();
+            updatePositions();
+            updateLiveChart();
+            updateExecutionSummary();
+        }
+
+        function updateLiveStats() {
+            const stats = liveData.statistics || {};
+            const html = `
+                <div class="stat-card">
+                    <div class="stat-label">Net Profit</div>
+                    <div class="stat-value ${stats.net_profit >= 0 ? 'positive' : 'negative'}">
+                        $${(stats.net_profit || 0).toFixed(2)}
+                    </div>
+                    <div class="stat-change">${(stats.net_profit_change || 0).toFixed(2)}% today</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Win Rate</div>
+                    <div class="stat-value">${((stats.win_rate || 0) * 100).toFixed(1)}%</div>
+                    <div class="stat-change">${stats.total_trades || 0} trades</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Open Positions</div>
+                    <div class="stat-value" style="color: var(--info);">${stats.open_positions || 0}</div>
+                    <div class="stat-change">Active now</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Execution Status</div>
+                    <div class="stat-value" style="color: var(--success); font-size: 1.4em;">✓</div>
+                    <div class="stat-change">Live trading active</div>
+                </div>
+            `;
+            document.getElementById('liveStats').innerHTML = html;
+        }
+
+        function updateSignals() {
+            const signals = liveData.recent_signals || [];
+            const container = document.getElementById('signalsContainer');
+
+            if (signals.length === 0) {
+                container.innerHTML = '<div class="no-data"><div class="no-data-text">No signals yet</div></div>';
+                return;
+            }
+
+            const html = signals.slice(0, 10).map(signal => `
+                <div class="signal-card ${signal.action.toLowerCase()}">
+                    <div class="signal-header">
+                        <span class="signal-symbol">${signal.symbol}</span>
+                        <span class="signal-badge ${signal.action.toLowerCase()}">${signal.action}</span>
+                    </div>
+                    <div class="signal-details">
+                        <div class="signal-detail">
+                            <span class="signal-label">Strategy:</span>
+                            <span>${signal.strategy_info?.name || 'N/A'}</span>
+                        </div>
+                        <div class="signal-detail">
+                            <span class="signal-label">TF:</span>
+                            <span>${signal.timeframe}m</span>
+                        </div>
+                        <div class="signal-detail">
+                            <span class="signal-label">Conf:</span>
+                            <span>${((signal.strategy_info?.confidence || 0) * 100).toFixed(0)}%</span>
+                        </div>
+                        <div class="signal-detail">
+                            <span class="signal-label">Price:</span>
+                            <span>${(signal.entry_price || 0).toFixed(5)}</span>
+                        </div>
+                    </div>
+                    <div class="signal-time">${new Date(signal.timestamp || Date.now()).toLocaleTimeString()}</div>
+                </div>
+            `).join('');
+            container.innerHTML = html;
+        }
+
+        function updatePositions() {
+            const positions = liveData.open_positions || [];
+            const tbody = document.getElementById('positionsBody');
+
+            if (positions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">No open positions</td></tr>';
+                return;
+            }
+
+            const html = positions.map(pos => `
+                <tr>
+                    <td class="symbol-cell">${pos.symbol}</td>
+                    <td><span class="side-cell ${pos.side.toLowerCase()}">${pos.side.toUpperCase()}</span></td>
+                    <td>${(pos.entry_price || 0).toFixed(5)}</td>
+                    <td>${(pos.current_price || 0).toFixed(5)}</td>
+                    <td class="${pos.pnl >= 0 ? 'pnl-positive' : 'pnl-negative'}">
+                        ${pos.pnl >= 0 ? '+' : ''}$${pos.pnl.toFixed(2)}
+                    </td>
+                </tr>
+            `).join('');
+            tbody.innerHTML = html;
+        }
+
+        function updateLiveChart() {
+            const equityData = liveData.equity_curve || {};
+            if (!equityData.timestamps || equityData.timestamps.length === 0) {
+                document.getElementById('liveChart').innerHTML =
+                    '<div class="no-data"><div class="no-data-icon">📈</div><div class="no-data-text">No data yet</div></div>';
+                return;
+            }
+
+            const trace = {
+                x: equityData.timestamps,
+                y: equityData.values,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Equity',
+                line: { color: '#10b981', width: 2 },
+                fill: 'tozeroy',
+                fillcolor: 'rgba(16, 185, 129, 0.1)'
+            };
+
+            const layout = {
+                margin: { t: 20, b: 30, l: 50, r: 20 },
+                height: 300,
+                xaxis: { showgrid: true, gridcolor: '#e2e8f0' },
+                yaxis: { showgrid: true, gridcolor: '#e2e8f0' },
+                showlegend: false,
+                plot_bgcolor: '#f8fafc'
+            };
+
+            Plotly.newPlot('liveChart', [trace], layout);
+        }
+
+        function updateExecutionSummary() {
+            const trades = liveData.recent_trades || [];
+            const tbody = document.getElementById('executionBody');
+
+            if (trades.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">No recent trades</td></tr>';
+                return;
+            }
+
+            const html = trades.slice(0, 5).map(trade => `
+                <tr>
+                    <td class="symbol-cell">${trade.symbol}</td>
+                    <td><span class="side-cell ${trade.action.toLowerCase()}">${trade.action.toUpperCase()}</span></td>
+                    <td>${trade.strategy_name || 'N/A'}</td>
+                    <td><span style="color: ${trade.status === 'executed' ? 'var(--success)' : 'var(--danger)'}; font-weight: 600;">
+                        ${trade.status === 'executed' ? '✓ Executed' : '✗ Failed'}
+                    </span></td>
+                    <td>${new Date(trade.timestamp || Date.now()).toLocaleTimeString()}</td>
+                </tr>
+            `).join('');
+            tbody.innerHTML = html;
+        }
+
+        // ===== BACKTEST UI UPDATES =====
+        function updateBacktestUI() {
+            updateBacktestStats();
+            updateStrategyCards();
+            updateComparisonCharts();
+            updateTimeframeTable();
+            updateMatrixTable();
+            updateOptimalParamsDisplay();
+        }
+
+        function updateBacktestStats() {
+            if (!Array.isArray(backtestData) || backtestData.length === 0) {
+                document.getElementById('backtestStats').innerHTML = '<div class="no-data"><div class="no-data-text">No backtest data available</div></div>';
+                return;
+            }
+
+            const totalProfit = backtestData.reduce((s, r) => s + (r.total_return || 0), 0);
+            const avgWinRate = (backtestData.reduce((s, r) => s + (r.win_rate || 0), 0) / backtestData.length).toFixed(1);
+            const totalTrades = backtestData.reduce((s, r) => s + (r.total_trades || 0), 0);
+            const avgSharpe = (backtestData.reduce((s, r) => s + (r.sharpe_ratio || 0), 0) / backtestData.length).toFixed(2);
+
+            const html = `
+                <div class="stat-card">
+                    <div class="stat-label">Total Profit</div>
+                    <div class="stat-value ${totalProfit >= 0 ? 'positive' : 'negative'}">
+                        $${totalProfit.toFixed(2)}
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Avg Win Rate</div>
+                    <div class="stat-value">${avgWinRate}%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Trades</div>
+                    <div class="stat-value">${totalTrades}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Avg Sharpe</div>
+                    <div class="stat-value">${avgSharpe}</div>
+                </div>
+            `;
+            document.getElementById('backtestStats').innerHTML = html;
+        }
+
+        function updateStrategyCards() {
+            const strategies = [...new Set(backtestData.map(r => r.strategy_name))];
+            const strategyData = {};
+
+            strategies.forEach(strategy => {
+                const data = backtestData.filter(r => r.strategy_name === strategy);
+                strategyData[strategy] = {
+                    profit: data.reduce((s, r) => s + (r.total_return || 0), 0),
+                    winRate: (data.reduce((s, r) => s + (r.win_rate || 0), 0) / data.length).toFixed(1),
+                    trades: data.reduce((s, r) => s + (r.total_trades || 0), 0),
+                    sharpe: (data.reduce((s, r) => s + (r.sharpe_ratio || 0), 0) / data.length).toFixed(2)
+                };
+            });
+
+            const html = Object.entries(strategyData).map(([strategy, data]) => `
+                <div class="strategy-card">
+                    <div class="strategy-name">${strategy}</div>
+                    <div class="metric-row">
+                        <span class="metric-label">Profit:</span>
+                        <span class="metric-value ${data.profit >= 0 ? 'positive' : 'negative'}">$${data.profit.toFixed(2)}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Win Rate:</span>
+                        <span class="metric-value">${data.winRate}%</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Trades:</span>
+                        <span class="metric-value">${data.trades}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Sharpe:</span>
+                        <span class="metric-value">${data.sharpe}</span>
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('strategyGrid').innerHTML = html;
+        }
+
+        function updateComparisonCharts() {
+            const strategies = [...new Set(backtestData.map(r => r.strategy_name))];
+            const strategyData = {};
+
+            strategies.forEach(strategy => {
+                const data = backtestData.filter(r => r.strategy_name === strategy);
+                strategyData[strategy] = {
+                    profit: data.reduce((s, r) => s + (r.total_return || 0), 0),
+                    winRate: (data.reduce((s, r) => s + (r.win_rate || 0), 0) / data.length)
+                };
+            });
+
+            // Profit chart
+            Plotly.newPlot('profitChart', [{
+                x: Object.keys(strategyData),
+                y: Object.values(strategyData).map(v => v.profit),
+                type: 'bar',
+                marker: { color: Object.values(strategyData).map(v => v.profit > 0 ? '#10b981' : '#ef4444') }
+            }], { margin: { t: 20, b: 30, l: 50, r: 20 }, showlegend: false });
+
+            // Win rate chart
+            Plotly.newPlot('winRateChart', [{
+                x: Object.keys(strategyData),
+                y: Object.values(strategyData).map(v => v.winRate * 100),
+                type: 'bar',
+                marker: { color: '#667eea' }
+            }], { margin: { t: 20, b: 30, l: 50, r: 20 }, showlegend: false });
+        }
+
+        function updateTimeframeTable() {
+            const timeframes = [...new Set(backtestData.map(r => r.timeframe))];
+            const timeframeData = {};
+
+            timeframes.forEach(tf => {
+                const data = backtestData.filter(r => r.timeframe === tf);
+                timeframeData[tf] = {
+                    profit: data.reduce((s, r) => s + (r.total_return || 0), 0),
+                    winRate: (data.reduce((s, r) => s + (r.win_rate || 0), 0) / data.length).toFixed(1),
+                    trades: data.reduce((s, r) => s + (r.total_trades || 0), 0)
+                };
+            });
+
+            const html = `
+                <thead>
+                    <tr>
+                        <th>Timeframe</th>
+                        <th>Profit</th>
+                        <th>Win Rate</th>
+                        <th>Trades</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${Object.entries(timeframeData).map(([tf, data]) => `
+                        <tr>
+                            <td><strong>${tf}</strong></td>
+                            <td class="${data.profit >= 0 ? 'matrix-cell-positive' : 'matrix-cell-negative'}">
+                                $${data.profit.toFixed(2)}
+                            </td>
+                            <td>${data.winRate}%</td>
+                            <td>${data.trades}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            `;
+            document.getElementById('timeframeTable').innerHTML = html;
+        }
+
+        function updateMatrixTable() {
+            const strategies = [...new Set(backtestData.map(r => r.strategy_name))];
+            const timeframes = [...new Set(backtestData.map(r => r.timeframe))];
+
+            let html = '<thead><tr><th>Strategy</th>';
+            timeframes.forEach(tf => html += `<th>${tf}</th>`);
+            html += '</tr></thead><tbody>';
+
+            strategies.forEach(strategy => {
+                html += `<tr><td><strong>${strategy}</strong></td>`;
+                timeframes.forEach(tf => {
+                    const data = backtestData.find(r => r.strategy_name === strategy && r.timeframe === tf);
+                    if (data) {
+                        const profit = data.total_return || 0;
+                        const className = profit > 0 ? 'matrix-cell-positive' : profit < 0 ? 'matrix-cell-negative' : 'matrix-cell-neutral';
+                        html += `<td class="${className}">$${profit.toFixed(2)}</td>`;
+                    } else {
+                        html += '<td class="matrix-cell-neutral">-</td>';
+                    }
+                });
+                html += '</tr>';
+            });
+            html += '</tbody>';
+            document.getElementById('strategyTimeframeMatrix').innerHTML = html;
+        }
+
+        function updateOptimalParamsDisplay() {
+            loadOptimalParameters().then(params => {
+                if (!params || Object.keys(params).length === 0) {
+                    document.getElementById('optimalParameters').innerHTML = '<div class="no-data"><div class="no-data-text">No optimal parameters available</div></div>';
+                    return;
+                }
+
+                let html = '';
+                Object.entries(params).forEach(([strategy, data]) => {
+                    if (Array.isArray(data)) {
+                        html += `<div class="optimal-group"><div class="optimal-header">${strategy}</div>`;
+                        data.slice(0, 3).forEach(param => {
+                            html += `
+                                <div style="margin-bottom: 8px; padding: 8px; background: white; border-radius: 4px; font-size: 0.85em;">
+                                    <div style="font-weight: 600; margin-bottom: 4px;">${param.symbol} - ${param.timeframe}</div>
+                                    <div class="optimal-params">
+                                        ${Object.entries(param.parameters || {}).map(([key, value]) => `
+                                            <div class="param-item">
+                                                <span class="param-name">${key}</span>
+                                                <span class="param-value">${typeof value === 'number' ? value.toFixed(2) : value}</span>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        html += '</div>';
+                    }
+                });
+                document.getElementById('optimalParameters').innerHTML = html;
+            });
+        }
+    </script>
+</body>
+
+</html>

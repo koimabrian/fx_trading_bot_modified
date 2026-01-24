@@ -23,15 +23,35 @@ class DataHandler:
         """Prepare data for backtesting from database.
         Uses all available data in backtest_market_data table (no date filtering).
         Falls back to market_data if backtest_market_data is empty.
+
+        Args:
+            symbol: Currency pair symbol (e.g., 'EURUSD')
+            timeframe: Timeframe string (e.g., 'H1', 'M15')
+
+        Returns:
+            DataFrame with OHLC data indexed by datetime, or None if no data available
         """
         try:
+            # Get symbol_id from tradable_pairs
+            query = "SELECT id FROM tradable_pairs WHERE symbol = ?"
+            cursor = self.db.conn.cursor()
+            cursor.execute(query, (symbol,))
+            result = cursor.fetchone()
+
+            if not result:
+                self.logger.warning("Symbol %s not found in tradable_pairs", symbol)
+                return None
+
+            symbol_id = result[0]
+
             # Fetch all available data for the symbol and timeframe (no date range filtering)
             query = """
-                SELECT * FROM backtest_market_data
-                WHERE symbol = ? AND timeframe = ?
+                SELECT open, high, low, close, volume, time
+                FROM backtest_market_data
+                WHERE symbol_id = ? AND timeframe = ?
                 ORDER BY time ASC
             """
-            data = pd.read_sql(query, self.db.conn, params=(symbol, timeframe))
+            data = pd.read_sql(query, self.db.conn, params=(symbol_id, timeframe))
 
             # Fallback: if backtest_market_data is empty, try market_data
             if data.empty:
@@ -41,11 +61,12 @@ class DataHandler:
                     timeframe,
                 )
                 query = """
-                    SELECT * FROM market_data
-                    WHERE symbol = ? AND timeframe = ?
+                    SELECT open, high, low, close, volume, time
+                    FROM market_data
+                    WHERE symbol_id = ? AND timeframe = ?
                     ORDER BY time ASC
                 """
-                data = pd.read_sql(query, self.db.conn, params=(symbol, timeframe))
+                data = pd.read_sql(query, self.db.conn, params=(symbol_id, timeframe))
 
                 if data.empty:
                     self.logger.warning(
@@ -54,11 +75,7 @@ class DataHandler:
                         timeframe,
                     )
                     self.logger.warning(
-                        "To populate data: python -m src.main --mode live --strategy rsi (run for 30-60s)"
-                    )
-                    self.logger.warning(
-                        "Then sync: python -m src.backtesting.backtest_manager --mode sync --symbol %s",
-                        symbol,
+                        "To populate data: python -m src.main sync --symbol %s", symbol
                     )
                     return None
                 else:
@@ -74,7 +91,7 @@ class DataHandler:
                     "high": "High",
                     "low": "Low",
                     "close": "Close",
-                    "tick_volume": "Volume",
+                    "volume": "Volume",
                 }
             )
             data["Datetime"] = pd.to_datetime(data["Datetime"])

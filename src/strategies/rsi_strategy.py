@@ -28,8 +28,9 @@ class RSIStrategy(BaseStrategy):
         self.rsi_cache = {}  # Cache for RSI values
 
     def generate_entry_signal(self, symbol=None):
-        """Generate entry signal based on RSI.
+        """Generate entry signal based on RSI with improved detection.
 
+        Uses momentum divergence + RSI levels for more reliable signals.
         Requires self.period + 5 rows minimum for accurate calculation.
         """
         # RSI needs period + buffer rows (14 + 5 = 19 rows minimum)
@@ -45,8 +46,20 @@ class RSIStrategy(BaseStrategy):
             return None
 
         data["rsi"] = ta.momentum.RSIIndicator(data["close"], window=self.period).rsi()
+
+        # Calculate RSI momentum (change in RSI)
+        data["rsi_change"] = data["rsi"].diff()
+
+        # Calculate ATR for volatility (14-period standard)
+        atr = ta.volatility.AverageTrueRange(
+            data["high"], data["low"], data["close"], window=14
+        )
+        data["atr"] = atr.average_true_range()
+        data["atr_pct"] = (data["atr"] / data["close"]) * 100
+
         latest = data.iloc[-1]
         prev = data.iloc[-2] if len(data) > 1 else None
+        prev2 = data.iloc[-3] if len(data) > 2 else None
 
         if prev is None:
             return None
@@ -57,20 +70,64 @@ class RSIStrategy(BaseStrategy):
             "timeframe": self.timeframe,
         }
 
-        if latest["rsi"] < self.oversold and prev["rsi"] >= self.oversold:
+        # ===== BUY SIGNALS (IMPROVED) =====
+        # Signal 1: RSI oversold with upward momentum (stronger)
+        if (
+            latest["rsi"] < self.oversold
+            and latest["rsi_change"] > 0
+            and prev["rsi_change"] < 0
+        ):
             signal["action"] = "buy"
+            signal["reason"] = f"RSI bounce from oversold ({latest['rsi']:.1f})"
             self.logger.debug(
-                "Buy signal generated for %s: RSI=%.2f", signal["symbol"], latest["rsi"]
-            )
-            return signal
-        elif latest["rsi"] > self.overbought and prev["rsi"] <= self.overbought:
-            signal["action"] = "sell"
-            self.logger.debug(
-                "Sell signal generated for %s: RSI=%.2f",
+                "BUY signal for %s: RSI bounce from oversold=%.2f, ATR%%=%.2f",
                 signal["symbol"],
                 latest["rsi"],
+                latest["atr_pct"],
             )
             return signal
+
+        # Signal 2: RSI below 40 with strong upward momentum
+        if latest["rsi"] < 40 and latest["rsi_change"] > 5 and latest["atr_pct"] > 0.5:
+            signal["action"] = "buy"
+            signal["reason"] = f"RSI momentum upward ({latest['rsi']:.1f})"
+            self.logger.debug(
+                "BUY signal for %s: RSI momentum, RSI=%.2f, ATR%%=%.2f",
+                signal["symbol"],
+                latest["rsi"],
+                latest["atr_pct"],
+            )
+            return signal
+
+        # ===== SELL SIGNALS (IMPROVED) =====
+        # Signal 1: RSI overbought with downward momentum (stronger)
+        if (
+            latest["rsi"] > self.overbought
+            and latest["rsi_change"] < 0
+            and prev["rsi_change"] > 0
+        ):
+            signal["action"] = "sell"
+            signal["reason"] = f"RSI pullback from overbought ({latest['rsi']:.1f})"
+            self.logger.debug(
+                "SELL signal for %s: RSI pullback from overbought=%.2f, ATR%%=%.2f",
+                signal["symbol"],
+                latest["rsi"],
+                latest["atr_pct"],
+            )
+            return signal
+
+        # Signal 2: RSI above 60 with strong downward momentum
+        if latest["rsi"] > 60 and latest["rsi_change"] < -5 and latest["atr_pct"] > 0.5:
+            signal["action"] = "sell"
+            signal["reason"] = f"RSI momentum downward ({latest['rsi']:.1f})"
+            self.logger.debug(
+                "SELL signal for %s: RSI momentum down, RSI=%.2f, ATR%%=%.2f",
+                signal["symbol"],
+                latest["rsi"],
+                latest["atr_pct"],
+            )
+            return signal
+
         return None
 
     def generate_exit_signal(self, position):

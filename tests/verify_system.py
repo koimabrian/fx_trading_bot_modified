@@ -96,7 +96,6 @@ def verify_project_structure():
         "src/core/data_fetcher.py",
         "src/config/config.yaml",
         "requirements.txt",
-        "test_bot.py",
     ]
 
     missing = []
@@ -218,7 +217,7 @@ def print_summary(results):
         print("\nYou can now run:")
         print("  - Live trading:     python -m src.main --mode live")
         print("  - GUI dashboard:    python -m src.main --mode gui")
-        print("  - Full test suite:  python test_bot.py")
+        print("  - Full test suite:  pytest tests/ -v")
     else:
         print("STATUS: SOME CHECKS FAILED - REVIEW ERRORS ABOVE")
         print("=" * 80)
