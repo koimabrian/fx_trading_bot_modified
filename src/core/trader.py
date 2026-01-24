@@ -40,7 +40,25 @@ class Trader:
         Returns:
             Integer maximum open positions (default 10 if not specified)
         """
-        return self.config.get("risk_management", {}).get("max_open_positions", 10)
+        return self.config.get("risk_management", {}).get("max_positions", 10)
+
+    def get_min_confidence(self):
+        """Get minimum signal confidence from config.
+
+        IMPROVED: Returns different thresholds based on mode
+        - aggressive_mode: 0.5 (allows more trades)
+        - normal_mode: 0.6 (filtered for quality)
+
+        Returns:
+            Float minimum confidence requirement (0.0 to 1.0)
+        """
+        live_config = self.config.get("live_trading", {})
+        aggressive = live_config.get("aggressive_mode", False)
+
+        if aggressive:
+            return 0.5  # Allow more marginal signals
+        else:
+            return live_config.get("min_signal_confidence", 0.6)  # Standard filtering
 
     def get_current_position_count(self):
         """Get current number of open positions from MT5.

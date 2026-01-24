@@ -3,6 +3,7 @@
 import logging
 from typing import List, Dict
 
+# pylint: disable=no-name-in-module
 from PyQt5.QtWidgets import (
     QDialog,
     QVBoxLayout,
@@ -16,7 +17,7 @@ from PyQt5.QtWidgets import (
     QLabel,
     QMessageBox,
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt  # pylint: disable=no-name-in-module
 
 
 class PairSelectorDialog(QDialog):
@@ -168,7 +169,7 @@ class PairSelectorDialog(QDialog):
                 self.category_checkboxes[category].blockSignals(False)
             else:
                 self.category_checkboxes[category].blockSignals(True)
-                self.category_checkboxes[category].setCheckState(Qt.PartiallyChecked)
+                self.category_checkboxes[category].setCheckState(Qt.PartiallyChecked)  # type: ignore
                 self.category_checkboxes[category].blockSignals(False)
 
     def toggle_category(self, category: str, state):

@@ -33,7 +33,7 @@ python -m src.main --mode live
 
 # Launch web dashboard (separate terminal)
 # View backtest results: http://127.0.0.1:5000
-# View live trading: http://127.0.0.1:5000/live
+# View live trading: http://127.0.0.1:5000
 python -m src.main --mode gui
 
 # Run test suite

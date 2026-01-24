@@ -7,10 +7,12 @@ filtering, and comprehensive parameter archiving.
 
 import logging
 import os
+import sqlite3
 import sys
 import subprocess
 import time
 
+import MetaTrader5 as mt5
 import yaml
 
 from src.core.adaptive_trader import AdaptiveTrader
@@ -273,6 +275,61 @@ def _mode_live(config: dict, args, logger):
                 "\n[OK] All diagnostics passed - proceeding with live trading\n"
             )
 
+            # Load pairs for trading FIRST (before StrategyManager)
+            pairs_to_trade = []
+            if args.symbol:
+                logger.info("Trading symbol: %s", args.symbol)
+                pairs_to_trade = [args.symbol]
+            else:
+                # Try database first, then fallback to config
+                try:
+                    cursor = db.conn.cursor()
+                    cursor.execute(
+                        "SELECT DISTINCT symbol FROM tradable_pairs ORDER BY symbol"
+                    )
+                    db_pairs = [row[0] for row in cursor.fetchall()]
+                    if db_pairs:
+                        pairs_to_trade = db_pairs
+                        logger.info(
+                            "Loaded %d trading pairs from database (volatility filtered): %s",
+                            len(pairs_to_trade),
+                            ", ".join(pairs_to_trade),
+                        )
+                    else:
+                        # DB table exists but empty - use config as fallback
+                        pairs_to_trade = [p["symbol"] for p in config.get("pairs", [])]
+                        if pairs_to_trade:
+                            logger.warning(
+                                "Database is empty - using %d config pairs: %s",
+                                len(pairs_to_trade),
+                                ", ".join(pairs_to_trade),
+                            )
+                except (sqlite3.Error, AttributeError) as e:
+                    # DB query failed - use config as fallback
+                    logger.warning(
+                        "Could not load pairs from database (%s) - using config", e
+                    )
+                    pairs_to_trade = [p["symbol"] for p in config.get("pairs", [])]
+                    if pairs_to_trade:
+                        logger.info("Using %d config pairs", len(pairs_to_trade))
+
+            if not pairs_to_trade:
+                logger.error(
+                    "No trading pairs configured. Initialize with: python -m src.main --mode init"
+                )
+                return
+
+            # Populate config pairs BEFORE StrategyManager initialization
+            timeframes = config.get("pair_config", {}).get("timeframes", [15, 60, 240])
+            config["pairs"] = [
+                {"symbol": sym, "timeframe": tf}
+                for sym in pairs_to_trade
+                for tf in timeframes
+            ]
+            logger.debug(
+                "Configured %d pair/timeframe combinations", len(config["pairs"])
+            )
+
             # Initialize components
             try:
                 strategy_manager = StrategyManager(db, mode="live", symbol=args.symbol)
@@ -320,47 +377,6 @@ def _mode_live(config: dict, args, logger):
             else:
                 logger.info("Fixed strategy mode: %s", args.strategy)
 
-            # Load pairs for trading
-            pairs_to_trade = []
-            if args.symbol:
-                logger.info("Trading symbol: %s", args.symbol)
-                pairs_to_trade = [args.symbol]
-            else:
-                # Load from database or config
-                try:
-                    cursor = db.conn.cursor()
-                    cursor.execute(
-                        "SELECT DISTINCT symbol FROM tradable_pairs ORDER BY symbol"
-                    )
-                    pairs_to_trade = [row[0] for row in cursor.fetchall()]
-                    if pairs_to_trade:
-                        logger.info(
-                            "Trading all configured pairs (volatility filtered): %s",
-                            ", ".join(pairs_to_trade),
-                        )
-                    else:
-                        logger.warning(
-                            "No pairs found in database. Using config pairs."
-                        )
-                        pairs_to_trade = [p["symbol"] for p in config.get("pairs", [])]
-                except Exception as e:
-                    logger.warning("Could not load pairs from database: %s", e)
-                    pairs_to_trade = [p["symbol"] for p in config.get("pairs", [])]
-
-            if not pairs_to_trade:
-                logger.error(
-                    "No trading pairs configured. Initialize with: python -m src.main --mode init"
-                )
-                return
-
-            # Populate config pairs for DataFetcher to use
-            timeframes = config.get("pair_config", {}).get("timeframes", [15, 60, 240])
-            config["pairs"] = [
-                {"symbol": sym, "timeframe": tf}
-                for sym in pairs_to_trade
-                for tf in timeframes
-            ]
-
             # Main trading loop
             last_incremental_sync = 0
             incremental_sync_interval = (
@@ -398,6 +414,10 @@ def _mode_live(config: dict, args, logger):
                     executed_trades = []
                     failed_trades = []
 
+                    # Defensive check: ensure lists are never None
+                    if all_signals is None:
+                        all_signals = []
+
                     # Execute trades for each configured pair
                     if use_adaptive:
                         for symbol in pairs_to_trade:
@@ -413,6 +433,51 @@ def _mode_live(config: dict, args, logger):
 
                                         # Place the actual trade order
                                         if mt5_conn.place_order(signal, strategy_name):
+                                            # Log executed trade directly to database
+                                            symbol = signal.get("symbol")
+                                            try:
+                                                cursor = db.conn.cursor()
+                                                cursor.execute(
+                                                    "SELECT id FROM tradable_pairs WHERE symbol = ?",
+                                                    (symbol,),
+                                                )
+                                                result = cursor.fetchone()
+                                                if result:
+                                                    symbol_id = result[0]
+                                                    # Get current tick price for the symbol
+                                                    tick = mt5.symbol_info_tick(symbol)
+                                                    price = (
+                                                        tick.ask
+                                                        if signal.get("action") == "buy"
+                                                        else tick.bid if tick else 0
+                                                    )
+                                                    # INSERT executed trade directly
+                                                    cursor.execute(
+                                                        """INSERT INTO trades 
+                                                        (symbol_id, timeframe, strategy_name, trade_type, volume, 
+                                                         open_price, status, open_time)
+                                                        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+                                                        (
+                                                            symbol_id,
+                                                            signal.get("timeframe"),
+                                                            strategy_name,
+                                                            signal.get(
+                                                                "action", "unknown"
+                                                            ),
+                                                            signal.get("volume", 0.01),
+                                                            price,
+                                                            "executed",
+                                                        ),
+                                                    )
+                                                    db.conn.commit()
+                                                    logger.debug(
+                                                        f"Logged executed trade to database for {symbol}"
+                                                    )
+                                            except Exception as e:
+                                                logger.error(
+                                                    f"Failed to update trade status for {symbol}: {e}"
+                                                )
+
                                             executed_trades.append(
                                                 {
                                                     "symbol": signal.get("symbol"),
@@ -457,14 +522,21 @@ def _mode_live(config: dict, args, logger):
                                             f"[FAILED] Exception placing trade for {symbol}: {e}"
                                         )
                     else:
-                        signals = strategy_manager.generate_signals(args.strategy)
-                        if signals:
-                            all_signals.extend(signals)
+                        # Fixed strategy mode: generate signals for ALL configured pairs
+                        for symbol in pairs_to_trade:
+                            signal = strategy_manager.generate_signals(
+                                args.strategy, symbol=symbol
+                            )
+                            if signal:
+                                all_signals.extend(signal)
+                                logger.debug(
+                                    "Fixed strategy %s generated %d signal(s) for %s",
+                                    args.strategy,
+                                    len(signal),
+                                    symbol,
+                                )
 
-                    # Ensure all_signals is a list (never None)
-                    if all_signals is None:
-                        all_signals = []
-
+                    # Process generated signals
                     if all_signals:
                         logger.info(
                             f"[Loop {loop_iteration}] Generated {len(all_signals)} signals from {len(pairs_to_trade)} pairs"

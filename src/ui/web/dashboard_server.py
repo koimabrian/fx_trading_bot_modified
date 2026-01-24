@@ -11,10 +11,13 @@ import math
 import os
 import time
 from flask import Flask, render_template, jsonify, request, send_file
+from flask.json.provider import DefaultJSONProvider
 from flask_cors import CORS
 from flask_socketio import SocketIO
+import MetaTrader5 as mt5
 from src.database.db_manager import DatabaseManager
 from src.ui.web.live_broadcaster import broadcaster
+from src.utils.indicator_analyzer import IndicatorAnalyzer
 
 
 class SafeJSONProvider(DefaultJSONProvider):
@@ -66,6 +69,7 @@ class DashboardServer:
 
         # Register routes
         self.app.add_url_rule("/", "index", self.index)
+        self.app.add_url_rule("/indicators", "indicators", self.indicators)
         self.app.add_url_rule("/api/symbols", "api_symbols", self.api_symbols)
         self.app.add_url_rule("/api/timeframes", "api_timeframes", self.api_timeframes)
         self.app.add_url_rule(
@@ -130,8 +134,29 @@ class DashboardServer:
             methods=["GET"],
         )
 
-        # Live trading monitor route
-        self.app.add_url_rule("/live", "live_monitor", self.live_monitor)
+        # Live indicators endpoint
+        self.app.add_url_rule(
+            "/api/indicators/<symbol>/<timeframe>",
+            "api_indicators",
+            self.api_indicators,
+            methods=["GET"],
+        )
+
+        # Entry signal checks endpoint
+        self.app.add_url_rule(
+            "/api/signal-checks/<symbol>/<timeframe>",
+            "api_signal_checks",
+            self.api_signal_checks,
+            methods=["GET"],
+        )
+
+        # All symbols indicators endpoint
+        self.app.add_url_rule(
+            "/api/all-indicators",
+            "api_all_indicators",
+            self.api_all_indicators,
+            methods=["GET"],
+        )
 
     def _get_db(self):
         """Get a fresh database connection for the current request thread.
@@ -139,15 +164,17 @@ class DashboardServer:
         Returns:
             DatabaseManager: New connection instance for thread-safe operations
         """
-        return DatabaseManager(self.config)
+        db = DatabaseManager(self.config)
+        db.connect()
+        return db
 
     def index(self):
         """Serve the main dashboard HTML (unified live + backtest analysis)."""
         return render_template("dashboard_unified.html")
 
-    def live_monitor(self):
-        """Serve the live trading monitor with WebSocket support."""
-        return render_template("live_monitor.html")
+    def indicators(self):
+        """Serve the live indicators dashboard."""
+        return render_template("live_indicators.html")
 
     def api_symbols(self):
         """Get available symbols from database."""
@@ -419,7 +446,7 @@ class DashboardServer:
                     }
                 )
 
-        except Exception as e:
+        except (RuntimeError, ValueError, KeyError, OSError) as e:
             self.logger.error("Failed to fetch optimal parameters: %s", e)
             return (
                 jsonify({"parameters": {}, "status": "error", "message": str(e)}),
@@ -469,7 +496,7 @@ class DashboardServer:
                     }
                 )
 
-        except Exception as e:
+        except (RuntimeError, ValueError, KeyError, OSError) as e:
             self.logger.error("Failed to fetch trading pairs: %s", e)
             return (
                 jsonify({"pairs": [], "status": "error", "message": str(e)}),
@@ -526,15 +553,35 @@ class DashboardServer:
 
                 # Get active positions
                 active_query = """
-                    SELECT symbol, action, entry_price, volume, strategy
-                    FROM trades
-                    WHERE status IN ('executed', 'open')
-                    ORDER BY created_at DESC
+                    SELECT tp.symbol, t.trade_type as action, t.open_price as entry_price, t.volume, t.strategy_name as strategy
+                    FROM trades t
+                    JOIN tradable_pairs tp ON t.symbol_id = tp.id
+                    WHERE t.status IN ('executed', 'open')
+                    ORDER BY t.open_time DESC
                 """
                 active_result = db.execute_query(active_query).fetchall()
                 active_positions = (
                     [dict(row) for row in active_result] if active_result else []
                 )
+
+                # Also get live positions from MT5
+                try:  # pylint: disable=no-member
+                    if mt5.initialize():
+                        mt5_positions = mt5.positions_get()
+                        if mt5_positions:
+                            for pos in mt5_positions:
+                                active_positions.append(
+                                    {
+                                        "symbol": pos.symbol,
+                                        "action": "buy" if pos.type == 0 else "sell",
+                                        "entry_price": pos.price_open,
+                                        "volume": pos.volume,
+                                        "strategy": "MT5 Live",
+                                    }
+                                )
+                        mt5.shutdown()
+                except (RuntimeError, OSError, AttributeError) as e:
+                    self.logger.debug("Could not fetch MT5 positions: %s", e)
 
                 self.logger.debug(
                     "Live statistics: %d total trades, %d executed, %d pending",
@@ -562,7 +609,7 @@ class DashboardServer:
                     }
                 )
 
-        except Exception as e:
+        except (RuntimeError, ValueError, KeyError, OSError) as e:
             self.logger.error("Failed to fetch live statistics: %s", e)
             return (
                 jsonify(
@@ -619,12 +666,13 @@ class DashboardServer:
             with self._get_db() as db:
                 # Get recent signals (last 10)
                 signals_query = """
-                    SELECT symbol, action as action, 0.0 as entry_price, 
-                           strategy_name, timeframe, status, open_time as timestamp,
-                           json_object('name', strategy_name, 'confidence', 0.5) as strategy_info
-                    FROM trades
-                    WHERE status = 'signal_generated'
-                    ORDER BY open_time DESC
+                    SELECT tp.symbol, t.trade_type as action, 0.0 as entry_price, 
+                           t.strategy_name, t.timeframe, t.status, t.open_time as timestamp,
+                           json_object('name', t.strategy_name, 'confidence', 0.5) as strategy_info
+                    FROM trades t
+                    JOIN tradable_pairs tp ON t.symbol_id = tp.id
+                    WHERE t.status = 'signal_generated'
+                    ORDER BY t.open_time DESC
                     LIMIT 10
                 """
                 signals_result = db.execute_query(signals_query).fetchall()
@@ -647,30 +695,50 @@ class DashboardServer:
                                 }
                         signals.append(signal)
 
-                # Get open/active positions
+                # Get open/active positions from database
                 positions_query = """
-                    SELECT tp.symbol, trade_type as side, open_price as entry_price,
-                           open_price as current_price,
-                           (open_price - open_price) * volume as pnl,
-                           volume
+                    SELECT tp.symbol, t.trade_type as side, t.open_price as entry_price,
+                           t.open_price as current_price,
+                           COALESCE(t.profit, 0) as pnl,
+                           t.volume
                     FROM trades t
                     JOIN tradable_pairs tp ON t.symbol_id = tp.id
-                    WHERE status IN ('executed', 'open')
-                    ORDER BY open_time DESC
+                    WHERE t.status IN ('executed', 'open')
+                    ORDER BY t.open_time DESC
                 """
                 positions_result = db.execute_query(positions_query).fetchall()
                 positions = (
                     [dict(row) for row in positions_result] if positions_result else []
                 )
 
+                # Also get live positions from MT5
+                try:
+                    if mt5.initialize():
+                        mt5_positions = mt5.positions_get()
+                        if mt5_positions:
+                            for pos in mt5_positions:
+                                positions.append(
+                                    {
+                                        "symbol": pos.symbol,
+                                        "side": "buy" if pos.type == 0 else "sell",
+                                        "entry_price": pos.price_open,
+                                        "current_price": pos.price_current,
+                                        "pnl": pos.profit,
+                                        "volume": pos.volume,
+                                    }
+                                )
+                        mt5.shutdown()
+                except (RuntimeError, OSError, AttributeError) as e:
+                    self.logger.debug("Could not fetch MT5 positions: %s", e)
+
                 # Get recent executed trades (last 5)
                 trades_query = """
-                    SELECT tp.symbol, trade_type as action, strategy_name,
-                           status, open_time as timestamp
+                    SELECT tp.symbol, t.trade_type as action, t.strategy_name,
+                           t.status, t.open_time as timestamp
                     FROM trades t
                     JOIN tradable_pairs tp ON t.symbol_id = tp.id
-                    WHERE status IN ('executed', 'closed')
-                    ORDER BY open_time DESC
+                    WHERE t.status IN ('executed', 'closed')
+                    ORDER BY t.open_time DESC
                     LIMIT 5
                 """
                 trades_result = db.execute_query(trades_query).fetchall()
@@ -694,6 +762,13 @@ class DashboardServer:
                 """
                 stats_result = db.execute_query(stats_query).fetchone()
 
+                # Count open positions from BOTH database and MT5
+                open_positions_count = (
+                    stats_result["open_count"] if stats_result else 0
+                ) or 0
+                # Add MT5 live positions count
+                open_positions_count += len(positions)
+
                 stats = {
                     "net_profit": (
                         self._safe_round(
@@ -710,7 +785,7 @@ class DashboardServer:
                         else 0
                     ),
                     "total_trades": stats_result["total_trades"] if stats_result else 0,
-                    "open_positions": stats_result["open_count"] if stats_result else 0,
+                    "open_positions": open_positions_count,
                     "net_profit_change": 0.0,
                 }
 
@@ -726,7 +801,7 @@ class DashboardServer:
                     }
                 )
 
-        except Exception as e:
+        except (RuntimeError, ValueError, KeyError, OSError) as e:
             self.logger.error("Failed to fetch live data: %s", e)
             return (
                 jsonify(
@@ -1062,6 +1137,74 @@ class DashboardServer:
                 return jsonify({"error": str(e)}), 500
 
         self.logger.info("Phase 3 report API routes registered")
+
+    def api_indicators(self, symbol, timeframe):
+        """Get all technical indicators for a symbol/timeframe.
+
+        Args:
+            symbol: Trading symbol (e.g., BTCUSD)
+            timeframe: Timeframe (M15, H1, H4, etc.)
+
+        Returns:
+            JSON with RSI, MACD, SMA, EMA, volatility values
+        """
+        try:
+            analyzer = IndicatorAnalyzer(self._get_db(), config=self.config)
+            indicators = analyzer.get_all_indicators(symbol, timeframe)
+            return jsonify({"status": "success", "data": indicators})
+        except Exception as e:
+            self.logger.error(f"Error getting indicators: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 500
+
+    def api_signal_checks(self, symbol, timeframe):
+        """Get detailed entry signal checks with all values.
+
+        Args:
+            symbol: Trading symbol
+            timeframe: Timeframe
+
+        Returns:
+            JSON with signal checks and their results
+        """
+        try:
+            analyzer = IndicatorAnalyzer(self._get_db(), config=self.config)
+            checks = analyzer.get_entry_signal_checks(symbol, timeframe)
+            return jsonify({"status": "success", "data": checks})
+        except Exception as e:
+            self.logger.error(f"Error getting signal checks: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 500
+
+    def api_all_indicators(self):
+        """Get indicators for all configured symbols.
+
+        Returns:
+            JSON with indicators for each symbol/timeframe
+        """
+        try:
+            timeframe = request.args.get("timeframe", "M15")
+            db = self._get_db()
+            analyzer = IndicatorAnalyzer(db, config=self.config)
+
+            # Get all tradable pairs
+            cursor = self.db.conn.cursor()
+            cursor.execute("SELECT DISTINCT symbol FROM tradable_pairs")
+            symbols = [row[0] for row in cursor.fetchall()]
+
+            result = {
+                "status": "success",
+                "timestamp": time.time(),
+                "timeframe": timeframe,
+                "symbols": {},
+            }
+
+            for symbol in symbols:
+                indicators = analyzer.get_all_indicators(symbol, timeframe)
+                result["symbols"][symbol] = indicators
+
+            return jsonify(result)
+        except Exception as e:
+            self.logger.error(f"Error getting all indicators: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 500
 
     def run(self, debug=False):
         """Start the dashboard server."""

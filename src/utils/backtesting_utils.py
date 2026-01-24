@@ -84,8 +84,16 @@ def volatility_rank_pairs(
     try:
         for symbol in tradable_pairs:
             try:
-                # Get symbol_id first
-                cursor = db_conn.cursor()
+                # Get symbol_id first - handle both DatabaseManager and sqlite3 connection
+                if hasattr(db_conn, "conn"):
+                    # db_conn is a DatabaseManager object
+                    cursor = db_conn.conn.cursor()
+                    connection = db_conn.conn
+                else:
+                    # db_conn is a sqlite3 connection
+                    cursor = db_conn.cursor()
+                    connection = db_conn
+
                 cursor.execute(
                     "SELECT id FROM tradable_pairs WHERE symbol = ?", (symbol,)
                 )
@@ -106,7 +114,7 @@ def volatility_rank_pairs(
                     LIMIT ?
                 """
                 data = pd.read_sql_query(
-                    query, db_conn, params=(symbol_id, timeframe, lookback_bars)
+                    query, connection, params=(symbol_id, timeframe, lookback_bars)
                 )
 
                 if data is None or len(data) < atr_period:
@@ -183,9 +191,9 @@ def get_strategy_parameters_from_optimal(
         if not result:
             logger.debug(f"{symbol} not found in tradable_pairs")
             return None
-        
+
         symbol_id = result[0]
-        
+
         query = """
             SELECT strategy_name, parameter_value
             FROM optimal_parameters
@@ -245,9 +253,9 @@ def query_top_strategies_by_rank_score(
         if not result:
             logger.debug(f"{symbol} not found in tradable_pairs")
             return []
-        
+
         symbol_id = result[0]
-        
+
         query = """
             SELECT bb.strategy_id, bb.metrics, bs.name as strategy_name
             FROM backtest_backtests bb
@@ -256,7 +264,9 @@ def query_top_strategies_by_rank_score(
             ORDER BY json_extract(bb.metrics, '$.rank_score') DESC
             LIMIT ?
         """
-        results = pd.read_sql_query(query, db_conn, params=(symbol_id, timeframe, top_n))
+        results = pd.read_sql_query(
+            query, db_conn, params=(symbol_id, timeframe, top_n)
+        )
 
         if results is None or len(results) == 0:
             logger.debug(f"No backtest results found for {symbol} ({timeframe})")

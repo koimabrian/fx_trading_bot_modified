@@ -47,7 +47,7 @@ class MT5Connector:
             )
             return False
 
-        try:
+        try:  # pylint: disable=no-member
             self.logger.debug(
                 "Attempting MT5 connection with login=%s, server=%s",
                 self.login,
@@ -185,6 +185,51 @@ class MT5Connector:
         volume = signal.get("volume", 0.01)
 
         try:
+            # Get symbol info to validate volume
+            symbol_info = mt5.symbol_info(symbol)
+            if symbol_info is None:
+                self.logger.error(
+                    "Failed to get symbol info for %s: %s", symbol, mt5.last_error()
+                )
+                return False
+
+            # Validate and adjust volume
+            min_volume = symbol_info.volume_min
+            max_volume = symbol_info.volume_max
+            volume_step = symbol_info.volume_step
+
+            # Ensure volume meets minimum requirement
+            if volume < min_volume:
+                self.logger.warning(
+                    "Volume %f for %s below minimum %f, adjusting to minimum",
+                    volume,
+                    symbol,
+                    min_volume,
+                )
+                volume = min_volume
+
+            # Ensure volume doesn't exceed maximum
+            if volume > max_volume:
+                self.logger.warning(
+                    "Volume %f for %s exceeds maximum %f, adjusting to maximum",
+                    volume,
+                    symbol,
+                    max_volume,
+                )
+                volume = max_volume
+
+            # Round volume to nearest valid step
+            volume = round(volume / volume_step) * volume_step
+
+            self.logger.debug(
+                "Validated volume for %s: %f (min=%f, max=%f, step=%f)",
+                symbol,
+                volume,
+                min_volume,
+                max_volume,
+                volume_step,
+            )
+
             tick = mt5.symbol_info_tick(symbol)
             if tick is None:
                 self.logger.error(

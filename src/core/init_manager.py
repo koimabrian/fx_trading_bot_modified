@@ -4,6 +4,7 @@ Handles the 'init' mode which sets up the database, populates tradable pairs
 from MT5, and fetches historical data for backtesting.
 """
 
+# pylint: disable=no-member
 import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
@@ -102,7 +103,9 @@ class InitManager:
             self.logger.info("Fetching all available symbols from MT5...")
 
             # Get all symbols from MT5
-            all_symbols = mt5.symbols_get()  # type: ignore
+            all_symbols = mt5.symbols_get(
+                group="*"
+            )  # pylint: disable=no-member # type: ignore
             if not all_symbols:
                 self.logger.error("Failed to fetch symbols from MT5")
                 return False

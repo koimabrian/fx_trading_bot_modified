@@ -1,133 +1,155 @@
-# fx_trading_bot/src/config/config.yaml
-# Purpose: Hybrid workflow configuration for FX Trading Bot
-# Six modes: init, sync, backtest, live, gui, test
-# Reference: new_plan_workflow.yaml & new_plan.md
-
-# ============================
-# MT5 Connection
-# ============================
+backtesting:
+  data_range: 2025-11-27:2026-01-18
+  min_profit_factor: 1.2
+  min_sharpe_threshold: 0.5
+  optimization:
+    ema:
+      fast_period:
+      - 5
+      - 8
+      - 10
+      - 12
+      - 15
+      slow_period:
+      - 15
+      - 20
+      - 25
+      - 30
+      - 35
+    macd:
+      fast_period:
+      - 8
+      - 10
+      - 12
+      - 14
+      - 16
+      signal_period:
+      - 6
+      - 8
+      - 9
+      - 10
+      - 12
+      slow_period:
+      - 20
+      - 24
+      - 26
+      - 28
+      - 32
+    max_combos: 200
+    rsi:
+      overbought:
+      - 65
+      - 70
+      - 75
+      - 80
+      oversold:
+      - 20
+      - 25
+      - 30
+      - 35
+      - 40
+      period:
+      - 10
+      - 12
+      - 14
+      - 16
+      - 18
+      - 20
+    sma:
+      fast_period:
+      - 5
+      - 8
+      - 10
+      - 12
+      - 15
+      slow_period:
+      - 15
+      - 20
+      - 25
+      - 30
+      - 35
+data:
+  fetch_limit: 1000
+  fetch_multiplier: 3
+  min_fetch_buffer: 50
+database:
+  path: src/data/market_data.sqlite
+gui:
+  host: 127.0.0.1
+  port: 5000
+live_trading:
+  aggressive_mode: true
+  max_consecutive_losses: 3
+  min_profit_factor: 1.0
+  min_sharpe_requirement: -0.5
+  min_signal_confidence: 0.5
+  use_adaptive_selection: true
+  use_exit_strategies: true
+logging:
+  console: true
+  file: logs/bot.log
+  format: '[%(asctime)s] %(levelname)s - %(name)s - %(message)s'
+  level: INFO
 mt5:
   login: 297864944
   password: Brian@2025
   server: Exness-MT5Trial9
-
-# ============================
-# Database Configuration
-# ============================
-database:
-  path: src/data/market_data.sqlite
-
-# ============================
-# Trading Pairs (Dynamically loaded from MT5)
-# ============================
-# Pairs are auto-discovered from MT5 during init mode
-# Symbols stored in tradable_pairs table, not hardcoded here
-timeframes: [15, 60, 240]  # M15 (15 min), H1 (60 min), H4 (240 min)
-pairs: []  # Auto-populated from tradable_pairs table on startup
-
-# ============================
-# Pair Configuration (used for testing and fallback)
-# ============================
 pair_config:
-  timeframes: [15, 60, 240]   # M15, H1, H4
   categories:
-    forex:
-      symbols:
-        # - EURUSD
-        # - GBPUSD
-        # - USDJPY
-        # - AUDUSD
-    stocks:
-      symbols:
-        # - AAPL
-        # - MSFT
-        # - TSLA
     crypto:
-      symbols:
-        # - BTCUSD
-        # - ETHUSD
-
-# ============================
-# Strategies
-# ============================
-strategies:
-  - name: rsi
-    params:
-      period: 14
-      overbought: 70
-      oversold: 30
-      volume: 0.01
-  - name: macd
-    params:
-      fast_period: 12
-      slow_period: 26
-      signal_period: 9
-      volume: 0.01
-
-# ============================
-# Data Synchronization
-# ============================
-sync:
-  start_date: "2025-11-27"      # Historical data range start (YYYY-MM-DD)
-  end_date: "2026-01-18"        # Historical data range end (YYYY-MM-DD)
-  fetch_count: 10000            # Candles to fetch per symbol/timeframe
-  min_rows_threshold: 1000      # Minimum rows required before trading
-  incremental_interval_min: 4   # Sync frequency in minutes (live mode)
-
-# ============================
-# Risk Management
-# ============================
+      symbols: null
+    forex:
+      symbols: null
+    stocks:
+      symbols: null
+  timeframes:
+  - 15
+  - 60
+  - 240
+pairs: []
 risk_management:
-  stop_loss_percent: 1.0        # Stop loss as % of entry price
-  take_profit_percent: 2.0      # Take profit as % of entry price
-  lot_size: 0.01                # Default volume per trade
-  max_positions: 5              # Maximum concurrent open positions
-
-# ============================
-# Volatility Filtering
-# ============================
+  lot_size: 0.01
+  max_positions: 5
+  position_sizing: fixed
+  stop_loss_percent: 1.0
+  take_profit_percent: 2.0
+  trailing_stop: true
+  trailing_stop_percent: 0.5
+strategies:
+- name: rsi
+  params:
+    overbought: 70
+    oversold: 30
+    period: 14
+    volume: 0.01
+- name: macd
+  params:
+    fast_period: 12
+    signal_period: 9
+    slow_period: 26
+    volume: 0.01
+- name: sma
+  params:
+    fast_period: 10
+    slow_period: 20
+    volume: 0.01
+- name: ema
+  params:
+    fast_period: 10
+    slow_period: 20
+    volume: 0.01
+sync:
+  end_date: '2026-01-18'
+  fetch_count: 10000
+  incremental_interval_min: 4
+  min_rows_threshold: 1000
+  start_date: '2025-11-27'
+timeframes:
+- 15
+- 60
+- 240
 volatility:
-  atr_period: 14                # ATR calculation period
-  min_threshold: 0.001          # Minimum ATR threshold
-  top_n_pairs: 10               # Select top N most volatile pairs
-  lookback_bars: 200            # Bars to look back for ATR calculation
-
-# ============================
-# Backtesting & Optimization
-# ============================
-backtesting:
-  data_range: "2025-11-27:2026-01-18"
-  optimization:
-    max_combos: 200             # Maximum parameter combinations to test
-    rsi:
-      period: [10, 12, 14, 16, 18, 20]
-      overbought: [65, 70, 75, 80]
-      oversold: [20, 25, 30, 35, 40]
-    macd:
-      fast_period: [8, 10, 12, 14, 16]
-      slow_period: [20, 24, 26, 28, 32]
-      signal_period: [6, 8, 9, 10, 12]
-
-# ============================
-# Mode Chaining (Optional)
-# ============================
-modes:
-  # Uncomment to run multiple modes in sequence
-  # full_run: [init, backtest, live]
-  # Just use individual CLI commands for now
-
-# ============================
-# GUI/Dashboard Configuration
-# ============================
-gui:
-  host: "127.0.0.1"             # Flask server host
-  port: 5000                    # Flask server port
-
-# ============================
-# Logging Configuration
-# ============================
-logging:
-  level: INFO                   # DEBUG, INFO, WARNING, ERROR, CRITICAL
-  format: "[%(asctime)s] %(levelname)s - %(name)s - %(message)s"
-  file: logs/bot.log
-  console: true                 # Enable console output
+  atr_period: 14
+  lookback_bars: 200
+  min_threshold: 0.001
+  top_n_pairs: 10

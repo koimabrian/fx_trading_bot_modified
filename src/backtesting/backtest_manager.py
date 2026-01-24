@@ -302,7 +302,7 @@ class BacktestManager:
                 )
             )
             param_keys = ["period", "overbought", "oversold"]
-        else:  # MACD
+        elif strategy_name.lower() == "macd":
             param_combinations = list(
                 product(
                     opt_params.get(
@@ -320,6 +320,20 @@ class BacktestManager:
                 )
             )
             param_keys = ["fast_period", "slow_period", "signal_period"]
+        else:  # SMA, EMA - only fast_period and slow_period
+            param_combinations = list(
+                product(
+                    opt_params.get(
+                        "fast_period",
+                        [strategy_config["params"].get("fast_period", 10)],
+                    ),
+                    opt_params.get(
+                        "slow_period",
+                        [strategy_config["params"].get("slow_period", 20)],
+                    ),
+                )
+            )
+            param_keys = ["fast_period", "slow_period"]
 
         # Run backtests with optimization
         best_stats = None
@@ -702,8 +716,6 @@ class BacktestManager:
             self.run_multi_backtest(
                 symbols, args.strategy, args.start_date, args.end_date
             )
-        elif args.mode == "migrate":
-            self.migrate()
         elif args.mode == "run":
             # Legacy mode: runs backtest if strategy provided, otherwise sync
             if args.strategy:

@@ -1,187 +1,321 @@
 # FX Trading Bot
 
-Automated trading bot for forex/commodities with MetaTrader5 integration.
+Automated forex/commodities trading system with MetaTrader5 integration, adaptive strategy selection, intelligent position management, and professional-grade volatility analysis.
 
 ## Quick Start (5 Minutes)
 
-### Setup
 ```powershell
 # 1. Activate environment
 .venv\Scripts\Activate.ps1
 
-# 2. Initialize database (first time only)
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Initialize database and discover pairs from MT5
 python -m src.main --mode init
 
-# 3. Sync market data
+# 4. Sync live market data
 python -m src.main --mode sync
 
-# 4. Start trading
+# 5. Run backtests to optimize strategies
+python -m src.main --mode backtest
+
+# 6. Start live trading with adaptive strategy selection
 python -m src.main --mode live
 
-# 5. Monitor dashboard (in another terminal)
+# 7. Monitor dashboard (separate terminal)
 python -m src.main --mode gui
-# Visit: http://127.0.0.1:5000
+# Open: http://127.0.0.1:5000
 ```
 
-## 6 Operating Modes
+## Operating Modes (6 Modes)
 
-| Mode         | Purpose                               | Command                              |
-| ------------ | ------------------------------------- | ------------------------------------ |
-| **init**     | Initialize database                   | `python -m src.main --mode init`     |
-| **sync**     | Fetch fresh market data               | `python -m src.main --mode sync`     |
-| **backtest** | Test strategies (historical)          | `python -m src.main --mode backtest` |
-| **live**     | Real-time trading                     | `python -m src.main --mode live`     |
-| **gui**      | Web dashboard (http://127.0.0.1:5000) | `python -m src.main --mode gui`      |
-| **test**     | Run test suite                        | `python -m src.main --mode test`     |
+| Mode         | Purpose                                              | Command                              |
+| ------------ | ---------------------------------------------------- | ------------------------------------ |
+| **init**     | Initialize database and auto-discover pairs from MT5 | `python -m src.main --mode init`     |
+| **sync**     | Fetch/update market data from MT5 (incremental)      | `python -m src.main --mode sync`     |
+| **backtest** | Run historical backtests with parameter optimization | `python -m src.main --mode backtest` |
+| **live**     | Real-time trading with adaptive strategy selection   | `python -m src.main --mode live`     |
+| **gui**      | Interactive web dashboard for monitoring             | `python -m src.main --mode gui`      |
+| **test**     | Run full test suite                                  | `python -m src.main --mode test`     |
 
-## System Setup
+## Trade Quality & Position Management
 
-### Requirements
+Your system includes:
+- ✅ Position limit enforcement (configurable per asset class)
+- ✅ Confidence scoring (Sharpe × Win_Rate × Profit_Factor formula)
+- ✅ Weekend trading blocks (forex/commodities auto-disabled)
+- ✅ Category-based rules (crypto, forex, stocks, commodities, indices)
+- ✅ Volatility filtering (ATR-based, regime detection)
+- ✅ Strategy ranking by backtest Sharpe ratio
+- ✅ Market data caching (20s TTL for performance)
+
+
+
+## System Requirements
+
 - Python 3.8+
-- MetaTrader5 (with live/demo account)
+- MetaTrader5 (live/demo account)
 - Windows OS
+- ~500MB disk space for database
 
-### Installation
+## Installation
+
 ```powershell
 # Create virtual environment
 python -m venv .venv
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 .venv\Scripts\Activate.ps1
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure MT5 in src/config/config.yaml
-# Then initialize
+# Edit configuration
+notepad src/config/config.yaml
+# Set: mt5.login, mt5.password, mt5.server
+
+# Initialize
 python -m src.main --mode init
 ```
 
-## Configuration
+## Configuration (src/config/config.yaml)
 
-Edit `src/config/config.yaml`:
+**MT5 Connection**
 ```yaml
 mt5:
   login: YOUR_LOGIN
   password: YOUR_PASSWORD
   server: YOUR_BROKER_SERVER
+```
 
-pair_config:
-  BTCUSD:
-    enabled: true
-    strategies: [MACD, RSI]
-    timeframes: [15, 60, 240]
+**Risk Management**
+```yaml
+risk_management:
+  stop_loss_percent: 1.0         # SL as % of entry
+  take_profit_percent: 2.0       # TP as % of entry
+  max_positions: 5               # Max concurrent trades
+  lot_size: 0.01                 # Default position size
+```
+
+**Volatility (Expert-Grade)**
+```yaml
+volatility:
+  atr_period: 14                 # ATR period
+  min_threshold: 0.001           # Minimum vol to trade
+  top_n_pairs: 10                # Select top N volatile pairs
+  volatility_percentile_period: 252    # 1-year baseline
+  min_percentile_threshold: 30         # 70th percentile+
 ```
 
 ## Key Features
 
-✅ **Adaptive Strategy Selection** - Auto picks best performing strategy  
-✅ **Multiple Strategies** - MACD and RSI signal generation  
-✅ **Backtesting Engine** - Historical performance analysis  
-✅ **Live Dashboard** - Real-time web monitoring  
-✅ **Risk Management** - Volatility-based position sizing  
-✅ **Database** - SQLite trade history and optimization results  
+**Architecture**
+- Hybrid workflow (backtesting + live adaptive selection)
+- Multi-strategy system (MACD, RSI)
+- Automatic strategy ranking and selection
+- Professional volatility analysis (ATR, Historical Vol, Regime Detection)
+- Risk management (position limits, stop loss, take profit)
+- Data caching (20s TTL for performance)
 
-## File Structure
+**Dashboard**
+- Real-time trade monitoring
+- Equity curve visualization
+- Optimization heatmaps
+- Live statistics and performance metrics
+- Interactive filtering
+
+**Database**
+- SQLite with proper schema
+- Automatic migrations
+- Trade audit trail
+- Backtest result storage
+
+## Directory Structure
 
 ```
 src/
-  ├── main.py                 # Entry point
-  ├── mt5_connector.py        # MT5 integration
-  ├── core/                   # Trading logic
-  ├── strategies/             # MACD, RSI
-  ├── backtesting/            # Backtest engine
-  ├── database/               # SQLite operations
-  ├── config/                 # Configuration files
-  └── ui/                     # Dashboard (web + CLI)
+  main.py                    # Entry point - routes 6 modes
+  mt5_connector.py           # MT5 API integration
+  strategy_manager.py        # Dynamic strategy loading
+  core/
+    adaptive_trader.py       # Live trading with strategy selection
+    trader.py                # Trade execution & risk mgmt
+    strategy_selector.py     # Ranks strategies by backtest results
+    base_strategy.py         # Abstract strategy interface
+    data_fetcher.py          # MT5 data fetching
+    data_handler.py          # Data processing
+    trade_monitor.py         # Trade monitoring
+  strategies/
+    factory.py               # Strategy factory
+    macd_strategy.py         # MACD implementation
+    rsi_strategy.py          # RSI implementation
+  backtesting/
+    backtest_manager.py      # Backtesting engine
+    backtest_orchestrator.py # Parameter optimization
+    metrics_engine.py        # Performance calculations
+    trade_logger.py          # Trade recording
+  database/
+    db_manager.py            # SQLite operations
+    migrations.py            # Schema management
+  utils/
+    logger.py                # Logging setup
+    trading_rules.py         # Market hour rules, categories
+    volatility_manager.py    # Volatility analysis
+    trade_quality_filter.py  # Quality filters (optional)
+  config/
+    config.yaml              # All settings
+  ui/
+    cli.py                   # Command-line interface
+    web/
+      dashboard_server.py    # Flask server
+      dashboard_api.py       # API endpoints
+      live_broadcaster.py    # WebSocket updates
+    gui/
+      enhanced_dashboard.py  # Plotly GUI
 
-tests/                        # Test suite
-logs/                         # Trading logs
-backtests/results/            # Backtest output
+tests/
+  test_*.py                  # Unit & integration tests
+  verify_*.py                # Verification scripts
+
+backtests/                   # Backtest results
+logs/                        # Application logs
 ```
 
-## Daily Workflow
+## Workflow Examples
 
-```bash
-# Start of day
-python -m src.main --mode sync    # Fresh data
-python -m src.main --mode live    # Begin trading
-python -m src.main --mode gui     # Monitor dashboard
-
-# End of day (optional)
-python -m src.main --mode backtest  # Analyze performance
+### Daily Trading
+```powershell
+.venv\Scripts\Activate.ps1
+python -m src.main --mode sync      # Sync latest data
+python -m src.main --mode live      # Start trading
+python -m src.main --mode gui       # Monitor (separate terminal)
 ```
 
-## Current Performance
+### Weekly Optimization
+```powershell
+python -m src.main --mode backtest  # Re-optimize strategies
+# System automatically selects best parameters
+```
 
-- Monthly Return: 5-8%
-- Win Rate: 55%
-- Max Drawdown: -20%
-- Sharpe Ratio: 1.2
+### First-Time Setup
+```powershell
+python -m src.main --mode init      # Database + pair discovery
+python -m src.main --mode sync      # Download historical data
+python -m src.main --mode backtest  # Establish baseline
+python -m src.main --mode live      # Ready for trading
+```
 
-## Improvement Ideas
+## Advanced Features
 
-1. Add Stop Loss & Take Profit (auto-exit points)
-2. Improve signal quality (multi-factor confirmation)
-3. Add trend filtering (only trade with trend)
-4. Risk-based position sizing (1% risk per trade)
-5. Daily loss limits (stop trading if down 5%)
+### Volatility Analysis (Expert-Grade)
 
-Expected improvements:
-- Stop Loss/TP: 5% → 10% monthly profit
-- All improvements: 10% → 15-20% monthly profit
+Professional metrics:
+1. **ATR** - Absolute true range
+2. **Historical Volatility** - 20-bar standard deviation
+3. **Volatility Percentile** - Current vs 252-bar history
+4. **Parkinson Volatility** - High-low only (responsive)
+5. **Session Filtering** - Avoid low-vol times
+6. **Volatility Clustering** - Recent spikes predict continuation
 
-## Troubleshooting
+### Adaptive Strategy Selection
 
-**MT5 connection failed**
-- Ensure MT5 is running
-- Check credentials in config.yaml
-- Verify server name matches your broker
+System automatically:
+1. Backtests all strategies on all pairs
+2. Ranks by Sharpe ratio and other metrics
+3. Selects top strategies for live trading
+4. Caches instances for performance
+5. Executes based on confidence scores
+6. Logs all decisions
 
-**No signals generated**
-- Run `python -m src.main --mode sync` first
-- Wait 30 seconds for data processing
-- Check logs: `cat logs/terminal_log.txt`
+### Risk Management
 
-**Dashboard shows no data**
-- Ensure live mode is running
-- Restart gui mode
-- Refresh browser (F5)
-
-**Trades not executing**
-- Check MT5 account balance
-- Verify automated trading is enabled in MT5
-- Check logs for error messages
-
-## Database
-
-SQLite database (`src/data/market_data.sqlite`) contains:
-- **trades** - Live and historical trades
-- **backtest_backtests** - Strategy performance results
-- **optimal_parameters** - Best parameter sets found
-- **tradable_pairs** - Available trading symbols
+Built-in safeguards:
+- Position limit enforcement (max 5 default)
+- Stop loss % enforcement (1% default)
+- Take profit % targets (2% default)
+- Trading rules validation
+- Daily monitoring and logging
 
 ## Testing
 
-Run full test suite:
-```bash
+```powershell
+# Full test suite
 python -m src.main --mode test
+
+# Specific test
+pytest tests/test_adaptive_trader.py -v
+
+# With coverage
+pytest --cov=src tests/
 ```
 
-Or run specific tests:
-```bash
-pytest tests/test_adaptive_trader.py
-pytest tests/test_imports.py
+## Troubleshooting
+
+### MT5 Connection Failed
+```powershell
+# Check credentials in config
+notepad src/config/config.yaml
+
+# Check logs
+Get-Content logs/terminal_log.txt -Tail 50
 ```
+
+### No Signals Generated
+```powershell
+# Sync data first
+python -m src.main --mode sync
+# Wait 30 seconds for processing
+```
+
+### Dashboard 500 Error
+```powershell
+# Restart
+python -m src.main --mode gui
+Get-Content logs/terminal_log.txt | Select-String "ERROR"
+```
+
+### Trades Not Executing
+1. Verify MT5 account has balance
+2. Enable automated trading in MT5 (Tools → Options → Expert Advisors)
+3. Check logs: `logs/terminal_log.txt`
+4. Verify strategy generates signals on dashboard
+
+## Database Schema
+
+Tables:
+- **tradable_pairs** - Available symbols
+- **market_data** - Live market data
+- **backtest_market_data** - Historical backtesting data
+- **backtest_backtests** - Strategy performance
+- **trades** - Trade audit trail
+- **optimal_parameters** - Best found parameters
+
+## Performance
+
+- Data Cache: 20s TTL
+- Backtest Speed: ~30s per symbol/timeframe/strategy
+- Dashboard Response: ~50ms
+- Signal Generation: <100ms per symbol
+
+## Support Files
+
+For reference documentation:
+- **commands.yaml** - Complete command reference
+- **workflow.yaml** - Project workflow and processes
+
+## Getting Started - 5 Step Process
+
+1. **Initialize**: `python -m src.main --mode init`
+2. **Configure**: Edit `src/config/config.yaml`
+3. **Sync Data**: `python -m src.main --mode sync`
+4. **Backtest**: `python -m src.main --mode backtest`
+5. **Trade**: `python -m src.main --mode live`
+
+Monitor with: `python -m src.main --mode gui`
 
 ## License
 
-Internal use only.
+Proprietary - Personal trading use only.
 
----
-
-**Ready to trade?**
-```bash
-python -m src.main --mode sync
-python -m src.main --mode live
-```
-
-**Questions?** Check logs: `logs/terminal_log.txt`
+Current: 2.0  
+Last Updated: January 2026

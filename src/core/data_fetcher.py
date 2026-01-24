@@ -114,31 +114,46 @@ class DataFetcher:
             limit: Maximum rows to fetch (uses config if None)
             table: Table name ('market_data' or 'backtest_market_data')
             required_rows: Minimum rows needed for indicator calculation.
-                          If provided, fetches required_rows * 1.1 (with buffer)
+                          If provided, calculates dynamic limit based on:
+                          - 3x multiplier for safety margin
+                          - Minimum from config (data.min_fetch_buffer)
                           Otherwise uses config fetch_limit
 
         Returns:
             DataFrame with market data or empty DataFrame on error
         """
         if required_rows is not None:
-            # Fetch only what's needed + 10% buffer for edge cases
-            limit = int(required_rows * 1.1)
+            # Calculate dynamic fetch limit based on strategy requirements
+            # Use config value for minimum buffer if available
+            min_buffer = self.config.get("data", {}).get("min_fetch_buffer", 50)
+            multiplier = self.config.get("data", {}).get("fetch_multiplier", 3)
+
+            # Ensure we fetch enough for signal reliability:
+            # - Base calculation: required_rows * multiplier
+            # - Minimum fallback: required_rows + buffer
+            limit = max(required_rows + min_buffer, int(required_rows * multiplier))
+
             self.logger.debug(
-                "Smart fetch limit for %s: %d rows (required: %d + buffer)",
+                "Calculated fetch limit for %s: %d rows (required: %d, buffer: %d, multiplier: %.1fx)",
                 symbol,
                 limit,
                 required_rows,
+                min_buffer,
+                multiplier,
             )
         else:
             limit = limit or self.config.get("data", {}).get("fetch_limit", 1000)
         # Convert timeframe to int if it's a string (e.g., 'M15' -> 15, 'H1' -> 60)
+        timeframe_int = timeframe
         if isinstance(timeframe, str):
             if timeframe.startswith("H"):
-                timeframe = int(timeframe[1:]) * 60
+                timeframe_int = int(timeframe[1:]) * 60
             elif timeframe.startswith("M"):
-                timeframe = int(timeframe[1:])
+                timeframe_int = int(timeframe[1:])
+        else:
+            timeframe_int = int(timeframe)
         # Ensure timeframe is a string (e.g., 'M15', 'H1') for database queries
-        tf_str = f"M{timeframe}" if timeframe < 60 else f"H{timeframe//60}"
+        tf_str = f"M{timeframe_int}" if timeframe_int < 60 else f"H{timeframe_int//60}"
         try:
             query = f"SELECT * FROM {table} md JOIN tradable_pairs tp ON md.symbol_id = tp.id WHERE tp.symbol = ? AND md.timeframe = ? ORDER BY md.time DESC LIMIT ?"
             data = pd.read_sql(query, self.db.conn, params=(symbol, tf_str, limit))
@@ -150,7 +165,7 @@ class DataFetcher:
                     tf_str,
                 )
                 mt5_timeframe = getattr(mt5, f"TIMEFRAME_{tf_str}", mt5.TIMEFRAME_M15)
-                self.sync_data(symbol, timeframe, mt5_timeframe, table)
+                self.sync_data(symbol=symbol, mt5_timeframe=mt5_timeframe, table=table)
                 data = pd.read_sql(query, self.db.conn, params=(symbol, tf_str, limit))
             self.logger.info(
                 "Fetched %s rows from %s for %s (%s)", len(data), table, symbol, tf_str
@@ -316,15 +331,55 @@ class DataFetcher:
                     available_cols = [col for col in schema_cols if col in data.columns]
                     data = data[available_cols]
 
-                    data.to_sql(table, self.db.conn, if_exists="append", index=False)
-                    self.db.conn.commit()
-                    self.logger.info(
-                        "Synced %s new rows for %s (%s) to %s",
-                        len(data),
-                        sym,
-                        tf_str,
-                        table,
-                    )
+                    try:
+                        data.to_sql(
+                            table, self.db.conn, if_exists="append", index=False
+                        )
+                        self.db.conn.commit()
+                        self.logger.info(
+                            "Synced %s new rows for %s (%s) to %s",
+                            len(data),
+                            sym,
+                            tf_str,
+                            table,
+                        )
+                    except sqlite3.IntegrityError as e:
+                        # Handle race condition: duplicate data inserted between check and insert
+                        self.logger.warning(
+                            "UNIQUE constraint violation for %s (%s) - race condition detected: %s",
+                            sym,
+                            tf_str,
+                            e,
+                        )
+                        self.db.conn.rollback()
+                        # Retry with stricter deduplication
+                        existing_times = (
+                            set(existing_data["time"].values)
+                            if not existing_data.empty
+                            else set()
+                        )
+                        data = data[~data["time"].isin(existing_times)]
+                        if not data.empty:
+                            try:
+                                data.to_sql(
+                                    table, self.db.conn, if_exists="append", index=False
+                                )
+                                self.db.conn.commit()
+                                self.logger.info(
+                                    "Synced %s rows (after retry) for %s (%s) to %s",
+                                    len(data),
+                                    sym,
+                                    tf_str,
+                                    table,
+                                )
+                            except sqlite3.IntegrityError as retry_err:
+                                self.logger.error(
+                                    "Failed to sync data for %s (%s) after retry: %s",
+                                    sym,
+                                    tf_str,
+                                    retry_err,
+                                )
+                                self.db.conn.rollback()
                 else:
                     self.logger.info("No new data to sync for %s (%s)", sym, tf_str)
             except (pd.errors.DatabaseError, ValueError) as e:
@@ -421,6 +476,10 @@ class DataFetcher:
                 for col in required_cols:
                     if col not in data.columns:
                         data[col] = None
+
+                # Rename tick_volume to volume for database compatibility
+                if "tick_volume" in data.columns:
+                    data.rename(columns={"tick_volume": "volume"}, inplace=True)
 
                 # Insert new data
                 data.to_sql(table, self.db.conn, if_exists="append", index=False)

@@ -99,7 +99,10 @@ class AdaptiveTrader:
     def _compute_confidence(self, strategy_info: Dict) -> float:
         """Compute confidence score for a strategy based on its metrics.
 
-        Confidence = (Sharpe + 5) / 10 * Win Rate / 100 * min(Profit Factor / 3, 1)
+        IMPROVED: More lenient scoring to allow more trades
+        - Positive Sharpe: 0.6-1.0 confidence
+        - Neutral Sharpe (0-1): 0.5-0.6 confidence
+        - Negative Sharpe: still trade if profit factor > 1.2 (0.4-0.5)
 
         Args:
             strategy_info: Dict with strategy metrics from DB
@@ -109,14 +112,29 @@ class AdaptiveTrader:
         """
         sharpe = strategy_info.get("sharpe_ratio", 0)
         win_rate = strategy_info.get("win_rate_pct", 50)
-        profit_factor = strategy_info.get("profit_factor", 1)
+        profit_factor = strategy_info.get("profit_factor", 1.0)
 
-        # Normalize and combine metrics
-        sharpe_factor = max(0, (sharpe + 5) / 10)  # -5 to 5 range
-        win_rate_factor = win_rate / 100  # 0 to 1
-        pf_factor = min(profit_factor / 3, 1)  # normalized to 0-1
+        # Base confidence from Sharpe ratio
+        if sharpe > 1.0:
+            base_confidence = 0.8  # Strong strategy
+        elif sharpe > 0.5:
+            base_confidence = 0.7  # Good strategy
+        elif sharpe > 0:
+            base_confidence = 0.6  # Acceptable strategy
+        elif profit_factor > 1.2:
+            base_confidence = 0.5  # Marginal but tradeable
+        else:
+            base_confidence = 0.3  # Only trade if other factors strong
 
-        confidence = sharpe_factor * win_rate_factor * pf_factor
+        # Adjust for win rate
+        win_rate_factor = min(win_rate / 100, 1.0)
+
+        # Adjust for profit factor (normalize 1.0-3.0 range)
+        pf_factor = min(profit_factor / 2.0, 1.0)
+
+        # Combined confidence
+        confidence = base_confidence * (0.5 + 0.3 * win_rate_factor + 0.2 * pf_factor)
+
         return min(max(confidence, 0), 1)  # Clamp to 0-1
 
     def get_signals_adaptive(self, symbol: str) -> List[Dict]:
@@ -170,7 +188,7 @@ class AdaptiveTrader:
                     symbol=symbol,
                     timeframe=tf_str,
                     top_n=3,  # Use top 3 strategies
-                    min_sharpe=0.5,
+                    min_sharpe=-0.5,  # Allow negative Sharpe if profit factor good (IMPROVED)
                 )
 
                 if not strategies:

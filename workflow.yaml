@@ -1,0 +1,471 @@
+################################################################################
+# FX TRADING BOT - PROJECT WORKFLOW
+################################################################################
+# This document describes the development workflow, processes, and key systems
+################################################################################
+
+project:
+  name: FX Trading Bot
+  version: 1.0
+  status: Production
+  last_updated: 2026-01-25
+
+################################################################################
+# DEVELOPMENT WORKFLOW
+################################################################################
+
+development_process:
+  - phase: Planning & Analysis
+    tasks:
+      - Analyze market data requirements
+      - Review strategy performance
+      - Identify optimization opportunities
+    
+  - phase: Implementation
+    tasks:
+      - Develop new features in src/
+      - Write unit tests in tests/
+      - Update configuration if needed
+    
+  - phase: Testing & Validation
+    tasks:
+      - Run pytest suite
+      - Validate with backtest data
+      - Test in live mode (with small positions)
+    
+  - phase: Deployment & Monitoring
+    tasks:
+      - Deploy to production environment
+      - Monitor logs and dashboard
+      - Collect performance metrics
+
+################################################################################
+# DIRECTORY ORGANIZATION
+################################################################################
+
+directory_structure:
+  root_files:
+    README.md: "Project documentation and quick start"
+    commands.yaml: "Command reference for all operations"
+    workflow.yaml: "This file - development workflow and processes"
+    requirements.txt: "Python dependencies"
+    pytest.ini: "Pytest configuration"
+
+  src:
+    description: "Main source code"
+    main.py: "Entry point - routes all 6 modes"
+    mt5_connector.py: "MetaTrader5 API integration"
+    strategy_manager.py: "Dynamic strategy loading and management"
+    
+    core:
+      description: "Core trading logic"
+      adaptive_trader.py: "Live trading with automatic strategy selection"
+      trader.py: "Trade execution and position management"
+      strategy_selector.py: "Strategy ranking and selection"
+      base_strategy.py: "Abstract base strategy interface"
+      data_fetcher.py: "MT5 data fetching and caching"
+      data_handler.py: "Data processing and validation"
+      trade_monitor.py: "Trade monitoring and updates"
+      init_manager.py: "Initialization logic"
+    
+    strategies:
+      description: "Trading strategy implementations"
+      factory.py: "Strategy factory pattern"
+      macd_strategy.py: "MACD strategy implementation"
+      rsi_strategy.py: "RSI strategy implementation"
+      sma_strategy.py: "SMA strategy implementation"
+      ema_strategy.py: "EMA strategy implementation"
+    
+    backtesting:
+      description: "Backtesting engine and metrics"
+      backtest_manager.py: "Core backtesting engine"
+      backtest_orchestrator.py: "Parameter optimization orchestration"
+      metrics_engine.py: "Performance metrics calculation"
+      trade_logger.py: "Trade recording and audit"
+    
+    database:
+      description: "Data persistence layer"
+      db_manager.py: "SQLite database operations"
+      migrations.py: "Schema management and migrations"
+    
+    config:
+      description: "Configuration management"
+      config.yaml: "All system settings and parameters"
+    
+    utils:
+      description: "Utility functions and helpers"
+      logger.py: "Logging configuration"
+      trading_rules.py: "Market hours and category rules"
+      volatility_manager.py: "Volatility analysis and calculations"
+      trade_quality_filter.py: "Trade quality filtering"
+      exit_strategies.py: "Exit strategy implementations"
+      backtesting_utils.py: "Backtesting utilities"
+      data_validator.py: "Data validation functions"
+      report_utils.py: "Report generation utilities"
+      parameter_archiver.py: "Parameter archiving and versioning"
+    
+    ui:
+      description: "User interface components"
+      cli.py: "Command-line interface"
+      
+      web:
+        description: "Web dashboard (Flask)"
+        dashboard_server.py: "Flask server and routes"
+        dashboard_api.py: "API endpoints"
+        live_broadcaster.py: "WebSocket broadcasting"
+        static: "Static assets"
+        templates:
+          dashboard_unified.html: "Main dashboard template"
+      
+      gui:
+        description: "GUI components (Plotly)"
+        enhanced_dashboard.py: "Enhanced dashboard UI"
+        pair_selector_dialog.py: "Pair selection dialog"
+        plotly_charts.py: "Chart generation"
+
+  tests:
+    description: "Test suite"
+    test_*.py: "Unit and integration tests"
+    verify_*.py: "Verification scripts"
+
+  backtests:
+    description: "Backtest results and outputs"
+
+  logs:
+    description: "Application logs"
+    terminal_log.txt: "Main application log"
+
+################################################################################
+# OPERATING MODES (6 Modes)
+################################################################################
+
+operating_modes:
+  
+  init:
+    description: "Initialize database and discover trading pairs"
+    command: "python -m src.main --mode init"
+    use_cases:
+      - First time setup
+      - Reset system state
+    creates:
+      - Database schema
+      - Tradable pairs list
+    duration: "~1-2 minutes"
+  
+  sync:
+    description: "Fetch/update market data from MetaTrader5"
+    command: "python -m src.main --mode sync"
+    use_cases:
+      - Daily/weekly data refresh
+      - Before backtesting
+      - Before live trading
+    features:
+      - Incremental updates
+      - Smart fetch limits
+      - 20s caching
+    frequency: "Daily or on-demand"
+  
+  backtest:
+    description: "Run historical backtests with parameter optimization"
+    command: "python -m src.main --mode backtest"
+    use_cases:
+      - Strategy optimization
+      - Parameter tuning
+      - Performance analysis
+    features:
+      - Multi-timeframe testing
+      - Parameter search
+      - Metrics calculation
+      - Result storage
+    frequency: "Weekly or after strategy changes"
+  
+  live:
+    description: "Real-time trading with adaptive strategy selection"
+    command: "python -m src.main --mode live"
+    use_cases:
+      - Automated trading
+      - Live position management
+      - Real-time signal execution
+    features:
+      - Strategy selection based on backtest results
+      - Confidence scoring
+      - Position limits enforcement
+      - Stop loss and take profit
+      - Risk management
+    frequency: "During market hours"
+  
+  gui:
+    description: "Interactive web dashboard for monitoring"
+    command: "python -m src.main --mode gui"
+    use_cases:
+      - Monitor trades in real-time
+      - View backtest results
+      - Check system health
+    features:
+      - Real-time updates
+      - WebSocket broadcasting
+      - Interactive charts
+      - Performance metrics
+    access: "http://127.0.0.1:5000"
+  
+  test:
+    description: "Run full test suite"
+    command: "python -m src.main --mode test"
+    use_cases:
+      - Validate system integrity
+      - Before deployment
+      - After changes
+    coverage: "Unit and integration tests"
+
+################################################################################
+# DAILY WORKFLOW
+################################################################################
+
+daily_trading_workflow:
+  morning:
+    - activate_environment: ".venv\\Scripts\\Activate.ps1"
+    - sync_data: "python -m src.main --mode sync"
+    - start_trading: "python -m src.main --mode live"
+    - open_dashboard: "python -m src.main --mode gui (separate terminal)"
+
+  during_trading:
+    - monitor_dashboard: "http://127.0.0.1:5000"
+    - check_logs: "logs/terminal_log.txt"
+    - watch_positions: "Active trades on dashboard"
+
+  end_of_day:
+    - review_trades: "Dashboard - completed trades"
+    - check_performance: "P&L and win rate"
+    - document_notes: "Notable market events"
+
+################################################################################
+# WEEKLY WORKFLOW
+################################################################################
+
+weekly_optimization_workflow:
+  - sync_latest_data: "python -m src.main --mode sync"
+  - run_backtests: "python -m src.main --mode backtest"
+  - analyze_results: "Review metrics, Sharpe ratios, profit factors"
+  - update_strategies: "Adjust parameters if needed"
+  - validate_changes: "Small live test positions"
+  - document_changes: "Log what was optimized"
+
+################################################################################
+# KEY FEATURES & SYSTEMS
+################################################################################
+
+feature_systems:
+  
+  adaptive_strategy_selection:
+    file: "src/core/adaptive_trader.py"
+    process:
+      1: "Rank strategies by backtest Sharpe ratio"
+      2: "Calculate confidence scores"
+      3: "Select top strategies for current market"
+      4: "Execute based on signal generation"
+    metrics:
+      - Sharpe ratio
+      - Win rate percentage
+      - Profit factor
+      - Maximum drawdown
+
+  volatility_analysis:
+    file: "src/utils/volatility_manager.py"
+    metrics:
+      - Average True Range (ATR)
+      - Historical Volatility (20-bar std dev)
+      - Volatility Percentile (vs 252-bar history)
+      - Parkinson Volatility (high-low only)
+    use_cases:
+      - Filter low-volatility periods
+      - Detect volatility regimes
+      - Size positions based on risk
+      - Identify opportunities
+
+  risk_management:
+    file: "src/core/trader.py"
+    controls:
+      - Position limits (configurable per asset)
+      - Stop loss enforcement (% of entry)
+      - Take profit targets (% of entry)
+      - Trading rules validation (market hours, weekends)
+      - Weekend blocks (forex/commodities)
+    settings_file: "src/config/config.yaml"
+
+  trade_quality_filtering:
+    file: "src/utils/trade_quality_filter.py"
+    filters:
+      - Minimum confidence threshold
+      - Minimum win rate requirement
+      - Minimum profit factor
+      - Volatility level filtering
+      - Category-based rules
+
+  position_management:
+    file: "src/utils/exit_strategies.py"
+    exit_types:
+      - Trailing stops (profit protection)
+      - Time-based exits (avoid holding costs)
+      - Multi-level exits (scale out)
+      - Breakeven exits (loss protection)
+    selection: "Automatic based on strategy metrics"
+
+  data_caching:
+    file: "src/core/data_fetcher.py"
+    ttl: "20 seconds"
+    purpose: "Reduce MT5 API calls and improve performance"
+
+################################################################################
+# TESTING & VALIDATION
+################################################################################
+
+testing_strategy:
+  
+  unit_tests:
+    location: "tests/"
+    run_command: "pytest tests/ -v"
+    coverage_command: "pytest tests/ -v --cov=src"
+    frequency: "Before each deployment"
+  
+  integration_tests:
+    test_adaptive_trader: "End-to-end strategy selection"
+    test_data_sync: "Data fetching and processing"
+    test_live_trading: "Live mode with real/mock MT5"
+  
+  manual_validation:
+    - start_sync: "Verify data updates"
+    - run_backtest: "Check metrics calculation"
+    - test_live_with_small_positions: "Verify execution"
+
+################################################################################
+# CONFIGURATION MANAGEMENT
+################################################################################
+
+configuration:
+  main_file: "src/config/config.yaml"
+  
+  critical_settings:
+    mt5_credentials:
+      login: "Your MT5 login"
+      password: "Your MT5 password"
+      server: "Your broker server"
+    
+    risk_parameters:
+      stop_loss_percent: "Percentage of entry price"
+      take_profit_percent: "Percentage of entry price"
+      max_positions: "Maximum concurrent trades"
+      lot_size: "Default position size"
+    
+    strategy_parameters:
+      min_sharpe: "Minimum Sharpe ratio for trading"
+      min_win_rate: "Minimum win rate percentage"
+      min_confidence: "Minimum confidence threshold"
+      volatility_percentile: "Volatility filtering level"
+
+  update_process:
+    1: "Edit src/config/config.yaml"
+    2: "Restart the bot for changes to take effect"
+    3: "Verify in logs that settings loaded correctly"
+
+################################################################################
+# TROUBLESHOOTING GUIDE
+################################################################################
+
+troubleshooting:
+  
+  no_signals_generated:
+    likely_causes:
+      - Insufficient market data
+      - Strategy conditions not met
+      - Signal filtering too restrictive
+    solutions:
+      - Run sync mode to fetch more data
+      - Check backtest results for strategy viability
+      - Review confidence thresholds
+
+  no_trades_executing:
+    likely_causes:
+      - MT5 connection issues
+      - Insufficient account balance
+      - Automated trading disabled in MT5
+    solutions:
+      - Verify MT5 credentials in config
+      - Check account balance in MT5
+      - Enable automated trading in MT5 (Tools → Options → Expert Advisors)
+      - Check logs for error messages
+
+  dashboard_500_error:
+    likely_causes:
+      - Port already in use
+      - Database locked
+      - Missing static files
+    solutions:
+      - Restart GUI mode
+      - Close other processes using port 5000
+      - Check logs for detailed error
+
+  database_locked:
+    solution: "Stop trading mode, then restart"
+
+  memory_usage_high:
+    solution: "Reduce backtest parameters or number of symbols"
+
+################################################################################
+# PERFORMANCE TARGETS
+################################################################################
+
+performance_benchmarks:
+  data_fetch: "< 5 seconds per symbol"
+  signal_generation: "< 100ms per symbol"
+  backtest: "~30 seconds per symbol/timeframe/strategy"
+  dashboard_response: "< 50ms"
+  database_query: "< 100ms"
+
+################################################################################
+# VERSION CONTROL GUIDELINES
+################################################################################
+
+git_workflow:
+  main_branch: "Main production code"
+  feature_branches: "New features or major changes"
+  
+  commit_messages:
+    - "fix: Bug fixes (minor)"
+    - "feature: New functionality"
+    - "refactor: Code reorganization"
+    - "docs: Documentation updates"
+    - "test: Test additions/updates"
+
+################################################################################
+# DEPLOYMENT CHECKLIST
+################################################################################
+
+deployment_checklist:
+  - [ ] All tests passing
+  - [ ] Code reviewed and refactored
+  - [ ] Configuration files updated
+  - [ ] Database migrations applied
+  - [ ] Logs configured correctly
+  - [ ] Risk parameters appropriate
+  - [ ] Documentation updated
+  - [ ] Small position live test completed
+  - [ ] Dashboard accessible
+  - [ ] Monitoring setup (logs/email alerts)
+
+################################################################################
+# SUPPORT & REFERENCES
+################################################################################
+
+documentation:
+  - README.md: "Quick start and feature overview"
+  - commands.yaml: "Complete command reference"
+  - src/config/config.yaml: "Detailed configuration options"
+  - logs/terminal_log.txt: "Real-time application logs"
+
+useful_commands:
+  - "Get-Content logs\\terminal_log.txt -Tail 50": "View last 50 log lines"
+  - "Get-Content logs\\terminal_log.txt -Wait": "Follow logs in real-time"
+  - "pytest tests/ -v": "Run full test suite"
+  - "python -m src.main --mode init": "Initialize system"
+
+################################################################################
