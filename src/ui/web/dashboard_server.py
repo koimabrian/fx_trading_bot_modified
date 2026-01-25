@@ -17,6 +17,7 @@ from flask_socketio import SocketIO
 import MetaTrader5 as mt5
 from src.database.db_manager import DatabaseManager
 from src.ui.web.live_broadcaster import broadcaster
+from src.ui.web.dashboard_api import DashboardAPI
 from src.utils.indicator_analyzer import IndicatorAnalyzer
 
 
@@ -157,6 +158,10 @@ class DashboardServer:
             self.api_all_indicators,
             methods=["GET"],
         )
+
+        # Register DashboardAPI blueprint for additional report endpoints
+        dashboard_api = DashboardAPI(self.db, config)
+        self.app.register_blueprint(dashboard_api.blueprint)
 
     def _get_db(self):
         """Get a fresh database connection for the current request thread.
@@ -712,21 +717,22 @@ class DashboardServer:
                 )
 
                 # Also get live positions from MT5
+                mt5_positions_list = []
                 try:
                     if mt5.initialize():
                         mt5_positions = mt5.positions_get()
                         if mt5_positions:
                             for pos in mt5_positions:
-                                positions.append(
-                                    {
-                                        "symbol": pos.symbol,
-                                        "side": "buy" if pos.type == 0 else "sell",
-                                        "entry_price": pos.price_open,
-                                        "current_price": pos.price_current,
-                                        "pnl": pos.profit,
-                                        "volume": pos.volume,
-                                    }
-                                )
+                                mt5_pos = {
+                                    "symbol": pos.symbol,
+                                    "side": "buy" if pos.type == 0 else "sell",
+                                    "entry_price": pos.price_open,
+                                    "current_price": pos.price_current,
+                                    "pnl": pos.profit,
+                                    "volume": pos.volume,
+                                }
+                                positions.append(mt5_pos)
+                                mt5_positions_list.append(mt5_pos)
                         mt5.shutdown()
                 except (RuntimeError, OSError, AttributeError) as e:
                     self.logger.debug("Could not fetch MT5 positions: %s", e)
@@ -746,45 +752,68 @@ class DashboardServer:
                     [dict(row) for row in trades_result] if trades_result else []
                 )
 
-                # Calculate live statistics
+                # Calculate live statistics - ALL trades (not just last 24h)
                 stats_query = """
                     SELECT 
                         COUNT(*) as total_trades,
                         SUM(CASE WHEN status = 'executed' THEN 1 ELSE 0 END) as executed,
-                        SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open_count,
-                        SUM(CASE WHEN profit IS NOT NULL THEN profit ELSE 0 END) as total_profit,
-                        ROUND(
-                            CAST(SUM(CASE WHEN profit > 0 THEN 1 ELSE 0 END) AS FLOAT) 
-                            / NULLIF(COUNT(*), 0), 3
-                        ) as win_rate
+                        SUM(CASE WHEN close_time IS NULL THEN 1 ELSE 0 END) as open_count,
+                        SUM(CASE WHEN close_time IS NOT NULL AND profit IS NOT NULL THEN profit ELSE 0 END) as realized_profit,
+                        SUM(CASE WHEN close_time IS NOT NULL AND profit > 0 THEN 1 ELSE 0 END) as winning_trades,
+                        SUM(CASE WHEN close_time IS NOT NULL AND profit < 0 THEN 1 ELSE 0 END) as losing_trades,
+                        SUM(CASE WHEN close_time IS NOT NULL THEN 1 ELSE 0 END) as closed_trades
                     FROM trades
-                    WHERE open_time >= datetime('now', '-1 day')
                 """
                 stats_result = db.execute_query(stats_query).fetchone()
 
-                # Count open positions from BOTH database and MT5
-                open_positions_count = (
-                    stats_result["open_count"] if stats_result else 0
-                ) or 0
-                # Add MT5 live positions count
-                open_positions_count += len(positions)
+                # Calculate unrealized P&L from MT5 live positions only
+                unrealized_profit = sum(
+                    [
+                        pos.get("pnl", 0)
+                        for pos in mt5_positions_list
+                        if isinstance(pos, dict)
+                    ]
+                )
+
+                # Count only MT5 live positions (the actual real-time positions)
+                # Database records are historical, MT5 has the live positions
+                open_positions_count = len(mt5_positions_list)
+
+                # Calculate total profit (realized + unrealized)
+                realized_profit = 0
+                if stats_result:
+                    try:
+                        realized_profit = stats_result["realized_profit"] or 0
+                    except (KeyError, TypeError):
+                        realized_profit = 0
+                total_profit = realized_profit + unrealized_profit
+
+                # Calculate win rate from closed trades
+                closed_trades = 0
+                winning_trades = 0
+                if stats_result:
+                    try:
+                        closed_trades = stats_result["closed_trades"] or 0
+                        winning_trades = stats_result["winning_trades"] or 0
+                    except (KeyError, TypeError):
+                        closed_trades = 0
+                        winning_trades = 0
+
+                win_rate = (
+                    (winning_trades / closed_trades * 100) if closed_trades > 0 else 0.0
+                )
+
+                total_trades = 0
+                if stats_result:
+                    try:
+                        total_trades = stats_result["total_trades"] or 0
+                    except (KeyError, TypeError):
+                        total_trades = 0
 
                 stats = {
-                    "net_profit": (
-                        self._safe_round(
-                            stats_result["total_profit"] if stats_result else 0, 2
-                        )
-                        if stats_result
-                        else 0
-                    ),
-                    "win_rate": (
-                        self._safe_round(
-                            stats_result["win_rate"] if stats_result else 0, 2
-                        )
-                        if stats_result
-                        else 0
-                    ),
-                    "total_trades": stats_result["total_trades"] if stats_result else 0,
+                    "net_profit": self._safe_round(total_profit, 2),
+                    "win_rate": self._safe_round(win_rate, 2),
+                    "total_trades": total_trades,
                     "open_positions": open_positions_count,
                     "net_profit_change": 0.0,
                 }

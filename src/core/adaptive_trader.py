@@ -223,6 +223,22 @@ class AdaptiveTrader:
                             "rank_score": strategy_info["rank_score"],
                         }
 
+                        # CHECK CONFIDENCE THRESHOLD
+                        min_confidence = self.config.get("live_trading", {}).get(
+                            "min_signal_confidence", 0.5
+                        )
+                        if signal["confidence"] < min_confidence:
+                            self.logger.debug(
+                                "Skipped low-confidence signal for %s (%s) from %s: "
+                                "confidence=%.2f (min=%.2f)",
+                                symbol,
+                                tf_str,
+                                strategy_name,
+                                signal["confidence"],
+                                min_confidence,
+                            )
+                            continue
+
                         signals.append(signal)
 
                         self.logger.debug(

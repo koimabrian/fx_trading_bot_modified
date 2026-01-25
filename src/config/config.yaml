@@ -108,13 +108,26 @@ pair_config:
   - 240
 pairs: []
 risk_management:
-  lot_size: 0.01
-  max_positions: 5
-  position_sizing: fixed
-  stop_loss_percent: 1.0
-  take_profit_percent: 2.0
-  trailing_stop: true
-  trailing_stop_percent: 0.5
+  daily_loss_limit: 100.0          # Stop trading if daily loss exceeds this ($)
+  lot_size: 0.01                   # Default position size (base for adaptive sizing)
+  lot_size_min: 0.01              # Minimum lot size (low confidence)
+  lot_size_max: 0.5               # Maximum lot size (high confidence)
+  max_positions: 5                 # Maximum concurrent open positions (total)
+  max_positions_per_symbol: 1      # Maximum positions per single symbol
+  min_signal_confidence: 0.5        # Minimum confidence threshold (0-1)
+  position_sizing: adaptive        # 'fixed' or 'adaptive' (confidence-based scaling)
+  scale_by_confidence: true        # Scale position size by signal confidence
+  scale_by_account_balance: true   # Scale position size by account balance
+  confidence_multiplier: 2.0       # Position size multiplier based on confidence range
+  stop_loss_percent: 1.0           # Stop loss % below entry
+  take_profit_percent: 2.0         # Take profit % above entry (2% = good risk/reward)
+  trailing_stop: true              # Enable trailing stop loss
+  trailing_stop_percent: 0.5       # Trailing stop % distance
+  # Tuning Notes:
+  # - min_signal_confidence: Increase to 0.6-0.7 for fewer but higher-quality signals
+  # - take_profit_percent: Decrease to 1.5% for tighter exits, increase to 3-4% for swing trades
+  # - confidence_multiplier: Higher = more aggressive sizing on high-confidence signals
+  # - daily_loss_limit: Set to 2-5% of account balance for risk management
 strategies:
 - name: rsi
   params:

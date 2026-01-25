@@ -21,8 +21,7 @@ class DataHandler:
 
     def prepare_backtest_data(self, symbol, timeframe):
         """Prepare data for backtesting from database.
-        Uses all available data in backtest_market_data table (no date filtering).
-        Falls back to market_data if backtest_market_data is empty.
+        Uses all available data in market_data table (no date filtering).
 
         Args:
             symbol: Currency pair symbol (e.g., 'EURUSD')
@@ -44,44 +43,25 @@ class DataHandler:
 
             symbol_id = result[0]
 
-            # Fetch all available data for the symbol and timeframe (no date range filtering)
+            # Fetch all available data from market_data
             query = """
                 SELECT open, high, low, close, volume, time
-                FROM backtest_market_data
+                FROM market_data
                 WHERE symbol_id = ? AND timeframe = ?
                 ORDER BY time ASC
             """
             data = pd.read_sql(query, self.db.conn, params=(symbol_id, timeframe))
 
-            # Fallback: if backtest_market_data is empty, try market_data
             if data.empty:
-                self.logger.debug(
-                    "backtest_market_data empty for %s (%s), trying market_data fallback",
+                self.logger.warning(
+                    "No data available for %s (%s) in market_data.",
                     symbol,
                     timeframe,
                 )
-                query = """
-                    SELECT open, high, low, close, volume, time
-                    FROM market_data
-                    WHERE symbol_id = ? AND timeframe = ?
-                    ORDER BY time ASC
-                """
-                data = pd.read_sql(query, self.db.conn, params=(symbol_id, timeframe))
+                self.logger.warning("To populate data: python -m src.main --mode sync")
+                return None
 
-                if data.empty:
-                    self.logger.warning(
-                        "No data available for %s (%s) in either backtest_market_data or market_data.",
-                        symbol,
-                        timeframe,
-                    )
-                    self.logger.warning(
-                        "To populate data: python -m src.main sync --symbol %s", symbol
-                    )
-                    return None
-                else:
-                    self.logger.info(
-                        "Using market_data as fallback for %s (%s)", symbol, timeframe
-                    )
+            self.logger.info("Using market_data for %s (%s)", symbol, timeframe)
 
             # Rename columns to match backtesting.py requirements
             data = data.rename(

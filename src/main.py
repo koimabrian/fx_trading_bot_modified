@@ -253,6 +253,18 @@ def _mode_live(config: dict, args, logger):
             migrations = DatabaseMigrations(db.conn)
             migrations.migrate_tables()
 
+            # Clean up trades table on live start
+            logger.info("Cleaning up trades table...")
+            try:
+                cursor = db.conn.cursor()
+                cursor.execute("DELETE FROM trades")
+                db.conn.commit()
+                logger.info(
+                    "Trades table cleared - ready for fresh live trading session"
+                )
+            except sqlite3.Error as e:
+                logger.warning("Could not clear trades table: %s", e)
+
             # Initialize MT5
             mt5_conn = MT5Connector(db)
             if not mt5_conn.initialize():
@@ -377,14 +389,88 @@ def _mode_live(config: dict, args, logger):
             else:
                 logger.info("Fixed strategy mode: %s", args.strategy)
 
+            # Helper function to calculate dynamic lot size
+            def calculate_lot_size(signal, account_balance, config):
+                """Calculate position size based on confidence and account balance.
+
+                Args:
+                    signal: Trade signal dict with 'confidence' field
+                    account_balance: Current account balance
+                    config: Config dict with lot_size parameters
+
+                Returns:
+                    Lot size (volume) scaled by confidence and account balance
+                """
+                base_lot = config.get("risk_management", {}).get("lot_size", 0.01)
+                min_lot = config.get("risk_management", {}).get("lot_size_min", 0.005)
+                max_lot = config.get("risk_management", {}).get("lot_size_max", 0.05)
+                scale_confidence = config.get("risk_management", {}).get(
+                    "scale_by_confidence", True
+                )
+                scale_balance = config.get("risk_management", {}).get(
+                    "scale_by_account_balance", True
+                )
+                confidence_mult = config.get("risk_management", {}).get(
+                    "confidence_multiplier", 2.0
+                )
+
+                lot_size = base_lot
+
+                # Scale by signal confidence (0.5-1.0 range)
+                if scale_confidence:
+                    confidence = signal.get("confidence", 0.5)
+                    # Map 0.5-1.0 to 1.0-2.0 multiplier
+                    confidence_factor = 1.0 + (confidence - 0.5) * confidence_mult
+                    lot_size *= confidence_factor
+
+                # Scale by account balance (normalize to 10000 baseline)
+                if scale_balance:
+                    balance_factor = max(
+                        account_balance / 10000.0, 0.5
+                    )  # Never go below 50%
+                    lot_size *= balance_factor
+
+                # Enforce limits
+                lot_size = max(min_lot, min(lot_size, max_lot))
+
+                logger.debug(
+                    "Lot size: %.4f (base: %.4f, confidence: %.2f, balance: $%.2f, factors: conf=%.2f, bal=%.2f)",
+                    lot_size,
+                    base_lot,
+                    signal.get("confidence", 0.5),
+                    account_balance,
+                    (
+                        (1.0 + (signal.get("confidence", 0.5) - 0.5) * confidence_mult)
+                        if scale_confidence
+                        else 1.0
+                    ),
+                    (max(account_balance / 10000.0, 0.5)) if scale_balance else 1.0,
+                )
+                return lot_size
+
             # Main trading loop
             last_incremental_sync = 0
             incremental_sync_interval = (
                 config.get("sync", {}).get("incremental_interval_min", 4) * 60
             )
 
+            # Signal deduplication: track recently generated signals (last 60 seconds)
+            recent_signals = {}  # Format: "SYMBOL_ACTION_TIMEFRAME" -> timestamp
+
+            # Daily loss tracking
+            import datetime
+
+            trading_day_start = datetime.datetime.now().replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            daily_loss = 0.0
+            daily_loss_limit = config.get("risk_management", {}).get(
+                "daily_loss_limit", 100.0
+            )
+
             logger.info("=" * 70)
             logger.info("LIVE TRADING STARTED")
+            logger.info("Daily loss limit: $%.2f", daily_loss_limit)
             logger.info("=" * 70)
 
             loop_iteration = 0
@@ -392,6 +478,50 @@ def _mode_live(config: dict, args, logger):
                 try:
                     loop_iteration += 1
                     current_time = time.time()
+
+                    # Clean up old signals (older than 60 seconds)
+                    expired_keys = [
+                        k for k, v in recent_signals.items() if current_time - v > 60
+                    ]
+                    for k in expired_keys:
+                        del recent_signals[k]
+
+                    # CHECK DAILY LOSS LIMIT
+                    current_day = datetime.datetime.now().replace(
+                        hour=0, minute=0, second=0, microsecond=0
+                    )
+                    if current_day > trading_day_start:
+                        # New trading day - reset daily loss
+                        trading_day_start = current_day
+                        daily_loss = 0.0
+                        logger.info("New trading day - daily loss reset to $0.00")
+
+                    if daily_loss >= daily_loss_limit:
+                        logger.error(
+                            "Daily loss limit reached: $%.2f/$%.2f. Stopping all new trades.",
+                            daily_loss,
+                            daily_loss_limit,
+                        )
+                        # Don't generate new signals, but still monitor existing positions
+                        all_signals = []
+                    else:
+                        # Calculate current daily P&L from all open positions
+                        try:
+                            cursor = db.conn.cursor()
+                            cursor.execute(
+                                """SELECT SUM(CASE 
+                                WHEN trade_type = 'buy' THEN (close_price - open_price) * volume
+                                WHEN trade_type = 'sell' THEN (open_price - close_price) * volume
+                                ELSE 0 END) as daily_pl
+                                FROM trades 
+                                WHERE DATE(open_time) = DATE('now') AND close_time IS NOT NULL"""
+                            )
+                            result = cursor.fetchone()
+                            daily_loss = -(result[0] if result[0] else 0.0)
+                            if daily_loss > 0:
+                                logger.debug("Current daily loss: $%.2f", daily_loss)
+                        except Exception as e:
+                            logger.debug(f"Could not calculate daily loss: {e}")
 
                     # Data synchronization
                     fetch_count = config.get("data", {}).get("fetch_count", 2000)
@@ -409,6 +539,11 @@ def _mode_live(config: dict, args, logger):
                         data_fetcher.sync_data_incremental(symbol=args.symbol)
                         last_incremental_sync = current_time
 
+                    # Get account balance for position sizing
+                    account_info = mt5.account_info()
+                    account_balance = account_info.balance if account_info else 10000.0
+                    logger.debug("Current account balance: $%.2f", account_balance)
+
                     # Collect signals from all trading pairs
                     all_signals = []
                     executed_trades = []
@@ -418,18 +553,110 @@ def _mode_live(config: dict, args, logger):
                     if all_signals is None:
                         all_signals = []
 
+                    # Get position limits from config
+                    max_positions = config.get("risk_management", {}).get(
+                        "max_positions", 5
+                    )
+                    max_per_symbol = config.get("risk_management", {}).get(
+                        "max_positions_per_symbol", 1
+                    )
+
                     # Execute trades for each configured pair
                     if use_adaptive:
                         for symbol in pairs_to_trade:
                             signals = adaptive_trader.get_signals_adaptive(symbol)
                             if signals:
-                                all_signals.extend(signals)
-                                # Execute each signal as a trade order
+                                # Filter out duplicate signals within deduplication window
+                                filtered_signals = []
                                 for signal in signals:
+                                    sig_key = f"{signal.get('symbol')}_{signal.get('action')}_{signal.get('timeframe', 'M15')}"
+                                    if sig_key not in recent_signals:
+                                        filtered_signals.append(signal)
+                                        recent_signals[sig_key] = current_time
+                                    else:
+                                        logger.debug(
+                                            "Skipped duplicate signal: %s (generated %d sec ago)",
+                                            sig_key,
+                                            int(current_time - recent_signals[sig_key]),
+                                        )
+
+                                all_signals.extend(filtered_signals)
+                                # Execute each signal as a trade order
+                                for signal in filtered_signals:
                                     try:
                                         strategy_name = signal.get(
                                             "strategy_info", {}
                                         ).get("name", "adaptive")
+
+                                        signal_symbol = signal.get("symbol")
+
+                                        # CHECK POSITION LIMITS BEFORE PLACING ORDER
+                                        try:
+                                            # Count current open positions (ANY status that isn't closed)
+                                            cursor = db.conn.cursor()
+                                            cursor.execute(
+                                                "SELECT COUNT(*) as count FROM trades WHERE close_time IS NULL"
+                                            )
+                                            result = cursor.fetchone()
+                                            total_open = result[0] if result else 0
+
+                                            # Count open positions for this symbol
+                                            cursor.execute(
+                                                "SELECT COUNT(*) as count FROM trades t "
+                                                "JOIN tradable_pairs tp ON t.symbol_id = tp.id "
+                                                "WHERE tp.symbol = ? AND t.close_time IS NULL",
+                                                (signal_symbol,),
+                                            )
+                                            result = cursor.fetchone()
+                                            symbol_open = result[0] if result else 0
+
+                                            # Enforce limits
+                                            if total_open >= max_positions:
+                                                logger.warning(
+                                                    "Position limit reached: %d/%d total open positions. Skipping %s signal.",
+                                                    total_open,
+                                                    max_positions,
+                                                    signal_symbol,
+                                                )
+                                                failed_trades.append(
+                                                    {
+                                                        "symbol": signal_symbol,
+                                                        "action": signal.get("action"),
+                                                        "strategy": strategy_name,
+                                                        "reason": f"Max positions reached ({total_open}/{max_positions})",
+                                                    }
+                                                )
+                                                continue
+
+                                            if symbol_open >= max_per_symbol:
+                                                logger.warning(
+                                                    "Symbol position limit reached: %d/%d open for %s. Skipping signal.",
+                                                    symbol_open,
+                                                    max_per_symbol,
+                                                    signal_symbol,
+                                                )
+                                                failed_trades.append(
+                                                    {
+                                                        "symbol": signal_symbol,
+                                                        "action": signal.get("action"),
+                                                        "strategy": strategy_name,
+                                                        "reason": f"Max positions per symbol reached ({symbol_open}/{max_per_symbol})",
+                                                    }
+                                                )
+                                                continue
+
+                                        except Exception as e:
+                                            logger.error(
+                                                f"Failed to check position limits: {e}"
+                                            )
+                                            # Continue anyway but log the error
+                                            pass
+
+                                        # Calculate dynamic lot size based on confidence and account balance
+                                        dynamic_lot_size = calculate_lot_size(
+                                            signal, account_balance, config
+                                        )
+                                        signal["volume"] = dynamic_lot_size
 
                                         # Place the actual trade order
                                         if mt5_conn.place_order(signal, strategy_name):
@@ -464,7 +691,7 @@ def _mode_live(config: dict, args, logger):
                                                             signal.get(
                                                                 "action", "unknown"
                                                             ),
-                                                            signal.get("volume", 0.01),
+                                                            dynamic_lot_size,
                                                             price,
                                                             "executed",
                                                         ),
@@ -528,60 +755,175 @@ def _mode_live(config: dict, args, logger):
                                 args.strategy, symbol=symbol
                             )
                             if signal:
-                                all_signals.extend(signal)
                                 logger.debug(
                                     "Fixed strategy %s generated %d signal(s) for %s",
                                     args.strategy,
                                     len(signal),
                                     symbol,
                                 )
+                                # Execute each signal as a trade order
+                                for sig in signal:
+                                    try:
+                                        strategy_name = sig.get(
+                                            "strategy_info", {}
+                                        ).get("name", "fixed")
+                                        signal_symbol = sig.get("symbol")
 
-                    # Process generated signals
-                    if all_signals:
-                        logger.info(
-                            f"[Loop {loop_iteration}] Generated {len(all_signals)} signals from {len(pairs_to_trade)} pairs"
-                        )
-                        for signal in all_signals:
-                            logger.info(f"  Signal: {signal}")
-                            # Log trade signal to database
-                            try:
-                                cursor = db.conn.cursor()
-                                symbol = signal.get("symbol", "UNKNOWN")
+                                        # CHECK POSITION LIMITS BEFORE PLACING ORDER
+                                        try:
+                                            cursor = db.conn.cursor()
+                                            cursor.execute(
+                                                "SELECT COUNT(*) as count FROM trades WHERE close_time IS NULL"
+                                            )
+                                            result = cursor.fetchone()
+                                            total_open = result[0] if result else 0
 
-                                # Get symbol_id from tradable_pairs table
-                                cursor.execute(
-                                    "SELECT id FROM tradable_pairs WHERE symbol = ?",
-                                    (symbol,),
+                                            cursor.execute(
+                                                "SELECT COUNT(*) as count FROM trades t "
+                                                "JOIN tradable_pairs tp ON t.symbol_id = tp.id "
+                                                "WHERE tp.symbol = ? AND t.close_time IS NULL",
+                                                (signal_symbol,),
+                                            )
+                                            result = cursor.fetchone()
+                                            symbol_open = result[0] if result else 0
+
+                                            if total_open >= max_positions:
+                                                logger.warning(
+                                                    "Position limit reached: %d/%d total. Skipping %s signal.",
+                                                    total_open,
+                                                    max_positions,
+                                                    signal_symbol,
+                                                )
+                                                failed_trades.append(
+                                                    {
+                                                        "symbol": signal_symbol,
+                                                        "action": sig.get("action"),
+                                                        "strategy": strategy_name,
+                                                        "reason": f"Max positions reached ({total_open}/{max_positions})",
+                                                    }
+                                                )
+                                                continue
+
+                                            if symbol_open >= max_per_symbol:
+                                                logger.warning(
+                                                    "Symbol position limit reached: %d/%d for %s.",
+                                                    symbol_open,
+                                                    max_per_symbol,
+                                                    signal_symbol,
+                                                )
+                                                failed_trades.append(
+                                                    {
+                                                        "symbol": signal_symbol,
+                                                        "action": sig.get("action"),
+                                                        "strategy": strategy_name,
+                                                        "reason": f"Max per symbol reached ({symbol_open}/{max_per_symbol})",
+                                                    }
+                                                )
+                                                continue
+                                        except Exception as e:
+                                            logger.error(
+                                                f"Failed to check position limits: {e}"
+                                            )
+                                            pass
+
+                                        # Calculate dynamic lot size
+                                        dynamic_lot_size = calculate_lot_size(
+                                            sig, account_balance, config
+                                        )
+                                        sig["volume"] = dynamic_lot_size
+
+                                        # Try to place the order
+                                        if mt5_conn.place_order(sig, strategy_name):
+                                            # LOG ONLY SUCCESSFUL TRADES
+                                            symbol = sig.get("symbol")
+                                            try:
+                                                cursor = db.conn.cursor()
+                                                cursor.execute(
+                                                    "SELECT id FROM tradable_pairs WHERE symbol = ?",
+                                                    (symbol,),
+                                                )
+                                                result = cursor.fetchone()
+                                                if result:
+                                                    symbol_id = result[0]
+                                                    tick = mt5.symbol_info_tick(symbol)
+                                                    price = (
+                                                        (
+                                                            tick.ask
+                                                            if sig.get("action")
+                                                            == "buy"
+                                                            else tick.bid
+                                                        )
+                                                        if tick
+                                                        else 0
+                                                    )
+
+                                                    cursor.execute(
+                                                        """INSERT INTO trades 
+                                                        (symbol_id, timeframe, strategy_name, trade_type, volume, 
+                                                         open_price, status, open_time)
+                                                        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+                                                        (
+                                                            symbol_id,
+                                                            sig.get("timeframe"),
+                                                            strategy_name,
+                                                            sig.get(
+                                                                "action", "unknown"
+                                                            ),
+                                                            dynamic_lot_size,
+                                                            price,
+                                                            "executed",
+                                                        ),
+                                                    )
+                                                    db.conn.commit()
+                                            except Exception as e:
+                                                logger.error(
+                                                    f"Failed to log trade: {e}"
+                                                )
+
+                                            executed_trades.append(
+                                                {
+                                                    "symbol": sig.get("symbol"),
+                                                    "action": sig.get("action"),
+                                                    "strategy": strategy_name,
+                                                    "timeframe": sig.get("timeframe"),
+                                                    "confidence": sig.get(
+                                                        "confidence", 0
+                                                    ),
+                                                    "status": "executed",
+                                                    "timestamp": time.time(),
+                                                }
+                                            )
+                                            logger.info(
+                                                f"[EXECUTED] {symbol} {sig.get('action').upper()} "
+                                                f"(Strategy: {strategy_name})"
+                                            )
+                                        else:
+                                            failed_trades.append(
+                                                {
+                                                    "symbol": sig.get("symbol"),
+                                                    "action": sig.get("action"),
+                                                    "strategy": strategy_name,
+                                                    "reason": "MT5 order placement failed",
+                                                }
+                                            )
+                                            logger.error(
+                                                f"[FAILED] Trade placement failed: {sig.get('symbol')}"
+                                            )
+                                    except Exception as e:
+                                        failed_trades.append(
+                                            {
+                                                "symbol": sig.get("symbol"),
+                                                "action": sig.get("action"),
+                                                "reason": str(e),
+                                            }
+                                        )
+                                        logger.error(
+                                            f"[FAILED] Exception placing trade: {e}"
+                                        )
+                            else:
+                                logger.debug(
+                                    f"Fixed strategy {args.strategy} generated no signals for {symbol}"
                                 )
-                                result = cursor.fetchone()
-                                symbol_id = result[0] if result else None
-
-                                if symbol_id:
-                                    cursor.execute(
-                                        """INSERT INTO trades 
-                                        (symbol_id, timeframe, strategy_name, trade_type, volume, 
-                                         open_price, status, open_time)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
-                                        (
-                                            symbol_id,
-                                            signal.get("timeframe"),
-                                            signal.get("strategy_info", {}).get(
-                                                "name", "unknown"
-                                            ),
-                                            signal.get("action", "unknown"),
-                                            signal.get("volume", 0.01),
-                                            0.0,  # Entry price would be filled on execution
-                                            "signal_generated",
-                                        ),
-                                    )
-                                    db.conn.commit()
-                            except Exception as e:
-                                logger.debug(f"Could not log trade signal: {e}")
-
-                    else:
-                        logger.debug(
-                            f"[Loop {loop_iteration}] No signals generated from {len(pairs_to_trade)} pairs"
-                        )
 
                     # Log execution statistics
                     if executed_trades or failed_trades:
@@ -602,6 +944,14 @@ def _mode_live(config: dict, args, logger):
                                     f"    - {trade['symbol']} {trade['action']} ({trade.get('reason', 'unknown')})"
                                 )
                         logger.info("=" * 70)
+
+                    # MONITOR AND CLOSE POSITIONS (exit strategy)
+                    try:
+                        trade_monitor.monitor_positions(
+                            strategy_name=args.strategy if not use_adaptive else None
+                        )
+                    except Exception as e:
+                        logger.error(f"Error monitoring positions: {e}")
 
                     # Sleep before next iteration
                     time.sleep(20)  # Check every 20 seconds

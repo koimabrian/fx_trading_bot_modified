@@ -481,6 +481,57 @@ class DataFetcher:
                 if "tick_volume" in data.columns:
                     data.rename(columns={"tick_volume": "volume"}, inplace=True)
 
+                # Get symbol_id from tradable_pairs table
+                try:
+                    cursor = self.db.conn.cursor()
+                    cursor.execute(
+                        "SELECT id FROM tradable_pairs WHERE symbol = ?", (sym,)
+                    )
+                    result = cursor.fetchone()
+                    symbol_id = result[0] if result else None
+
+                    if not symbol_id:
+                        self.logger.warning(
+                            "Symbol %s not found in tradable_pairs. Adding it now.", sym
+                        )
+                        cursor.execute(
+                            "INSERT OR IGNORE INTO tradable_pairs (symbol) VALUES (?)",
+                            (sym,),
+                        )
+                        self.db.conn.commit()
+                        cursor.execute(
+                            "SELECT id FROM tradable_pairs WHERE symbol = ?", (sym,)
+                        )
+                        symbol_id = cursor.fetchone()[0]
+
+                    # Replace symbol with symbol_id in dataframe
+                    data.drop(columns=["symbol"], inplace=True)
+                    data["symbol_id"] = symbol_id
+                except (sqlite3.Error, AttributeError) as e:
+                    self.logger.error("Failed to get symbol_id for %s: %s", sym, e)
+                    continue
+
+                # Add type field to distinguish historical vs. live data
+                if table == "backtest_market_data":
+                    data["type"] = "historical"
+                else:
+                    data["type"] = "live"  # Default to live for market_data
+
+                # Select only columns that match the database schema
+                schema_cols = [
+                    "symbol_id",
+                    "timeframe",
+                    "time",
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "volume",
+                    "type",
+                ]
+                available_cols = [col for col in schema_cols if col in data.columns]
+                data = data[available_cols]
+
                 # Insert new data
                 data.to_sql(table, self.db.conn, if_exists="append", index=False)
                 self.db.conn.commit()
