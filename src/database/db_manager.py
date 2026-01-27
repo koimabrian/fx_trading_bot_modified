@@ -62,8 +62,16 @@ class DatabaseManager:
         self.close()
 
     def connect(self):
-        """Establish database connection and ensure data directory exists."""
+        """Establish database connection and ensure data directory exists.
+
+        Checks if connection already exists to prevent duplicate connections.
+        """
         try:
+            # Skip if already connected
+            if self.conn is not None:
+                self.logger.debug("Database already connected, reusing connection")
+                return
+
             # Auto-create data directory if it doesn't exist (skip for :memory:)
             if self.db_path != ":memory:":
                 dir_path = os.path.dirname(self.db_path)
@@ -74,9 +82,7 @@ class DatabaseManager:
             # Enable foreign keys and dictionary row access
             self.conn.execute("PRAGMA foreign_keys = ON")
             self.conn.row_factory = sqlite3.Row
-            # Set row_factory to return dicts instead of tuples for easier access
-            self.conn.row_factory = sqlite3.Row
-            self.logger.info("Database connection established: %s", self.db_path)
+            self.logger.debug("Database connection established: %s", self.db_path)
         except sqlite3.Error as e:
             self.logger.error("Failed to connect to database: %s", e)
             raise
@@ -110,11 +116,15 @@ class DatabaseManager:
             raise
 
     def create_tables(self):
-        """Create necessary database tables via migrations module."""
+        """Create necessary database tables and run migrations."""
         from src.database.migrations import DatabaseMigrations
 
         migrations = DatabaseMigrations(self.conn)
-        return migrations.create_tables() and migrations.create_indexes()
+        result = migrations.create_tables() and migrations.create_indexes()
+        # Run schema migrations
+        if result:
+            result = migrations.migrate()
+        return result
 
     def create_indexes(self):
         """Create additional indexes on frequently queried columns."""

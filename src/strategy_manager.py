@@ -128,13 +128,18 @@ class StrategyManager:
         try:
             signals = []
 
-            # Get all unique symbols from config
-            pairs_list = self.config.get("pairs", [])
-            if not pairs_list:
-                self.logger.debug("No pairs configured for signal generation")
-                return []  # Return empty list if no pairs configured
+            # Get all unique symbols from database
+            if not hasattr(self, "db") or not self.db:
+                self.logger.debug("Database not available for signal generation")
+                return []
 
-            config_symbols = list(dict.fromkeys([p["symbol"] for p in pairs_list]))
+            cursor = self.db.conn.cursor()
+            cursor.execute("SELECT DISTINCT symbol FROM tradable_pairs ORDER BY symbol")
+            config_symbols = [row[0] for row in cursor.fetchall()]
+
+            if not config_symbols:
+                self.logger.debug("No symbols found in database")
+                return []  # Return empty list if no symbols in database
 
             # Determine which symbol(s) to process
             # Priority: method arg > instance symbol > all config symbols

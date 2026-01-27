@@ -99,25 +99,16 @@ class DataValidator:
         Args:
             symbol: Trading symbol
             timeframe: Timeframe string (e.g., 'M15', 'H1')
-            table: Table name to query
+            table: Table name to query (default: market_data)
 
         Returns:
             Integer row count
         """
         try:
-            # Get symbol_id for the given symbol
-            sym_cursor = self.db.conn.cursor()
-            sym_result = sym_cursor.execute(
-                "SELECT id FROM tradable_pairs WHERE symbol = ?", (symbol,)
-            ).fetchone()
-
-            if not sym_result:
-                return 0
-
-            symbol_id = sym_result[0]
-            query = f"SELECT COUNT(*) as cnt FROM {table} WHERE symbol_id = ? AND timeframe = ?"
+            # Query market_data using direct symbol column (new schema)
+            query = f"SELECT COUNT(*) as cnt FROM {table} WHERE symbol = ? AND timeframe = ?"
             result = (
-                self.db.conn.cursor().execute(query, (symbol_id, timeframe)).fetchone()
+                self.db.conn.cursor().execute(query, (symbol, timeframe)).fetchone()
             )
             return result[0] if result else 0
         except (RuntimeError, ValueError, KeyError, TypeError) as e:
@@ -139,10 +130,11 @@ class DataValidator:
                 return
 
             # If timeframe is None, sync all configured timeframes for the symbol
+            # Default timeframes are now in config.yaml timeframes section
             timeframes_to_sync = (
                 [timeframe]
                 if timeframe is not None
-                else self.config.get("pair_config", {}).get("timeframes", [15, 60, 240])
+                else self.config.get("timeframes", [15, 60, 240])
             )
 
             for tf in timeframes_to_sync:
@@ -157,9 +149,8 @@ class DataValidator:
                 mt5_tf = tf_map.get(tf, mt5.TIMEFRAME_M15)
 
                 data_fetcher = DataFetcher(self.mt5_conn, self.db, self.config)
-                data_fetcher.sync_data(
-                    symbol, mt5_timeframe=mt5_tf, table="market_data"
-                )
+                # Call sync_data without table parameter (uses unified market_data by default)
+                data_fetcher.sync_data(symbol, mt5_timeframe=mt5_tf)
 
                 new_count = self.get_row_count(symbol, tf_str, table="market_data")
                 self.logger.info(
@@ -181,7 +172,8 @@ class DataValidator:
         """
         try:
             tf_str = f"M{timeframe}" if timeframe < 60 else f"H{timeframe//60}"
-            query = "SELECT MAX(md.time) as latest_time FROM market_data md JOIN tradable_pairs tp ON md.symbol_id = tp.id WHERE tp.symbol = ? AND md.timeframe = ?"
+            # Query market_data using direct symbol column (new schema, no JOIN needed)
+            query = "SELECT MAX(md.time) as latest_time FROM market_data md WHERE md.symbol = ? AND md.timeframe = ?"
             result = self.db.conn.cursor().execute(query, (symbol, tf_str)).fetchone()
 
             if not result or not result[0]:

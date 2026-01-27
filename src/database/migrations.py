@@ -41,43 +41,21 @@ class DatabaseMigrations:
             """
             )
 
-            # Table 2: market_data (live and historical) - with FK to tradable_pairs
+            # Table 2: market_data (unified for live and backtest) with composite primary key
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS market_data (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    symbol_id INTEGER NOT NULL,
-                    timeframe TEXT NOT NULL,
                     time TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    timeframe TEXT NOT NULL,
                     open REAL NOT NULL,
                     high REAL NOT NULL,
                     low REAL NOT NULL,
                     close REAL NOT NULL,
-                    volume INTEGER NOT NULL,
-                    type TEXT DEFAULT 'live',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (symbol_id) REFERENCES tradable_pairs(id),
-                    UNIQUE(symbol_id, timeframe, time)
-                )
-            """
-            )
-
-            # Table 3: backtest_market_data - with FK to tradable_pairs
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS backtest_market_data (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    symbol_id INTEGER NOT NULL,
-                    timeframe TEXT NOT NULL,
-                    time TEXT NOT NULL,
-                    open REAL NOT NULL,
-                    high REAL NOT NULL,
-                    low REAL NOT NULL,
-                    close REAL NOT NULL,
-                    volume INTEGER NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (symbol_id) REFERENCES tradable_pairs(id),
-                    UNIQUE(symbol_id, timeframe, time)
+                    tick_volume INTEGER,
+                    spread REAL,
+                    real_volume INTEGER,
+                    PRIMARY KEY (time, symbol, timeframe)
                 )
             """
             )
@@ -225,10 +203,9 @@ class DatabaseMigrations:
             cursor = self.conn.cursor()
 
             indexes = [
-                # Market data indexes (updated for symbol_id FK)
-                "CREATE INDEX IF NOT EXISTS idx_market_data_symbol_timeframe ON market_data(symbol_id, timeframe, time DESC)",
+                # Market data indexes (unified table without foreign key)
+                "CREATE INDEX IF NOT EXISTS idx_market_data_symbol_timeframe ON market_data(symbol, timeframe)",
                 "CREATE INDEX IF NOT EXISTS idx_market_data_time ON market_data(time DESC)",
-                "CREATE INDEX IF NOT EXISTS idx_backtest_market_data_symbol_timeframe ON backtest_market_data(symbol_id, timeframe, time DESC)",
                 # Backtest backtests indexes (for new schema)
                 "CREATE INDEX IF NOT EXISTS idx_backtest_backtests_strategy_symbol ON backtest_backtests(strategy_id, symbol_id)",
                 "CREATE INDEX IF NOT EXISTS idx_backtest_backtests_symbol_timeframe ON backtest_backtests(symbol_id, timeframe)",
@@ -264,6 +241,182 @@ class DatabaseMigrations:
             self.logger.error("Failed to create database indexes: %s", e)
             return False
 
+    def fresh_init(self) -> bool:
+        """Drop all tables and recreate fresh schema (used for init mode).
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            cursor = self.conn.cursor()
+
+            # Disable foreign keys to allow dropping tables with FK constraints
+            cursor.execute("PRAGMA foreign_keys=OFF")
+
+            # Drop all tables
+            tables_to_drop = [
+                "market_data",
+                "backtest_market_data",
+                "tradable_pairs",
+                "optimal_parameters",
+                "backtest_backtests",
+                "backtest_results",
+                "backtest_strategies",
+                "backtest_trades",
+                "trades",
+            ]
+
+            for table in tables_to_drop:
+                cursor.execute(f"DROP TABLE IF EXISTS {table}")
+
+            self.conn.commit()
+            self.logger.info("Dropped all tables for fresh initialization")
+
+            # Re-enable foreign keys
+            cursor.execute("PRAGMA foreign_keys=ON")
+
+            # Recreate all tables and indexes
+            if not self.create_tables():
+                return False
+            if not self.create_indexes():
+                return False
+
+            self.logger.info("Fresh database schema created successfully")
+            return True
+
+        except sqlite3.Error as e:
+            self.logger.error("Failed to recreate fresh schema: %s", e)
+            return False
+
+    def migrate(self) -> bool:
+        """Perform schema migrations with version tracking.
+
+        Handles:
+        - Merging backtest_market_data into market_data
+        - Converting to composite primary key (time, symbol, timeframe)
+        - Adding real_volume column if missing
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            cursor = self.conn.cursor()
+
+            # Check/create schema_version table
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS schema_version (version INTEGER)
+            """
+            )
+            self.conn.commit()
+
+            # Get current schema version
+            try:
+                cursor.execute("SELECT version FROM schema_version")
+                result = cursor.fetchone()
+                version = result[0] if result else 0
+            except sqlite3.OperationalError:
+                version = 0
+
+            if version == 0:
+                # Insert initial version if not exists
+                cursor.execute("DELETE FROM schema_version")  # Clear any partial data
+                cursor.execute("INSERT INTO schema_version VALUES (0)")
+                self.conn.commit()
+                version = 0
+
+            # Migration to version 1: Merge backtest_market_data into market_data
+            if version < 1:
+                self.logger.info("Running migration to schema version 1...")
+
+                # Step 1: Merge backtest_market_data if exists
+                try:
+                    cursor.execute(
+                        """
+                        INSERT OR IGNORE INTO market_data 
+                        (time, symbol, timeframe, open, high, low, close, tick_volume, spread, real_volume)
+                        SELECT time, symbol, timeframe, open, high, low, close, tick_volume, spread, real_volume 
+                        FROM backtest_market_data
+                    """
+                    )
+                    self.conn.commit()
+                    self.logger.info("Merged backtest_market_data into market_data")
+
+                    # Drop old table
+                    cursor.execute("DROP TABLE IF EXISTS backtest_market_data")
+                    self.conn.commit()
+                    self.logger.info("Dropped backtest_market_data table")
+                except sqlite3.OperationalError as e:
+                    self.logger.debug("backtest_market_data merge skipped: %s", e)
+
+                # Step 2: Ensure market_data has composite primary key (time, symbol, timeframe)
+                # Check if market_data already has the new schema
+                cursor.execute("PRAGMA table_info(market_data)")
+                columns = {row[1]: row[2] for row in cursor.fetchall()}
+
+                if "symbol" not in columns or "id" in columns:
+                    # Old schema detected - rename and recreate with new schema
+                    self.logger.info(
+                        "Converting market_data to new schema with composite key..."
+                    )
+
+                    cursor.execute("ALTER TABLE market_data RENAME TO market_data_old")
+                    self.conn.commit()
+
+                    # Create new market_data with composite primary key
+                    cursor.execute(
+                        """
+                        CREATE TABLE market_data (
+                            time TEXT NOT NULL,
+                            symbol TEXT NOT NULL,
+                            timeframe TEXT NOT NULL,
+                            open REAL NOT NULL,
+                            high REAL NOT NULL,
+                            low REAL NOT NULL,
+                            close REAL NOT NULL,
+                            tick_volume INTEGER,
+                            spread REAL,
+                            real_volume INTEGER,
+                            PRIMARY KEY (time, symbol, timeframe)
+                        )
+                    """
+                    )
+                    self.conn.commit()
+
+                    # Migrate data from old table
+                    cursor.execute(
+                        """
+                        INSERT OR IGNORE INTO market_data 
+                        (time, symbol, timeframe, open, high, low, close, tick_volume, spread, real_volume)
+                        SELECT 
+                            time, 
+                            COALESCE(symbol, (SELECT symbol FROM tradable_pairs WHERE id = symbol_id LIMIT 1)) as symbol,
+                            timeframe,
+                            open, high, low, close,
+                            volume as tick_volume,
+                            0 as spread,
+                            0 as real_volume
+                        FROM market_data_old
+                    """
+                    )
+                    self.conn.commit()
+                    self.logger.info("Migrated data to new market_data schema")
+
+                    cursor.execute("DROP TABLE market_data_old")
+                    self.conn.commit()
+
+                # Update schema version to 1
+                cursor.execute("UPDATE schema_version SET version = 1")
+                self.conn.commit()
+                self.logger.info("Schema migration to version 1 complete")
+
+            self.logger.info("All migrations completed successfully")
+            return True
+
+        except sqlite3.Error as e:
+            self.logger.error("Migration failed: %s", e)
+            return False
+
     def table_exists(self, table_name: str) -> bool:
         """Check if a table exists in the database.
 
@@ -287,11 +440,17 @@ class DatabaseMigrations:
     def migrate_tables(self) -> bool:
         """Run all required migrations to ensure schema is up-to-date.
 
+        Handles two scenarios:
+        - Fresh database: Creates all tables
+        - Existing database: Detects schema version and migrates if needed
+
+        Note: For full fresh initialization (testing/demo), use fresh_init() instead.
+        This method preserves existing data and only updates schema if needed.
+
         Returns:
             True if successful, False otherwise
         """
         try:
-            # Check if any tables exist
             cursor = self.conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")
             table_count = cursor.fetchone()[0]
@@ -300,61 +459,32 @@ class DatabaseMigrations:
                 # Fresh database - create all tables
                 self.logger.info("Fresh database detected - creating all tables")
                 return self.create_tables() and self.create_indexes()
-            else:
-                # Existing database - check if we need to migrate
-                # Check if market_data has symbol_id (new schema) or symbol (old schema)
-                cursor.execute("PRAGMA table_info(market_data)")
-                columns = [col[1] for col in cursor.fetchall()]
 
-                if "symbol_id" in columns:
-                    # Already migrated - just ensure indexes
-                    self.logger.info("Already migrated to v2 schema")
-                    return self.create_indexes()
-                elif "symbol" in columns:
-                    # Old schema detected - need to migrate
-                    self.logger.info("Old schema detected - running migration to v2")
-                    # Drop old tables and recreate with new schema
-                    try:
-                        cursor.execute("DROP TABLE IF EXISTS market_data")
-                        cursor.execute("DROP TABLE IF EXISTS backtest_market_data")
-                        cursor.execute("DROP TABLE IF EXISTS optimal_parameters")
-                        cursor.execute("DROP TABLE IF EXISTS trades")
-                        cursor.execute("DROP TABLE IF EXISTS backtest_trades")
-                        self.conn.commit()
-                        self.logger.info("Dropped old schema tables")
-                    except sqlite3.Error as e:
-                        self.logger.warning("Error dropping old tables: %s", e)
-                    # Create new schema fresh
-                    return self.create_tables() and self.create_indexes()
-                else:
-                    # Empty or unknown state
-                    self.logger.info(
-                        "Existing database detected - checking for missing tables"
-                    )
-                    missing_tables = []
+            # Existing database - check schema version by detecting symbol_id FK
+            cursor.execute("PRAGMA table_info(market_data)")
+            columns = [col[1] for col in cursor.fetchall()]
+            has_symbol_id = "symbol_id" in columns  # Old schema indicator
 
-                    required_tables = [
-                        "tradable_pairs",
-                        "market_data",
-                        "backtest_market_data",
-                        "optimal_parameters",
-                        "backtest_backtests",
-                        "backtest_results",
-                        "backtest_trades",
-                        "trades",
-                        "backtest_strategies",
-                    ]
+            if not has_symbol_id:
+                # Already v2 schema (direct symbol column, no symbol_id FK)
+                self.logger.info("V2 schema detected - ensuring indexes")
+                return self.create_indexes()
 
-                    for table_name in required_tables:
-                        if not self.table_exists(table_name):
-                            missing_tables.append(table_name)
+            # Old schema with symbol_id FK detected - migrate to v2
+            self.logger.info("Old schema detected - migrating to v2")
+            try:
+                cursor.execute("DROP TABLE IF EXISTS market_data")
+                cursor.execute("DROP TABLE IF EXISTS backtest_market_data")
+                cursor.execute("DROP TABLE IF EXISTS optimal_parameters")
+                cursor.execute("DROP TABLE IF EXISTS trades")
+                cursor.execute("DROP TABLE IF EXISTS backtest_trades")
+                cursor.execute("DROP TABLE IF EXISTS tradable_pairs")
+                self.conn.commit()
+                self.logger.info("Dropped old schema tables")
+            except sqlite3.Error as e:
+                self.logger.warning("Error dropping old tables: %s", e)
 
-                    if missing_tables:
-                        self.logger.warning("Missing tables: %s", missing_tables)
-                        return self.create_tables() and self.create_indexes()
-                    else:
-                        self.logger.info("All required tables exist - creating indexes")
-                        return self.create_indexes()
+            return self.create_tables() and self.create_indexes()
 
         except sqlite3.Error as e:
             self.logger.error("Migration failed: %s", e)

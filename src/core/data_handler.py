@@ -31,26 +31,15 @@ class DataHandler:
             DataFrame with OHLC data indexed by datetime, or None if no data available
         """
         try:
-            # Get symbol_id from tradable_pairs
-            query = "SELECT id FROM tradable_pairs WHERE symbol = ?"
-            cursor = self.db.conn.cursor()
-            cursor.execute(query, (symbol,))
-            result = cursor.fetchone()
-
-            if not result:
-                self.logger.warning("Symbol %s not found in tradable_pairs", symbol)
-                return None
-
-            symbol_id = result[0]
-
-            # Fetch all available data from market_data
+            # Fetch all available data from market_data table
+            # Uses new schema: direct symbol column, tick_volume (not volume), composite key
             query = """
-                SELECT open, high, low, close, volume, time
+                SELECT open, high, low, close, tick_volume AS volume, time
                 FROM market_data
-                WHERE symbol_id = ? AND timeframe = ?
+                WHERE symbol = ? AND timeframe = ?
                 ORDER BY time ASC
             """
-            data = pd.read_sql(query, self.db.conn, params=(symbol_id, timeframe))
+            data = pd.read_sql(query, self.db.conn, params=(symbol, timeframe))
 
             if data.empty:
                 self.logger.warning(

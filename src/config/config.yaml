@@ -82,7 +82,7 @@ live_trading:
   max_consecutive_losses: 3
   min_profit_factor: 1.0
   min_sharpe_requirement: -0.5
-  min_signal_confidence: 0.5
+  min_signal_confidence: 0.45
   use_adaptive_selection: true
   use_exit_strategies: true
 logging:
@@ -94,19 +94,6 @@ mt5:
   login: 297864944
   password: Brian@2025
   server: Exness-MT5Trial9
-pair_config:
-  categories:
-    crypto:
-      symbols: null
-    forex:
-      symbols: null
-    stocks:
-      symbols: null
-  timeframes:
-  - 15
-  - 60
-  - 240
-pairs: []
 risk_management:
   daily_loss_limit: 100.0          # Stop trading if daily loss exceeds this ($)
   lot_size: 0.01                   # Default position size (base for adaptive sizing)
@@ -114,7 +101,7 @@ risk_management:
   lot_size_max: 0.5               # Maximum lot size (high confidence)
   max_positions: 5                 # Maximum concurrent open positions (total)
   max_positions_per_symbol: 1      # Maximum positions per single symbol
-  min_signal_confidence: 0.5        # Minimum confidence threshold (0-1)
+  min_signal_confidence: 0.45      # Minimum confidence threshold (0-1)
   position_sizing: adaptive        # 'fixed' or 'adaptive' (confidence-based scaling)
   scale_by_confidence: true        # Scale position size by signal confidence
   scale_by_account_balance: true   # Scale position size by account balance

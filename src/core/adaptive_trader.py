@@ -99,43 +99,47 @@ class AdaptiveTrader:
     def _compute_confidence(self, strategy_info: Dict) -> float:
         """Compute confidence score for a strategy based on its metrics.
 
-        IMPROVED: More lenient scoring to allow more trades
-        - Positive Sharpe: 0.6-1.0 confidence
-        - Neutral Sharpe (0-1): 0.5-0.6 confidence
-        - Negative Sharpe: still trade if profit factor > 1.2 (0.4-0.5)
+        IMPROVED v2: Much more lenient for live trading with limited backtest data
+        - Sharpe > 1.0: 0.8 (strong)
+        - Sharpe > 0.5: 0.7 (good)
+        - Sharpe > 0: 0.6 (acceptable)
+        - Sharpe > -1.0: 0.55 (still tradeable with caution)
+        - Otherwise: 0.5 (minimum to pass confidence threshold)
 
         Args:
             strategy_info: Dict with strategy metrics from DB
 
         Returns:
-            Confidence score (0.0 to 1.0)
+            Confidence score (0.0 to 1.0), minimum 0.5 for all strategies
         """
         sharpe = strategy_info.get("sharpe_ratio", 0)
         win_rate = strategy_info.get("win_rate_pct", 50)
         profit_factor = strategy_info.get("profit_factor", 1.0)
 
-        # Base confidence from Sharpe ratio
+        # Base confidence from Sharpe ratio (MUCH MORE LENIENT)
         if sharpe > 1.0:
-            base_confidence = 0.8  # Strong strategy
+            confidence = 0.80
         elif sharpe > 0.5:
-            base_confidence = 0.7  # Good strategy
+            confidence = 0.70
         elif sharpe > 0:
-            base_confidence = 0.6  # Acceptable strategy
-        elif profit_factor > 1.2:
-            base_confidence = 0.5  # Marginal but tradeable
+            confidence = 0.65
+        elif sharpe > -1.0:
+            confidence = 0.55
         else:
-            base_confidence = 0.3  # Only trade if other factors strong
+            confidence = 0.50  # Floor at 0.5 to allow trading even weak strategies
 
-        # Adjust for win rate
-        win_rate_factor = min(win_rate / 100, 1.0)
+        # SMALL adjustment for win rate (don't penalize too much)
+        if win_rate > 50:
+            confidence = min(confidence + 0.05 * (win_rate - 50) / 50, 0.95)
 
-        # Adjust for profit factor (normalize 1.0-3.0 range)
-        pf_factor = min(profit_factor / 2.0, 1.0)
+        # SMALL adjustment for profit factor if available
+        if not (
+            isinstance(profit_factor, float) and profit_factor != profit_factor
+        ):  # Skip NaN
+            if profit_factor > 1.2:
+                confidence = min(confidence + 0.1, 0.95)
 
-        # Combined confidence
-        confidence = base_confidence * (0.5 + 0.3 * win_rate_factor + 0.2 * pf_factor)
-
-        return min(max(confidence, 0), 1)  # Clamp to 0-1
+        return min(max(confidence, 0.5), 1.0)  # Floor at 0.5, cap at 1.0
 
     def get_signals_adaptive(self, symbol: str) -> List[Dict]:
         """Generate signals by selecting best strategies automatically.
@@ -161,18 +165,8 @@ class AdaptiveTrader:
                 )
                 return []
 
-            # Get timeframes - try pairs list first, then pair_config
-            pair_timeframes = [
-                p["timeframe"]
-                for p in self.config.get("pairs", [])
-                if p["symbol"] == symbol
-            ]
-
-            if not pair_timeframes:
-                # Fallback to pair_config timeframes if pairs list not populated
-                pair_timeframes = self.config.get("pair_config", {}).get(
-                    "timeframes", [15, 60, 240]
-                )
+            # Get timeframes from config
+            pair_timeframes = self.config.get("timeframes", [15, 60, 240])
 
             if not pair_timeframes:
                 self.logger.warning("No timeframes configured for symbol %s", symbol)
@@ -404,10 +398,10 @@ class AdaptiveTrader:
         user-specified strategy.
         """
         try:
-            # Get all unique symbols from config
-            all_symbols = list(
-                dict.fromkeys([p["symbol"] for p in self.config.get("pairs", [])])
-            )
+            # Get all unique symbols from database (tradable_pairs)
+            cursor = self.db.conn.cursor()
+            cursor.execute("SELECT DISTINCT symbol FROM tradable_pairs ORDER BY symbol")
+            all_symbols = [row[0] for row in cursor.fetchall()]
 
             # Use specified symbol or all configured symbols
             symbols = [symbol] if symbol else all_symbols

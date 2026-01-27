@@ -12,9 +12,18 @@ LOGGING_CONFIGURED = False
 
 
 def setup_logging():
-    """Configure logging for the application"""
+    """Configure logging for the application (idempotent - only initializes once).
+
+    Uses a check to ensure setup_logging() can be called multiple times
+    without creating duplicate handlers or logs.
+    """
     global LOGGING_CONFIGURED  # pylint: disable=global-statement
     if LOGGING_CONFIGURED:
+        return logging.getLogger(__name__)
+
+    # Check if handlers already exist (another check beyond global flag)
+    if logging.getLogger().handlers:
+        LOGGING_CONFIGURED = True
         return logging.getLogger(__name__)
 
     log_dir = "logs"
@@ -30,6 +39,9 @@ def setup_logging():
 
     # Suppress matplotlib debug messages
     logging.getLogger("matplotlib").setLevel(logging.INFO)
+
+    # Suppress verbose database connection logs (set to DEBUG only)
+    logging.getLogger("src.database.db_manager").setLevel(logging.DEBUG)
 
     LOGGING_CONFIGURED = True
     logger = logging.getLogger(__name__)

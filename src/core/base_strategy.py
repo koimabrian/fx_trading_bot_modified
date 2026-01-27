@@ -11,7 +11,10 @@ from src.core.data_fetcher import DataFetcher
 
 
 class BaseStrategy(ABC):
-    """Abstract base class for all trading strategies."""
+    """Abstract base class for all trading strategies.
+
+    Provides common validation methods and interfaces for all strategy implementations.
+    """
 
     def __init__(self, params, db, config, mode="live"):
         """Initialize strategy with parameters, database, config, and mode"""
@@ -25,6 +28,24 @@ class BaseStrategy(ABC):
         self.logger = logging.getLogger(__name__)
         self.data_cache = None  # Set by StrategyManager
 
+    def validate_indicator(self, value):
+        """Validate indicator value for NaN or invalid values.
+
+        Args:
+            value: Indicator value to validate (float or numpy value)
+
+        Returns:
+            bool: True if valid (not NaN), False otherwise
+        """
+        import numpy as np
+
+        if np.isnan(value) or value is None:
+            self.logger.warning(
+                "Skipping signal due to invalid indicator value: %s", value
+            )
+            return False
+        return True
+
     def fetch_data(self, symbol=None, required_rows=None):
         """Fetch market data for the strategy using DataFetcher.
 
@@ -37,8 +58,8 @@ class BaseStrategy(ABC):
             DataFrame with market data
         """
         symbol_to_fetch = symbol or self.symbol
-        table = "backtest_market_data" if self.mode == "backtest" else "market_data"
-        cache_key = f"{symbol_to_fetch}_{self.timeframe}_{table}"
+        # Use unified market_data table for both live and backtest
+        cache_key = f"{symbol_to_fetch}_{self.timeframe}"
 
         # Check cache first (only in live mode)
         if self.data_cache is not None and self.mode == "live":
@@ -50,7 +71,6 @@ class BaseStrategy(ABC):
         data = data_fetcher.fetch_data(
             symbol_to_fetch,
             f"M{self.timeframe}",
-            table=table,
             required_rows=required_rows,
         )
 

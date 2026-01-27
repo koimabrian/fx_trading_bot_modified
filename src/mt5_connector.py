@@ -19,16 +19,23 @@ from src.strategies.factory import StrategyFactory
 
 
 class MT5Connector:
-    """Manages connection and operations with MetaTrader 5."""
+    """Manages connection and operations with MetaTrader 5.
 
-    def __init__(self, db):
-        """Initialize MT5 connector.
+    Singleton pattern ensures MT5 initializes only once across the application.
+    """
 
-        Args:
-            db: Database manager instance
+    _instance = None
+    _initialized = False
 
-        Loads MT5 credentials from config.yaml or environment variables.
-        """
+    def __new__(cls, db):
+        """Singleton pattern: return existing instance or create new one."""
+        if cls._instance is None:
+            cls._instance = super(MT5Connector, cls).__new__(cls)
+            cls._instance._init_instance(db)
+        return cls._instance
+
+    def _init_instance(self, db):
+        """Initialize instance once (called only on first creation)."""
         self.db = db
         self.logger = logging.getLogger(__name__)
         # Load credentials from config.yaml or environment variables
@@ -38,9 +45,19 @@ class MT5Connector:
         self.login = int(os.getenv("MT5_LOGIN", mt5_config.get("login", 0)))
         self.password = os.getenv("MT5_PASSWORD", mt5_config.get("password", ""))
         self.server = os.getenv("MT5_SERVER", mt5_config.get("server", ""))
+        self.logger.debug("MT5Connector singleton created")
 
     def initialize(self):
-        """Initialize MT5 connection with config"""
+        """Initialize MT5 connection with config.
+
+        Checks if already initialized to prevent duplicate init calls.
+        Returns True if already initialized or successfully initializes.
+        """
+        # Check if already initialized
+        if MT5Connector._initialized:
+            self.logger.debug("MT5 already initialized, skipping duplicate init")
+            return True
+
         if not self.login or not self.password or not self.server:
             self.logger.error(
                 "MT5 credentials missing. Please update src/config/config.yaml or set MT5_LOGIN, MT5_PASSWORD, MT5_SERVER environment variables."
@@ -48,6 +65,12 @@ class MT5Connector:
             return False
 
         try:  # pylint: disable=no-member
+            # Check if MT5 terminal is already running
+            if mt5.terminal_info() is not None:
+                self.logger.debug("MT5 terminal already connected, reusing connection")
+                MT5Connector._initialized = True
+                return True
+
             self.logger.debug(
                 "Attempting MT5 connection with login=%s, server=%s",
                 self.login,
@@ -72,7 +95,8 @@ class MT5Connector:
                     "Ensure MetaTrader 5 is running, credentials are correct, and the server (e.g., Exness-MT5Trial9) is accessible."
                 )
                 return False
-            self.logger.info("MT5 connection initialized successfully")
+            MT5Connector._initialized = True
+            self.logger.info("MT5 connection initialized successfully (singleton)")
             return True
         except (RuntimeError, OSError, ValueError) as e:
             self.logger.error("Unexpected error during MT5 initialization: %s", e)

@@ -2,11 +2,13 @@
 
 Retrieves OHLCV data from MT5, syncs to database, and provides
 data validation and caching interfaces for strategy backtesting.
+Uses LRU cache to avoid redundant fetches.
 """
 
 import logging
 import sqlite3
-from typing import Tuple
+from functools import lru_cache
+from typing import Optional
 
 import MetaTrader5 as mt5
 import pandas as pd
@@ -30,21 +32,35 @@ class DataFetcher:
         self.pairs = self.load_pairs()
 
     def load_pairs(self):
-        """Load trading pairs from config"""
+        """Load trading pairs from database tradable_pairs table with all configured timeframes"""
         try:
-            return self.config.get("pairs", [])
+            if hasattr(self, "db") and self.db:
+                cursor = self.db.conn.cursor()
+                cursor.execute("SELECT symbol FROM tradable_pairs ORDER BY symbol")
+                symbols = [row[0] for row in cursor.fetchall()]
+
+                # Get timeframes from config
+                timeframes = self.config.get("timeframes", [15, 60, 240])
+
+                # Create pairs list with symbol and timeframe combination
+                pairs = []
+                for symbol in symbols:
+                    for timeframe in timeframes:
+                        pairs.append({"symbol": symbol, "timeframe": timeframe})
+
+                return pairs
+            return []
         except (KeyError, AttributeError) as e:
-            self.logger.error("Failed to load pairs from config: %s", e)
+            self.logger.error("Failed to load pairs from database: %s", e)
             return []
 
     def has_sufficient_data(
-        self, min_rows: int = 2000, table: str = "market_data", symbol: str = None
+        self, min_rows: int = 2000, symbol: Optional[str] = None
     ) -> bool:
         """Check if configured pairs per timeframe have sufficient data in the database.
 
         Args:
             min_rows: Minimum number of rows per pair per timeframe (default 2000 from config)
-            table: Table to check ('market_data' only)
             symbol: Optional specific symbol to check and its timeframes. If None, checks all pairs.
 
         Returns:
@@ -69,8 +85,8 @@ class DataFetcher:
                 tf = pair["timeframe"]
                 tf_str = f"M{tf}" if tf < 60 else f"H{tf // 60}"
 
-                # Query row count for this pair
-                query = f"SELECT COUNT(*) as count FROM {table} md JOIN tradable_pairs tp ON md.symbol_id = tp.id WHERE tp.symbol = ? AND md.timeframe = ?"
+                # Query row count for this pair (unified market_data table with direct symbol column)
+                query = "SELECT COUNT(*) as count FROM market_data WHERE symbol = ? AND timeframe = ?"
                 cursor = self.db.execute_query(query, (sym, tf_str))
                 result = cursor.fetchone()
 
@@ -85,17 +101,15 @@ class DataFetcher:
 
             if insufficient_pairs:
                 self.logger.debug(
-                    "Insufficient data in %s table: %s",
-                    table,
+                    "Insufficient data in market_data table: %s",
                     ", ".join(insufficient_pairs[:3]),  # Log first 3 for brevity
                 )
                 return False
 
             self.logger.debug(
-                "All %d pairs have sufficient data (>= %d rows) in %s table",
+                "All %d pairs have sufficient data (>= %d rows) in market_data table",
                 len(pairs_to_check),
                 min_rows,
-                table,
             )
             return True
 
@@ -103,16 +117,30 @@ class DataFetcher:
             self.logger.error("Error checking data sufficiency: %s", e)
             return False
 
-    def fetch_data(
-        self, symbol, timeframe, limit=None, table="market_data", required_rows=None
-    ):
+    @lru_cache(maxsize=128)
+    def _get_market_data_cached(self, symbol: str, timeframe_str: str, limit: int):
+        """Cached fetch of market data to avoid redundant queries.
+
+        Args:
+            symbol: Trading symbol (must be string for caching)
+            timeframe_str: Formatted timeframe string (e.g., 'M15', 'H1')
+            limit: Maximum rows to fetch
+
+        Returns:
+            Tuple of (data_list, count) to make it hashable for caching
+        """
+        query = "SELECT * FROM market_data WHERE symbol = ? AND timeframe = ? ORDER BY time DESC LIMIT ?"
+        data = pd.read_sql(query, self.db.conn, params=(symbol, timeframe_str, limit))
+        # Convert to tuple of records for hashability
+        return (tuple(data.to_dict("records")), len(data))
+
+    def fetch_data(self, symbol, timeframe, limit=None, required_rows=None):
         """Fetch data from database or MT5.
 
         Args:
             symbol: Trading symbol
             timeframe: Timeframe in minutes or string format (e.g., 'M15', 'H1', etc.)
             limit: Maximum rows to fetch (uses config if None)
-            table: Table name ('market_data' or 'backtest_market_data')
             required_rows: Minimum rows needed for indicator calculation.
                           If provided, calculates dynamic limit based on:
                           - 3x multiplier for safety margin
@@ -155,30 +183,52 @@ class DataFetcher:
         # Ensure timeframe is a string (e.g., 'M15', 'H1') for database queries
         tf_str = f"M{timeframe_int}" if timeframe_int < 60 else f"H{timeframe_int//60}"
         try:
-            query = f"SELECT * FROM {table} md JOIN tradable_pairs tp ON md.symbol_id = tp.id WHERE tp.symbol = ? AND md.timeframe = ? ORDER BY md.time DESC LIMIT ?"
-            data = pd.read_sql(query, self.db.conn, params=(symbol, tf_str, limit))
-            if data.empty:
+            # Check existing row count before fetching from MT5
+            count_query = "SELECT COUNT(*) as count FROM market_data WHERE symbol = ? AND timeframe = ?"
+            cursor = self.db.execute_query(count_query, (symbol, tf_str))
+            count_result = cursor.fetchone()
+            existing_count = count_result["count"] if count_result else 0
+
+            # Use cached fetch to avoid redundant queries
+            data_records, data_count = self._get_market_data_cached(
+                symbol, tf_str, limit
+            )
+            data = pd.DataFrame(list(data_records)) if data_records else pd.DataFrame()
+
+            if data.empty and existing_count == 0:
                 self.logger.warning(
-                    "No data in %s for %s (%s), fetching from MT5",
-                    table,
+                    "No data in market_data for %s (%s), fetching from MT5",
                     symbol,
                     tf_str,
                 )
                 mt5_timeframe = getattr(mt5, f"TIMEFRAME_{tf_str}", mt5.TIMEFRAME_M15)
-                self.sync_data(symbol=symbol, mt5_timeframe=mt5_timeframe, table=table)
-                data = pd.read_sql(query, self.db.conn, params=(symbol, tf_str, limit))
-            self.logger.info(
-                "Fetched %s rows from %s for %s (%s)", len(data), table, symbol, tf_str
+                self.sync_data(symbol=symbol, mt5_timeframe=mt5_timeframe)
+                # Clear cache after sync
+                self._get_market_data_cached.cache_clear()
+                # Re-fetch with cache
+                data_records, data_count = self._get_market_data_cached(
+                    symbol, tf_str, limit
+                )
+                data = (
+                    pd.DataFrame(list(data_records)) if data_records else pd.DataFrame()
+                )
+
+            self.logger.debug(
+                "Fetched %s rows from market_data for %s (%s) [%s total in DB]",
+                len(data),
+                symbol,
+                tf_str,
+                existing_count,
             )
             return data
         except (pd.errors.DatabaseError, ValueError) as e:
             self.logger.error("Failed to fetch data for %s (%s): %s", symbol, tf_str, e)
             return pd.DataFrame()
 
-    def sync_data(self, symbol=None, mt5_timeframe=None, table="market_data") -> None:
+    def sync_data(self, symbol=None, mt5_timeframe=None) -> None:
         """Fetch and sync OHLCV market data for all configured pairs or specific symbol/timeframe.
-        Supports separate tables (market_data for live, backtest_market_data for backtesting).
-        Deduplicates based on time to avoid duplicates.
+        Uses unified market_data table with composite primary key (time, symbol, timeframe).
+        Automatically handles duplicates via INSERT OR IGNORE.
         """
         if not self.mt5_conn:
             self.logger.error("MT5 connector not provided")
@@ -218,7 +268,7 @@ class DataFetcher:
             tf_str = f"M{tf}" if tf < 60 else f"H{tf//60}"
 
             self.logger.debug(
-                "Starting data sync for %s (%s) -> %s", sym, tf_str, table
+                "Starting data sync for %s (%s) -> market_data", sym, tf_str
             )
             fetch_count = self.config.get("data", {}).get("fetch_count", 2000)
             data = self.mt5_conn.fetch_market_data(sym, mt5_tf, count=fetch_count)
@@ -242,159 +292,80 @@ class DataFetcher:
                         )
                         data[col] = None
 
-                # Rename tick_volume to volume for database compatibility
-                if "tick_volume" in data.columns:
-                    data.rename(columns={"tick_volume": "volume"}, inplace=True)
+                # Format time as ISO format string
+                data["time"] = pd.to_datetime(data["time"]).dt.strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
 
-                data["symbol"] = sym
-                data["timeframe"] = tf_str
+                # Extract OHLCV columns we need
+                data_prepared = pd.DataFrame(
+                    {
+                        "time": data["time"],
+                        "symbol": sym,
+                        "timeframe": tf_str,
+                        "open": data["open"],
+                        "high": data["high"],
+                        "low": data["low"],
+                        "close": data["close"],
+                        "tick_volume": data.get("tick_volume", 0),
+                        "spread": data.get("spread", None),
+                        "real_volume": data.get("real_volume", 0),
+                    }
+                )
 
-                # Add type field to distinguish historical vs. live data
-                if table == "backtest_market_data":
-                    data["type"] = "historical"
-                else:
-                    data["type"] = "live"  # Default to live for market_data
+                if not data_prepared.empty:
+                    # Prepare rows for INSERT OR IGNORE
+                    rows = []
+                    for _, row in data_prepared.iterrows():
+                        rows.append(
+                            (
+                                row["time"],
+                                row["symbol"],
+                                row["timeframe"],
+                                row["open"],
+                                row["high"],
+                                row["low"],
+                                row["close"],
+                                row["tick_volume"],
+                                row["spread"],
+                                row["real_volume"],
+                            )
+                        )
 
-                # Get symbol_id from tradable_pairs table
-                try:
+                    # Use INSERT OR IGNORE to handle duplicates gracefully
+                    query = """
+                    INSERT OR IGNORE INTO market_data 
+                    (time, symbol, timeframe, open, high, low, close, tick_volume, spread, real_volume)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """
                     cursor = self.db.conn.cursor()
-                    cursor.execute(
-                        "SELECT id FROM tradable_pairs WHERE symbol = ?", (sym,)
-                    )
-                    result = cursor.fetchone()
-                    symbol_id = result[0] if result else None
+                    cursor.executemany(query, rows)
+                    self.db.conn.commit()
 
-                    if not symbol_id:
-                        self.logger.warning(
-                            "Symbol %s not found in tradable_pairs. Adding it now.", sym
-                        )
-                        cursor.execute(
-                            "INSERT OR IGNORE INTO tradable_pairs (symbol) VALUES (?)",
-                            (sym,),
-                        )
-                        self.db.conn.commit()
-                        cursor.execute(
-                            "SELECT id FROM tradable_pairs WHERE symbol = ?", (sym,)
-                        )
-                        symbol_id = cursor.fetchone()[0]
-
-                    # Replace symbol with symbol_id in dataframe
-                    data.drop(columns=["symbol"], inplace=True)
-                    data["symbol_id"] = symbol_id
-                except (sqlite3.Error, AttributeError) as e:
-                    self.logger.error("Failed to get symbol_id for %s: %s", sym, e)
-                    continue
-
-                # Check for duplicates in target table (now use symbol_id)
-                try:
-                    existing_data = pd.read_sql(
-                        f"SELECT time FROM {table} WHERE symbol_id = ? AND timeframe = ?",
-                        self.db.conn,
-                        params=(symbol_id, tf_str),
-                    )
-                    self.logger.debug(
-                        "Found %s existing rows for %s (%s) in %s",
-                        len(existing_data),
+                    # Count how many rows were actually inserted (duplicates ignored)
+                    inserted_count = cursor.rowcount
+                    self.logger.info(
+                        "Synced %s rows for %s (%s) to market_data (duplicates ignored)",
+                        inserted_count,
                         sym,
                         tf_str,
-                        table,
                     )
-                    if not existing_data.empty:
-                        # Ensure time columns are the same dtype before comparison
-                        existing_data["time"] = pd.to_datetime(existing_data["time"])
-                        data["time"] = pd.to_datetime(data["time"])
-                        data = data[~data["time"].isin(existing_data["time"])]
-                        self.logger.debug(
-                            "After deduplication, %s new rows remain for %s (%s)",
-                            len(data),
-                            sym,
-                            tf_str,
-                        )
-                except (pd.errors.DatabaseError, ValueError) as e:
-                    self.logger.debug(
-                        "Table %s may not exist yet, will create: %s", table, e
-                    )
-
-                if not data.empty:
-                    # Select only columns that match the database schema
-                    schema_cols = [
-                        "symbol_id",
-                        "timeframe",
-                        "time",
-                        "open",
-                        "high",
-                        "low",
-                        "close",
-                        "volume",
-                        "type",
-                    ]
-                    available_cols = [col for col in schema_cols if col in data.columns]
-                    data = data[available_cols]
-
-                    try:
-                        data.to_sql(
-                            table, self.db.conn, if_exists="append", index=False
-                        )
-                        self.db.conn.commit()
-                        self.logger.info(
-                            "Synced %s new rows for %s (%s) to %s",
-                            len(data),
-                            sym,
-                            tf_str,
-                            table,
-                        )
-                    except sqlite3.IntegrityError as e:
-                        # Handle race condition: duplicate data inserted between check and insert
-                        self.logger.warning(
-                            "UNIQUE constraint violation for %s (%s) - race condition detected: %s",
-                            sym,
-                            tf_str,
-                            e,
-                        )
-                        self.db.conn.rollback()
-                        # Retry with stricter deduplication
-                        existing_times = (
-                            set(existing_data["time"].values)
-                            if not existing_data.empty
-                            else set()
-                        )
-                        data = data[~data["time"].isin(existing_times)]
-                        if not data.empty:
-                            try:
-                                data.to_sql(
-                                    table, self.db.conn, if_exists="append", index=False
-                                )
-                                self.db.conn.commit()
-                                self.logger.info(
-                                    "Synced %s rows (after retry) for %s (%s) to %s",
-                                    len(data),
-                                    sym,
-                                    tf_str,
-                                    table,
-                                )
-                            except sqlite3.IntegrityError as retry_err:
-                                self.logger.error(
-                                    "Failed to sync data for %s (%s) after retry: %s",
-                                    sym,
-                                    tf_str,
-                                    retry_err,
-                                )
-                                self.db.conn.rollback()
                 else:
                     self.logger.info("No new data to sync for %s (%s)", sym, tf_str)
-            except (pd.errors.DatabaseError, ValueError) as e:
+
+            except (sqlite3.Error, ValueError) as e:
                 self.logger.error("Failed to sync data for %s (%s): %s", sym, tf_str, e)
+                self.db.conn.rollback()
             finally:
                 self.logger.debug(
                     "Completed data sync attempt for %s (%s)", sym, tf_str
                 )
 
-    def sync_data_incremental(
-        self, symbol=None, mt5_timeframe=None, table="market_data"
-    ) -> None:
+    def sync_data_incremental(self, symbol=None, mt5_timeframe=None) -> None:
         """Incremental data sync: only fetch data newer than the last timestamp in the database.
 
         This is optimized for live trading - only fetches the minimal data needed to stay current.
+        Uses unified market_data table with composite primary key.
         Much faster than full syncs and reduces MT5 API load.
         """
         if not self.mt5_conn:
@@ -432,14 +403,15 @@ class DataFetcher:
             tf_str = f"M{tf}" if tf < 60 else f"H{tf//60}"
 
             try:
-                # Get the latest timestamp from the database
-                query = f"SELECT MAX({table}.time) as latest_time FROM {table} JOIN tradable_pairs tp ON {table}.symbol_id = tp.id WHERE tp.symbol = ? AND {table}.timeframe = ?"
-                cursor = self.db.execute_query(query, (sym, tf_str))
+                # Get the latest timestamp from the unified market_data table
+                query = "SELECT MAX(time) as latest_time FROM market_data WHERE symbol = ? AND timeframe = ?"
+                cursor = self.db.conn.cursor()
+                cursor.execute(query, (sym, tf_str))
                 result = cursor.fetchone()
 
                 latest_time = None
-                if result and result["latest_time"]:
-                    latest_time = pd.to_datetime(result["latest_time"])
+                if result and result[0]:
+                    latest_time = pd.to_datetime(result[0])
                     self.logger.debug(
                         "Latest data for %s (%s): %s", sym, tf_str, latest_time
                     )
@@ -467,85 +439,68 @@ class DataFetcher:
                     self.logger.info("No new data to sync for %s (%s)", sym, tf_str)
                     continue
 
-                # Add required columns
-                data["symbol"] = sym
-                data["timeframe"] = tf_str
+                # Format time as ISO format string
+                data["time"] = pd.to_datetime(data["time"]).dt.strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
 
-                # Ensure we have required columns
-                required_cols = ["time", "open", "high", "low", "close", "tick_volume"]
-                for col in required_cols:
-                    if col not in data.columns:
-                        data[col] = None
+                # Extract OHLCV columns we need
+                data_prepared = pd.DataFrame(
+                    {
+                        "time": data["time"],
+                        "symbol": sym,
+                        "timeframe": tf_str,
+                        "open": data["open"],
+                        "high": data["high"],
+                        "low": data["low"],
+                        "close": data["close"],
+                        "tick_volume": data.get("tick_volume", 0),
+                        "spread": data.get("spread", None),
+                        "real_volume": data.get("real_volume", 0),
+                    }
+                )
 
-                # Rename tick_volume to volume for database compatibility
-                if "tick_volume" in data.columns:
-                    data.rename(columns={"tick_volume": "volume"}, inplace=True)
-
-                # Get symbol_id from tradable_pairs table
-                try:
-                    cursor = self.db.conn.cursor()
-                    cursor.execute(
-                        "SELECT id FROM tradable_pairs WHERE symbol = ?", (sym,)
+                # Prepare rows for INSERT OR IGNORE
+                rows = []
+                for _, row in data_prepared.iterrows():
+                    rows.append(
+                        (
+                            row["time"],
+                            row["symbol"],
+                            row["timeframe"],
+                            row["open"],
+                            row["high"],
+                            row["low"],
+                            row["close"],
+                            row["tick_volume"],
+                            row["spread"],
+                            row["real_volume"],
+                        )
                     )
-                    result = cursor.fetchone()
-                    symbol_id = result[0] if result else None
 
-                    if not symbol_id:
-                        self.logger.warning(
-                            "Symbol %s not found in tradable_pairs. Adding it now.", sym
-                        )
-                        cursor.execute(
-                            "INSERT OR IGNORE INTO tradable_pairs (symbol) VALUES (?)",
-                            (sym,),
-                        )
-                        self.db.conn.commit()
-                        cursor.execute(
-                            "SELECT id FROM tradable_pairs WHERE symbol = ?", (sym,)
-                        )
-                        symbol_id = cursor.fetchone()[0]
-
-                    # Replace symbol with symbol_id in dataframe
-                    data.drop(columns=["symbol"], inplace=True)
-                    data["symbol_id"] = symbol_id
-                except (sqlite3.Error, AttributeError) as e:
-                    self.logger.error("Failed to get symbol_id for %s: %s", sym, e)
-                    continue
-
-                # Add type field to distinguish historical vs. live data
-                if table == "backtest_market_data":
-                    data["type"] = "historical"
-                else:
-                    data["type"] = "live"  # Default to live for market_data
-
-                # Select only columns that match the database schema
-                schema_cols = [
-                    "symbol_id",
-                    "timeframe",
-                    "time",
-                    "open",
-                    "high",
-                    "low",
-                    "close",
-                    "volume",
-                    "type",
-                ]
-                available_cols = [col for col in schema_cols if col in data.columns]
-                data = data[available_cols]
-
-                # Insert new data
-                data.to_sql(table, self.db.conn, if_exists="append", index=False)
+                # Use INSERT OR IGNORE to handle duplicates gracefully
+                query = """
+                INSERT OR IGNORE INTO market_data 
+                (time, symbol, timeframe, open, high, low, close, tick_volume, spread, real_volume)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """
+                cursor.executemany(query, rows)
                 self.db.conn.commit()
+
+                # Count how many rows were actually inserted (duplicates ignored)
+                inserted_count = cursor.rowcount
                 self.logger.info(
-                    "Synced %d new rows for %s (%s) (incremental)",
-                    len(data),
+                    "Synced %d new rows for %s (%s) (incremental, duplicates ignored)",
+                    inserted_count,
                     sym,
                     tf_str,
                 )
 
-            except (pd.errors.DatabaseError, ValueError) as e:
+            except (sqlite3.Error, ValueError) as e:
                 self.logger.error(
                     "Incremental sync failed for %s (%s): %s", sym, tf_str, e
                 )
+                self.db.conn.rollback()
             finally:
                 self.logger.debug(
                     "Completed incremental sync attempt for %s (%s)", sym, tf_str
@@ -557,22 +512,22 @@ class DataFetcher:
         timeframe: int,
         start_date,
         end_date,
-        table: str = "market_data",
-        data_type: str = "live",
     ) -> int:
         """Synchronize data for a single pair (used by init mode).
+
+        Uses unified market_data table with composite primary key.
+        Automatically handles duplicates via INSERT OR IGNORE.
 
         Args:
             symbol: Trading symbol
             timeframe: Timeframe in minutes
             start_date: Start date for historical data
             end_date: End date for historical data
-            table: Target table name
-            data_type: Data type ('historical' or 'live')
 
         Returns:
             Number of rows added
         """
+        tf_str = None
         try:
             tf_str = self.format_timeframe(timeframe)
 
@@ -594,65 +549,56 @@ class DataFetcher:
                 self.logger.warning("No data available for %s (%s)", symbol, tf_str)
                 return 0
 
-            # Rename tick_volume to volume for database compatibility
-            if "tick_volume" in data.columns:
-                data.rename(columns={"tick_volume": "volume"}, inplace=True)
+            # Format time as ISO format string
+            data["time"] = pd.to_datetime(data["time"]).dt.strftime("%Y-%m-%d %H:%M:%S")
 
-            # Prepare data
-            data["symbol"] = symbol
-            data["timeframe"] = tf_str
-            data["type"] = data_type
+            # Extract OHLCV columns we need
+            data_prepared = pd.DataFrame(
+                {
+                    "time": data["time"],
+                    "symbol": symbol,
+                    "timeframe": tf_str,
+                    "open": data["open"],
+                    "high": data["high"],
+                    "low": data["low"],
+                    "close": data["close"],
+                    "tick_volume": data.get("tick_volume", 0),
+                    "spread": data.get("spread", None),
+                    "real_volume": data.get("real_volume", 0),
+                }
+            )
 
-            # Get symbol_id from tradable_pairs table
-            try:
-                cursor = self.db.conn.cursor()
-                cursor.execute(
-                    "SELECT id FROM tradable_pairs WHERE symbol = ?", (symbol,)
+            # Prepare rows for INSERT OR IGNORE
+            rows = []
+            for _, row in data_prepared.iterrows():
+                rows.append(
+                    (
+                        row["time"],
+                        row["symbol"],
+                        row["timeframe"],
+                        row["open"],
+                        row["high"],
+                        row["low"],
+                        row["close"],
+                        row["tick_volume"],
+                        row["spread"],
+                        row["real_volume"],
+                    )
                 )
-                result = cursor.fetchone()
-                symbol_id = result[0] if result else None
 
-                if not symbol_id:
-                    # Insert if doesn't exist
-                    cursor.execute(
-                        "INSERT OR IGNORE INTO tradable_pairs (symbol) VALUES (?)",
-                        (symbol,),
-                    )
-                    self.db.conn.commit()
-                    cursor.execute(
-                        "SELECT id FROM tradable_pairs WHERE symbol = ?", (symbol,)
-                    )
-                    symbol_id = cursor.fetchone()[0]
-
-                # Replace symbol with symbol_id
-                data.drop(columns=["symbol"], inplace=True)
-                data["symbol_id"] = symbol_id
-            except (sqlite3.Error, AttributeError) as e:
-                self.logger.error("Failed to get symbol_id for %s: %s", symbol, e)
-                return 0
-
-            # Select only schema-required columns
-            schema_cols = [
-                "symbol_id",
-                "timeframe",
-                "time",
-                "open",
-                "high",
-                "low",
-                "close",
-                "volume",
-                "type",
-            ]
-            available_cols = [col for col in schema_cols if col in data.columns]
-            data = data[available_cols]
-
-            # Insert data
-            data.to_sql(table, self.db.conn, if_exists="append", index=False)
+            # Use INSERT OR IGNORE to handle duplicates gracefully
+            query = """
+            INSERT OR IGNORE INTO market_data 
+            (time, symbol, timeframe, open, high, low, close, tick_volume, spread, real_volume)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            cursor = self.db.conn.cursor()
+            cursor.executemany(query, rows)
             self.db.conn.commit()
 
-            rows_added = len(data)
+            rows_added = cursor.rowcount
             self.logger.info(
-                "Added %d rows for %s (%s) from %s to %s",
+                "Added %d rows for %s (%s) from %s to %s (duplicates ignored)",
                 rows_added,
                 symbol,
                 tf_str,
@@ -663,7 +609,9 @@ class DataFetcher:
             return rows_added
 
         except (OSError, ValueError, sqlite3.Error) as e:
-            self.logger.error("Failed to sync data for %s (%s): %s", symbol, tf_str, e)
+            self.logger.error(
+                "Failed to sync data for %s (%s): %s", symbol, tf_str or "?", e
+            )
             return 0
 
     def format_timeframe(self, timeframe_minutes: int) -> str:

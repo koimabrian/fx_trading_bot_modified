@@ -73,6 +73,7 @@ class DashboardServer:
         self.app.add_url_rule("/indicators", "indicators", self.indicators)
         self.app.add_url_rule("/api/symbols", "api_symbols", self.api_symbols)
         self.app.add_url_rule("/api/timeframes", "api_timeframes", self.api_timeframes)
+        self.app.add_url_rule("/api/categories", "api_categories", self.api_categories)
         self.app.add_url_rule(
             "/api/results", "api_results", self.api_results, methods=["GET"]
         )
@@ -207,6 +208,38 @@ class DashboardServer:
             self.logger.error("Failed to fetch timeframes: %s", e)
             return (
                 jsonify({"timeframes": [], "status": "error", "message": str(e)}),
+                500,
+            )
+
+    def api_categories(self):
+        """Get available symbol categories from database with symbol counts."""
+        try:
+            with self._get_db() as db:
+                # Query categories with symbol counts
+                categories_result = db.execute_query(
+                    """SELECT category, COUNT(*) as symbol_count 
+                       FROM tradable_pairs 
+                       WHERE category IS NOT NULL AND category != 'unknown'
+                       GROUP BY category 
+                       ORDER BY symbol_count DESC, category"""
+                ).fetchall()
+
+                # Convert to list of dicts with label and count
+                categories = [
+                    {
+                        "category": row["category"],
+                        "count": row["symbol_count"],
+                        "label": f"{row['category'].title()} ({row['symbol_count']})",
+                    }
+                    for row in categories_result
+                ]
+
+            self.logger.debug(f"Loaded categories: {categories}")
+            return jsonify({"categories": categories, "status": "success"})
+        except (RuntimeError, ValueError, KeyError) as e:
+            self.logger.error("Failed to fetch categories: %s", e)
+            return (
+                jsonify({"categories": [], "status": "error", "message": str(e)}),
                 500,
             )
 

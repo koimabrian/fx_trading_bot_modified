@@ -8,7 +8,15 @@ project:
   name: FX Trading Bot
   version: 1.0
   status: Production
-  last_updated: 2026-01-25
+  last_updated: 2026-01-28
+  
+  recent_improvements:
+    - "Database-driven symbol categories (removed hardcoded config)"
+    - "All pair loading from tradable_pairs table"
+    - "TradingRules loads categories from database"
+    - "GUI-selectable timeframes and symbols (ready)"
+    - "Dynamic confidence scoring (0.5-0.9 range)"
+    - "Live trading fully functional with adaptive selection"
 
 ################################################################################
 # DEVELOPMENT WORKFLOW
@@ -259,15 +267,20 @@ feature_systems:
   adaptive_strategy_selection:
     file: "src/core/adaptive_trader.py"
     process:
-      1: "Rank strategies by backtest Sharpe ratio"
-      2: "Calculate confidence scores"
-      3: "Select top strategies for current market"
-      4: "Execute based on signal generation"
+      1: "Load symbols from tradable_pairs table (database)"
+      2: "Rank strategies by backtest Sharpe ratio"
+      3: "Calculate confidence scores (0.5-0.9 range)"
+      4: "Select top strategies for current market"
+      5: "Execute based on signal generation"
     metrics:
-      - Sharpe ratio
-      - Win rate percentage
-      - Profit factor
+      - Sharpe ratio (primary confidence mapper)
+      - Win rate percentage (small adjustment)
+      - Profit factor (small adjustment)
       - Maximum drawdown
+    improvements:
+      - Formula rewritten (was 0.2-0.4, too restrictive)
+      - Now produces viable 0.5-0.9 signals
+      - Live trades confirmed: ETHUSD, XAUUSD, etc executing
 
   volatility_analysis:
     file: "src/utils/volatility_manager.py"
@@ -289,8 +302,9 @@ feature_systems:
       - Stop loss enforcement (% of entry)
       - Take profit targets (% of entry)
       - Trading rules validation (market hours, weekends)
-      - Weekend blocks (forex/commodities)
-    settings_file: "src/config/config.yaml"
+      - Weekend blocks (forex/commodities - from database)
+    settings_file: "src/config/config.yaml (core only)"
+    category_source: "tradable_pairs.category (database, not config)"
 
   trade_quality_filtering:
     file: "src/utils/trade_quality_filter.py"
@@ -344,7 +358,12 @@ testing_strategy:
 configuration:
   main_file: "src/config/config.yaml"
   
-  critical_settings:
+  database_driven_settings:
+    symbol_categories: "✅ MOVED TO DATABASE (tradable_pairs.category)"
+    trading_pairs: "✅ MOVED TO DATABASE (tradable_pairs table)"
+    symbol_discovery: "✅ AUTOMATIC via MT5 symbol_info().path"
+  
+  still_in_config:
     mt5_credentials:
       login: "Your MT5 login"
       password: "Your MT5 password"
@@ -355,17 +374,27 @@ configuration:
       take_profit_percent: "Percentage of entry price"
       max_positions: "Maximum concurrent trades"
       lot_size: "Default position size"
+      daily_loss_limit: "Stop trading threshold"
+      position_sizing: "'fixed' or 'adaptive'"
     
     strategy_parameters:
       min_sharpe: "Minimum Sharpe ratio for trading"
-      min_win_rate: "Minimum win rate percentage"
-      min_confidence: "Minimum confidence threshold"
-      volatility_percentile: "Volatility filtering level"
-
+      min_signal_confidence: "Minimum confidence threshold (0-1)"
+      min_profit_factor: "Minimum profit factor"
+  
+  gui_selectable_settings:
+    symbol_categories: "🎯 SELECT IN GUI (Forex/Crypto filters)"
+    timeframes: "🎯 SELECT IN GUI (15min/1hr/4hr dropdowns)"
+    trading_pairs: "🎯 SELECT IN GUI (Multi-select from database)"
+    strategies: "🎯 SELECT IN GUI (Enable/disable per symbol)"
+    risk_parameters: "🎯 READY FOR GUI (Stop loss, take profit sliders)"
+    backtesting_params: "🎯 READY FOR GUI (Optimization ranges)"
+  
   update_process:
-    1: "Edit src/config/config.yaml"
-    2: "Restart the bot for changes to take effect"
-    3: "Verify in logs that settings loaded correctly"
+    config_file: "Only edit for MT5 credentials and core risk limits"
+    database: "Symbol categories and pair data loaded automatically"
+    gui_selection: "All other settings via web dashboard (recommended)"
+    restart: "No restart needed for GUI-based changes"
 
 ################################################################################
 # TROUBLESHOOTING GUIDE

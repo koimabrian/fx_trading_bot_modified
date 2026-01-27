@@ -82,8 +82,7 @@ class BacktestManager:
             symbols_to_test = [symbol]
 
         # Get all timeframes from config
-        pair_config = self.config.get("pair_config", {})
-        timeframes_to_test = pair_config.get("timeframes", [15, 60, 240])
+        timeframes_to_test = self.config.get("timeframes", [15, 60, 240])
 
         # Calculate total tests for progress bar
         total_tests = len(symbols_to_test) * len(strategies_to_test)
@@ -435,16 +434,13 @@ class BacktestManager:
             self.logger.error("No symbols provided for multi-backtest")
             return
 
-        # Get unique timeframes for each symbol from config
+        # Get unique timeframes from config
+        timeframes = self.config.get("timeframes", [15, 60, 240])
+
+        # Create symbol_timeframes mapping using all symbols with all timeframes
         symbol_timeframes = {}
-        for pair in self.config.get("pairs", []):
-            symbol = pair["symbol"]
-            timeframe = pair["timeframe"]
-            if symbol in symbols:
-                if symbol not in symbol_timeframes:
-                    symbol_timeframes[symbol] = []
-                if timeframe not in symbol_timeframes[symbol]:
-                    symbol_timeframes[symbol].append(timeframe)
+        for symbol in symbols:
+            symbol_timeframes[symbol] = timeframes
 
         total_tests = sum(len(tfs) for tfs in symbol_timeframes.values())
         self.logger.info(
@@ -642,10 +638,14 @@ class BacktestManager:
             if args.symbol:
                 symbols = [s.strip().upper() for s in args.symbol.split(",")]
             else:
-                # Extract all unique symbols from config pairs
-                symbols = sorted(set(p["symbol"] for p in self.config.get("pairs", [])))
+                # Extract all unique symbols from database
+                cursor = self.db.conn.cursor()
+                cursor.execute(
+                    "SELECT DISTINCT symbol FROM tradable_pairs ORDER BY symbol"
+                )
+                symbols = [row[0] for row in cursor.fetchall()]
                 if not symbols:
-                    self.logger.error("No pairs found in config")
+                    self.logger.error("No symbols found in database")
                     return
             self.run_multi_backtest(
                 symbols, args.strategy, args.start_date, args.end_date
@@ -660,47 +660,11 @@ class BacktestManager:
                 self.sync(args.symbol)
 
 
-def generate_pairs_from_config(config):
-    """Auto-generate flat pairs list from pair_config categories.
-
-    Converts the nested pair_config structure into a flat list of pairs
-    for backward compatibility with existing code.
-    """
-    if "pair_config" not in config:
-        return
-
-    pair_config = config["pair_config"]
-    timeframes = pair_config.get("timeframes", [15, 60])
-    categories = pair_config.get("categories", {})
-
-    pairs = []
-    for category, data in categories.items():
-        symbols = data.get("symbols", []) if isinstance(data, dict) else data
-        for symbol in symbols:
-            for timeframe in timeframes:
-                pairs.append({"symbol": symbol, "timeframe": timeframe})
-
-    config["pairs"] = pairs
-    logger = logging.getLogger(__name__)
-    logger.info(
-        "Generated %d pairs from pair_config (%d symbols × %d timeframes)",
-        len(pairs),
-        sum(
-            len(data.get("symbols", data) if isinstance(data, dict) else data)
-            for data in categories.values()
-        ),
-        len(timeframes),
-    )
-
-
 if __name__ == "__main__":
     from src.utils.logger import setup_logging
 
     setup_logging()
     with open("src/config/config.yaml", "r", encoding="utf-8") as file:
         config_data = yaml.safe_load(file)
-
-    # Auto-generate pairs from pair_config if not already populated
-    generate_pairs_from_config(config_data)
 
     BacktestManager(config_data).run()

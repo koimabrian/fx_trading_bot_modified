@@ -14,6 +14,7 @@ import time
 
 import MetaTrader5 as mt5
 import yaml
+from PyQt5.QtWidgets import QApplication
 
 from src.core.adaptive_trader import AdaptiveTrader
 from src.core.data_fetcher import DataFetcher
@@ -25,6 +26,7 @@ from src.backtesting.backtest_manager import BacktestManager
 from src.mt5_connector import MT5Connector
 from src.strategy_manager import StrategyManager
 from src.ui.cli import setup_parser
+from src.ui.gui.init_wizard_dialog import InitWizardDialog
 from src.ui.web.dashboard_server import DashboardServer
 from src.utils.data_validator import DataValidator
 from src.utils.logger import setup_logging
@@ -68,9 +70,6 @@ def main():
         logger.error("Failed to parse configuration: %s", e)
         return
 
-    # Auto-generate pairs from pair_config
-    generate_pairs_from_config(config)
-
     # Route to appropriate mode handler
     if args.mode == "init":
         _mode_init(config, logger)
@@ -89,29 +88,27 @@ def main():
 
 
 def _mode_init(config: dict, logger):
-    """Execute init mode: Initialize database and populate pairs."""
-    logger.info("MODE: init - Initializing database and loading pairs...")
+    """Execute init mode: Initialize database via PyQt5 GUI wizard.
+
+    The initialization wizard is a multi-step PyQt5 dialog that guides users
+    through database setup, MT5 connection, symbol discovery, and symbol
+    selection. All symbol selection is done via GUI (not config).
+    """
+    logger.info("MODE: init - Starting initialization wizard...")
     try:
-        with DatabaseManager(config["database"]) as db:
-            # Run migrations
-            migrations = DatabaseMigrations(db.conn)
-            if not migrations.migrate_tables():
-                logger.error("Database migration failed")
-                return
+        # Create Qt application for GUI
+        app = QApplication.instance()
+        if app is None:
+            app = QApplication(sys.argv)
 
-            # Initialize MT5 and populate pairs
-            mt5_conn = MT5Connector(db)
-            if not mt5_conn.initialize():
-                logger.error("Failed to initialize MT5 connection")
-                return
+        # Show initialization wizard
+        wizard = InitWizardDialog(config)
+        if wizard.exec_() == wizard.Accepted:
+            logger.info("Initialization completed successfully")
+        else:
+            logger.warning("Initialization cancelled by user")
 
-            init_manager = InitManager(db, mt5_conn, config)
-            if init_manager.run_initialization():
-                logger.info("Initialization completed successfully")
-            else:
-                logger.error("Initialization failed")
-
-    except (KeyError, ValueError, TypeError, OSError) as e:
+    except Exception as e:
         logger.error("Init mode failed: %s", e)
 
 
@@ -308,31 +305,22 @@ def _mode_live(config: dict, args, logger):
                             ", ".join(pairs_to_trade),
                         )
                     else:
-                        # DB table exists but empty - use config as fallback
-                        pairs_to_trade = [p["symbol"] for p in config.get("pairs", [])]
-                        if pairs_to_trade:
-                            logger.warning(
-                                "Database is empty - using %d config pairs: %s",
-                                len(pairs_to_trade),
-                                ", ".join(pairs_to_trade),
-                            )
+                        # DB table exists but empty
+                        logger.error("No trading pairs found in database")
+                        pairs_to_trade = []
                 except (sqlite3.Error, AttributeError) as e:
-                    # DB query failed - use config as fallback
-                    logger.warning(
-                        "Could not load pairs from database (%s) - using config", e
-                    )
-                    pairs_to_trade = [p["symbol"] for p in config.get("pairs", [])]
-                    if pairs_to_trade:
-                        logger.info("Using %d config pairs", len(pairs_to_trade))
+                    # DB query failed
+                    logger.error("Could not load pairs from database: %s", e)
+                    pairs_to_trade = []
 
             if not pairs_to_trade:
                 logger.error(
-                    "No trading pairs configured. Initialize with: python -m src.main --mode init"
+                    "No trading pairs available. Initialize with: python -m src.main --mode init"
                 )
                 return
 
             # Populate config pairs BEFORE StrategyManager initialization
-            timeframes = config.get("pair_config", {}).get("timeframes", [15, 60, 240])
+            timeframes = config.get("timeframes", [15, 60, 240])
             config["pairs"] = [
                 {"symbol": sym, "timeframe": tf}
                 for sym in pairs_to_trade
@@ -1008,55 +996,6 @@ def _mode_test(logger):
         logger.error("pytest not found - install with: pip install pytest")
     except (OSError, RuntimeError) as e:
         logger.error("Test mode failed: %s", e)
-
-
-def generate_pairs_from_config(config):
-    """Auto-generate flat pairs list from pair_config categories.
-
-    Converts the nested pair_config structure into a flat list of pairs
-    for backward compatibility with existing code.
-    """
-    if "pair_config" not in config:
-        return
-
-    pair_config = config["pair_config"]
-    if not pair_config:
-        return
-
-    timeframes = pair_config.get("timeframes", [15, 60])
-    categories = pair_config.get("categories", {})
-
-    if not categories:
-        return
-
-    pairs = []
-    for _category, data in categories.items():
-        if data is None:
-            continue
-        symbols = data.get("symbols", []) if isinstance(data, dict) else data
-        if symbols is None:
-            continue
-        for symbol in symbols:
-            for timeframe in timeframes:
-                pairs.append({"symbol": symbol, "timeframe": timeframe})
-
-    config["pairs"] = pairs
-    logger = logging.getLogger(__name__)
-    if pairs:
-        logger.info(
-            "Generated %d pairs from pair_config (%d symbols × %d timeframes)",
-            len(pairs),
-            sum(
-                len(data.get("symbols", data) if isinstance(data, dict) else data or [])
-                for data in categories.values()
-                if data and (data.get("symbols") or data)
-            ),
-            len(timeframes),
-        )
-    else:
-        logger.debug(
-            "No pairs defined in pair_config (optional - will use MT5 auto-discovery)"
-        )
 
 
 if __name__ == "__main__":

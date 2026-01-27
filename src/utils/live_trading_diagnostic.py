@@ -158,7 +158,6 @@ class LiveTradingDiagnostic:
                 """
                 SELECT symbol, COUNT(*) as count 
                 FROM market_data 
-                JOIN tradable_pairs ON market_data.symbol_id = tradable_pairs.id
                 GROUP BY symbol 
                 ORDER BY count DESC 
                 LIMIT 3

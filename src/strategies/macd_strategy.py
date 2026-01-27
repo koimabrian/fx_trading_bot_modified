@@ -71,6 +71,10 @@ class MACDStrategy(BaseStrategy):
         if prev is None:
             return None
 
+        # Validate indicator values before using them
+        if not self.validate_indicator(latest["macd_hist"]):
+            return None
+
         signal = {
             "symbol": symbol or self.symbol,
             "volume": self.volume,

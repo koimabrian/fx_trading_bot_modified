@@ -10,13 +10,14 @@ import logging
 from datetime import datetime
 
 import pytz
-import yaml
+
+from src.database.db_manager import DatabaseManager
 
 
 class TradingRules:
-    """Enforces trading rules based on market conditions and config.yaml pair categories"""
+    """Enforces trading rules based on market conditions and database symbol categories"""
 
-    # Lazy-loaded from config.yaml on first use
+    # Lazy-loaded from database on first use
     _CRYPTO_SYMBOLS = set()
     _FOREX_SYMBOLS = set()
     _STOCKS_SYMBOLS = set()
@@ -26,69 +27,75 @@ class TradingRules:
     _INITIALIZED = False
 
     def __init__(self):
-        """Initialize TradingRules and load symbol categories from config.yaml"""
+        """Initialize TradingRules and load symbol categories from database"""
         self.logger = logging.getLogger(__name__)
-        self._load_categories_from_config()
+        self._load_categories_from_database()
 
     @classmethod
-    def _load_categories_from_config(cls):
-        """Load symbol categories from config.yaml (singleton pattern)"""
+    def _load_categories_from_database(cls):
+        """Load symbol categories from database tradable_pairs table (singleton pattern)"""
         if cls._INITIALIZED:
             return  # Already loaded
 
         try:
+            import yaml
+
+            # Load config to pass to DatabaseManager
             with open("src/config/config.yaml", "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
 
-            pair_config = config.get("pair_config", {}) or {}
-            categories = pair_config.get("categories", {}) or {}
+            db = DatabaseManager(config)
+            db.connect()  # Establish connection
+            cursor = db.conn.cursor()
 
-            # Initialize sets from config - handle None gracefully
-            cls._CRYPTO_SYMBOLS = set(
-                categories.get("crypto", {}).get("symbols", []) or []
+            # Query all symbols with their categories
+            cursor.execute(
+                "SELECT symbol, LOWER(category) as category FROM tradable_pairs ORDER BY symbol"
             )
-            cls._FOREX_SYMBOLS = set(
-                categories.get("forex", {}).get("symbols", []) or []
-            )
-            cls._STOCKS_SYMBOLS = set(
-                categories.get("stocks", {}).get("symbols", []) or []
-            )
-            cls._COMMODITIES_SYMBOLS = set(
-                categories.get("commodities", {}).get("symbols", []) or []
-            )
-            cls._INDICES_SYMBOLS = set(
-                categories.get("indices", {}).get("symbols", []) or []
-            )
+            rows = cursor.fetchall()
 
-            # Build symbol-to-category mapping for quick lookup
+            if not rows:
+                logging.getLogger(__name__).warning(
+                    "No symbols found in tradable_pairs table. Categories will be empty until symbols are loaded."
+                )
+                db.close()
+                cls._INITIALIZED = True
+                return
+
+            # Build symbol sets by category
             cls._SYMBOLS_TO_CATEGORY = {}
-            for symbol in cls._CRYPTO_SYMBOLS:
-                cls._SYMBOLS_TO_CATEGORY[symbol] = "crypto"
-            for symbol in cls._FOREX_SYMBOLS:
-                cls._SYMBOLS_TO_CATEGORY[symbol] = "forex"
-            for symbol in cls._STOCKS_SYMBOLS:
-                cls._SYMBOLS_TO_CATEGORY[symbol] = "stocks"
-            for symbol in cls._COMMODITIES_SYMBOLS:
-                cls._SYMBOLS_TO_CATEGORY[symbol] = "commodities"
-            for symbol in cls._INDICES_SYMBOLS:
-                cls._SYMBOLS_TO_CATEGORY[symbol] = "indices"
+            for symbol, category in rows:
+                symbol_upper = symbol.upper()
+                cls._SYMBOLS_TO_CATEGORY[symbol_upper] = category or "unknown"
 
+                # Add to category-specific sets
+                if category == "crypto":
+                    cls._CRYPTO_SYMBOLS.add(symbol_upper)
+                elif category == "forex":
+                    cls._FOREX_SYMBOLS.add(symbol_upper)
+                elif category == "stocks":
+                    cls._STOCKS_SYMBOLS.add(symbol_upper)
+                elif category == "commodities":
+                    cls._COMMODITIES_SYMBOLS.add(symbol_upper)
+                elif category == "indices":
+                    cls._INDICES_SYMBOLS.add(symbol_upper)
+
+            db.close()
             cls._INITIALIZED = True
 
             logging.getLogger(__name__).debug(
-                "Loaded trading rules from config: %d crypto, %d forex, %d stocks, %d commodities, %d indices symbols",
+                "Loaded trading rules from database: %d crypto, %d forex, %d stocks, %d commodities, %d indices symbols",
                 len(cls._CRYPTO_SYMBOLS),
                 len(cls._FOREX_SYMBOLS),
                 len(cls._STOCKS_SYMBOLS),
                 len(cls._COMMODITIES_SYMBOLS),
                 len(cls._INDICES_SYMBOLS),
             )
-        except (FileNotFoundError, KeyError, yaml.YAMLError) as e:
+        except Exception as e:
             logging.getLogger(__name__).warning(
-                "Failed to load pair_config from config.yaml: %s. Pair categories will be empty until configured via init mode.",
+                "Failed to load symbol categories from database: %s. Categories will be empty.",
                 e,
             )
-            # Initialize empty sets - user must configure pairs via init mode GUI
             cls._INITIALIZED = True
 
     @staticmethod
@@ -98,37 +105,37 @@ class TradingRules:
         Returns:
             String category or 'unknown' if not found
         """
-        TradingRules._load_categories_from_config()
+        TradingRules._load_categories_from_database()
         return TradingRules._SYMBOLS_TO_CATEGORY.get(symbol.upper(), "unknown")
 
     @staticmethod
     def is_crypto(symbol):
         """Check if symbol is cryptocurrency (24/7 trading)"""
-        TradingRules._load_categories_from_config()
+        TradingRules._load_categories_from_database()
         return symbol.upper() in TradingRules._CRYPTO_SYMBOLS
 
     @staticmethod
     def is_forex(symbol):
         """Check if symbol is forex (closed weekends)"""
-        TradingRules._load_categories_from_config()
+        TradingRules._load_categories_from_database()
         return symbol.upper() in TradingRules._FOREX_SYMBOLS
 
     @staticmethod
     def is_stock(symbol):
         """Check if symbol is stock (closed weekends)"""
-        TradingRules._load_categories_from_config()
+        TradingRules._load_categories_from_database()
         return symbol.upper() in TradingRules._STOCKS_SYMBOLS
 
     @staticmethod
     def is_commodity(symbol):
         """Check if symbol is commodity (closed weekends)"""
-        TradingRules._load_categories_from_config()
+        TradingRules._load_categories_from_database()
         return symbol.upper() in TradingRules._COMMODITIES_SYMBOLS
 
     @staticmethod
     def is_index(symbol):
         """Check if symbol is index (closed weekends)"""
-        TradingRules._load_categories_from_config()
+        TradingRules._load_categories_from_database()
         return symbol.upper() in TradingRules._INDICES_SYMBOLS
 
     @staticmethod

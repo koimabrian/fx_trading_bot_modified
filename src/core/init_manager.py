@@ -6,6 +6,7 @@ from MT5, and fetches historical data for backtesting.
 
 # pylint: disable=no-member
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 
@@ -31,6 +32,7 @@ class InitManager:
         self.logger = logging.getLogger(__name__)
         self.sync_config = config.get("sync", {})
         self.min_rows_threshold = self.sync_config.get("min_rows_threshold", 1000)
+        self.selected_symbols = []  # Will be populated by GUI or init flow
 
     def run_initialization(self) -> bool:
         """Execute the initialization workflow.
@@ -38,6 +40,14 @@ class InitManager:
         Returns:
             True if successful, False otherwise
         """
+        # Clear log file for clean initialization
+        log_file = "logs/terminal_log.txt"
+        if os.path.exists(log_file):
+            try:
+                os.remove(log_file)
+            except OSError:
+                pass  # If deletion fails, continue anyway
+
         self.logger.info("=" * 60)
         self.logger.info("INITIALIZATION MODE: Starting database setup...")
         self.logger.info("=" * 60)
@@ -75,7 +85,7 @@ class InitManager:
         Returns:
             True if valid, False otherwise
         """
-        required_keys = ["mt5", "database", "pair_config"]
+        required_keys = ["mt5", "database", "timeframes"]
         missing_keys = [k for k in required_keys if k not in self.config]
 
         if missing_keys:
@@ -124,40 +134,29 @@ class InitManager:
                 len(all_symbols),
             )
 
-            # Launch PyQt5 dialog for pair selection
-            try:
-                from PyQt5.QtWidgets import QApplication
-                from src.ui.gui.pair_selector_dialog import PairSelectorDialog
-
-                # Create QApplication if it doesn't exist
-                app = QApplication.instance()
-                if app is None:
-                    app = QApplication([])
-
-                # Show dialog
-                dialog = PairSelectorDialog(tradable_symbols)
-                result = dialog.exec_()
-
-                if result == 0:  # User clicked Cancel
-                    self.logger.warning("User cancelled pair selection")
-                    return False
-
-                selected_pairs = dialog.get_selected_pairs()
+            # If selected_symbols already set (by GUI wizard), use them
+            if self.selected_symbols:
+                selected_pairs = self.selected_symbols
                 self.logger.info(
-                    "User selected %d pairs: %s",
+                    "Using pre-selected symbols from GUI: %d pairs",
                     len(selected_pairs),
-                    ", ".join(selected_pairs),
+                )
+            else:
+                # Fall back to dialog-based selection
+                # This path is for non-GUI init (backward compatibility)
+                selected_pairs = tradable_symbols
+                self.logger.info(
+                    "No pre-selected symbols. Using all %d tradable symbols",
+                    len(selected_pairs),
                 )
 
-            except ImportError:
-                self.logger.warning(
-                    "PyQt5 not available. Defaulting to all tradable symbols. "
-                    "Install PyQt5 for interactive pair selection."
-                )
-                selected_pairs = tradable_symbols
+            # Clear tradable_pairs table for fresh initialization
+            cursor = self.db.conn.cursor()
+            cursor.execute("DELETE FROM tradable_pairs")
+            self.db.conn.commit()
+            self.logger.info("Cleared tradable_pairs table")
 
             # Insert selected pairs into tradable_pairs table
-            cursor = self.db.conn.cursor()
             inserted = 0
 
             for symbol in selected_pairs:
@@ -200,8 +199,7 @@ class InitManager:
                 self.logger.error("No symbols found in tradable_pairs table")
                 return False
 
-            pair_config = self.config.get("pair_config", {})
-            timeframes = pair_config.get("timeframes", [15, 60, 240])
+            timeframes = self.config.get("timeframes", [15, 60, 240])
 
             self.logger.info(
                 "Fetching historical data for %d symbols × %d timeframes...",
@@ -241,8 +239,6 @@ class InitManager:
                             timeframe=timeframe,
                             start_date=start_date,
                             end_date=end_date,
-                            table="market_data",
-                            data_type="historical",
                         )
 
                         if rows_added >= self.min_rows_threshold:
