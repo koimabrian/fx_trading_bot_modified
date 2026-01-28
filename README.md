@@ -1,8 +1,8 @@
 # FX Trading Bot
 
-Automated forex/commodities trading system with MetaTrader5 integration, adaptive strategy selection, intelligent position management, and professional-grade volatility analysis.
+Automated forex/cryptocurrencies trading system with MetaTrader5 integration, adaptive strategy selection, intelligent position management, and professional-grade volatility analysis.
 
-## Quick Start (5 Minutes)
+## Quick Start (10 Minutes)
 
 ```powershell
 # 1. Activate environment
@@ -11,8 +11,15 @@ Automated forex/commodities trading system with MetaTrader5 integration, adaptiv
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Initialize database and discover pairs from MT5
+# 3. Initialize database with GUI wizard (discover pairs from MT5)
 python -m src.main --mode init
+# ← Interactive PyQt5 GUI opens:
+#   Step 1: Welcome
+#   Step 2: Database & MT5 connection setup
+#   Step 3: Discover tradable symbols from your broker
+#   Step 4: Select which symbols to trade (checkboxes)
+#   Step 5: Review selections
+#   Step 6: Success!
 
 # 4. Sync live market data
 python -m src.main --mode sync
@@ -30,14 +37,75 @@ python -m src.main --mode gui
 
 ## Operating Modes (6 Modes)
 
-| Mode         | Purpose                                              | Command                              |
-| ------------ | ---------------------------------------------------- | ------------------------------------ |
-| **init**     | Initialize database and auto-discover pairs from MT5 | `python -m src.main --mode init`     |
-| **sync**     | Fetch/update market data from MT5 (incremental)      | `python -m src.main --mode sync`     |
-| **backtest** | Run historical backtests with parameter optimization | `python -m src.main --mode backtest` |
-| **live**     | Real-time trading with adaptive strategy selection   | `python -m src.main --mode live`     |
-| **gui**      | Interactive web dashboard for monitoring             | `python -m src.main --mode gui`      |
-| **test**     | Run full test suite                                  | `python -m src.main --mode test`     |
+| Mode         | Purpose                                                 | Command                              |
+| ------------ | ------------------------------------------------------- | ------------------------------------ |
+| **init**     | GUI wizard: Setup DB + discover tradable pairs from MT5 | `python -m src.main --mode init`     |
+| **sync**     | Fetch/update market data from MT5 (incremental)         | `python -m src.main --mode sync`     |
+| **backtest** | Run historical backtests with parameter optimization    | `python -m src.main --mode backtest` |
+| **live**     | Real-time trading with adaptive strategy selection      | `python -m src.main --mode live`     |
+| **gui**      | Interactive web dashboard for monitoring                | `python -m src.main --mode gui`      |
+| **test**     | Run full test suite                                     | `python -m src.main --mode test`     |
+
+## Init GUI Wizard (NEW - PyQt5)
+
+The initialization process is now fully interactive with a professional GUI:
+
+### Step-by-Step Process
+
+**Step 1: Welcome**
+- Overview of what will happen
+- Estimated time: 2-3 minutes
+- Cancel anytime
+
+**Step 2: System Setup** (Automatic)
+- Creates database tables
+- Validates MT5 connection
+- Progress indicators for each
+
+**Step 3: Symbol Discovery** (Automatic)
+- Connects to MT5
+- Discovers ALL tradable symbols from your broker
+- Auto-categorizes by MT5's symbol paths
+  - Example: `Pro\Forex\EURUSD` → "Forex" category
+  - Example: `Pro\Crypto\BTCUSD` → "Crypto" category
+- **Only shows symbols broker allows trading** (SYMBOL_TRADE_MODE_FULL)
+- Displays count per category
+
+**Step 4: Symbol Selection**
+- Multi-checkbox interface organized by category
+- **NO symbols pre-selected** (you choose)
+- Search/filter by symbol name
+- Category select-all buttons
+- Shows count of selected symbols
+
+**Step 5: Review & Confirm**
+- Summary of database config
+- MT5 connection details
+- List of symbols you selected (by category)
+- Next steps guidance
+
+**Step 6: Success**
+- Database ready
+- Next steps:
+  - `python -m src.main --mode sync` (fetch data)
+  - `python -m src.main --mode backtest` (optimize)
+  - `python -m src.main --mode live` (start trading)
+
+### Symbol Discovery Features
+
+✅ **Broker-Accurate**: Only shows symbols your broker allows you to trade
+✅ **Auto-Categorized**: Uses MT5's symbol.path (not hardcoded)
+✅ **Flexible**: Works with any broker's structure
+✅ **Safe**: No pre-selection - you control what gets enabled
+✅ **Professional**: Clean, modern PyQt5 interface
+
+### Database-First Architecture
+
+After init, your symbol selections are stored in the database:
+- Table: `tradable_pairs`
+- Columns: `symbol`, `category` (auto-detected)
+- **Config stays clean** - no pair lists in YAML
+- Easy to modify later via the dashboard
 
 ## Trade Quality & Position Management
 
@@ -80,22 +148,38 @@ python -m src.main --mode init
 
 ## Configuration (src/config/config.yaml)
 
-**MT5 Connection**
+**MT5 Connection** (Required)
 ```yaml
 mt5:
-  login: YOUR_LOGIN
-  password: YOUR_PASSWORD
-  server: YOUR_BROKER_SERVER
+  login: YOUR_LOGIN           # Your MT5 account number
+  password: YOUR_PASSWORD     # Your MT5 password
+  server: YOUR_BROKER_SERVER  # Your broker's server name
+```
+
+**Timeframes** (Multi-timeframe analysis)
+```yaml
+timeframes:
+  - 15      # 15-minute candles
+  - 60      # 1-hour candles
+  - 240     # 4-hour candles
 ```
 
 **Risk Management**
 ```yaml
 risk_management:
-  stop_loss_percent: 1.0         # SL as % of entry
-  take_profit_percent: 2.0       # TP as % of entry
-  max_positions: 5               # Max concurrent trades
-  lot_size: 0.01                 # Default position size
+  stop_loss_percent: 1.0         # SL as % of entry price
+  take_profit_percent: 2.0       # TP as % of entry price
+  max_positions: 5               # Maximum concurrent open trades
+  lot_size: 0.01                 # Base position size
+  min_signal_confidence: 0.45    # Minimum confidence to trade
 ```
+
+**Symbol Selection** (Handled by Init GUI)
+⚠️ **DO NOT edit pairs in config!**
+- Symbols are selected via the Init GUI (Step 4)
+- Stored in database: `tradable_pairs` table
+- Managed through dashboard later
+- To change: Re-run `python -m src.main --mode init` OR edit database directly
 
 **Volatility (Expert-Grade)**
 ```yaml
@@ -145,6 +229,7 @@ src/
     data_fetcher.py          # MT5 data fetching
     data_handler.py          # Data processing
     trade_monitor.py         # Trade monitoring
+    init_manager.py          # Init workflow (database, pairs)
   strategies/
     factory.py               # Strategy factory
     macd_strategy.py         # MACD implementation
@@ -163,9 +248,12 @@ src/
     volatility_manager.py    # Volatility analysis
     trade_quality_filter.py  # Quality filters (optional)
   config/
-    config.yaml              # All settings
+    config.yaml              # All settings (pairs handled by GUI)
   ui/
     cli.py                   # Command-line interface
+    gui/
+      init_wizard_dialog.py  # Init GUI - PyQt5 wizard (NEW!)
+      pair_selector_dialog.py# Pair selection dialog
     web/
       dashboard_server.py    # Flask server
       dashboard_api.py       # API endpoints
@@ -183,10 +271,43 @@ logs/                        # Application logs
 
 ## Workflow Examples
 
+### First-Time Setup (Recommended)
+```powershell
+# Step 1: Environment
+.venv\Scripts\Activate.ps1
+
+# Step 2: Dependencies
+pip install -r requirements.txt
+
+# Step 3: Initialize with GUI
+python -m src.main --mode init
+# Interactive PyQt5 wizard opens:
+# - Sets up database
+# - Discovers your broker's tradable symbols
+# - You select which ones to trade
+# - Ready to proceed
+
+# Step 4: Download historical data
+python -m src.main --mode sync
+# Downloads 2 months of OHLCV data for all selected symbols
+
+# Step 5: Optimize strategies
+python -m src.main --mode backtest
+# Tests all strategy combinations
+# Finds best parameters for each symbol
+
+# Step 6: Start trading
+python -m src.main --mode live
+# Real-time signals with adaptive strategy selection
+
+# Step 7: Monitor (separate terminal)
+python -m src.main --mode gui
+# Open: http://127.0.0.1:5000
+```
+
 ### Daily Trading
 ```powershell
 .venv\Scripts\Activate.ps1
-python -m src.main --mode sync      # Sync latest data
 python -m src.main --mode live      # Start trading
 python -m src.main --mode gui       # Monitor (separate terminal)
 ```
@@ -194,15 +315,7 @@ python -m src.main --mode gui       # Monitor (separate terminal)
 ### Weekly Optimization
 ```powershell
 python -m src.main --mode backtest  # Re-optimize strategies
-# System automatically selects best parameters
-```
-
-### First-Time Setup
-```powershell
-python -m src.main --mode init      # Database + pair discovery
-python -m src.main --mode sync      # Download historical data
-python -m src.main --mode backtest  # Establish baseline
-python -m src.main --mode live      # Ready for trading
+python -m src.main --mode live      # System uses new parameters
 ```
 
 ## Advanced Features
@@ -319,3 +432,31 @@ Proprietary - Personal trading use only.
 
 Current: 2.0  
 Last Updated: January 2026
+
+## Recent Updates (January 2026)
+
+### ✨ Init GUI - Professional PyQt5 Wizard
+- Interactive 6-step initialization wizard
+- Beautiful, modern UI for setup
+- No more CLI configuration
+- Symbol discovery is automatic and visual
+
+### 🔍 Smart Symbol Discovery
+- **Tradable-Only Filtering**: Only shows symbols your broker allows
+- **Auto-Categorization**: Uses MT5's symbol paths (e.g., `Pro\Forex\EURUSD`)
+- **Broker-Accurate**: Works with any broker's symbol structure
+- **User Control**: No symbols pre-selected - you choose what to trade
+
+### 📦 Config Cleanup
+- Removed hardcoded pair lists from `config.yaml`
+- Symbols now managed through database
+- Cleaner config for easier management
+- Symbol selection persisted in `tradable_pairs` table
+
+### 🏗️ Database-First Architecture
+- Symbol selections stored in database (not config)
+- Categories auto-detected from MT5
+- Easy to modify later without code changes
+- Professional, scalable design
+
+

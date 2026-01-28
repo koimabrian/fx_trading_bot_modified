@@ -96,6 +96,11 @@ class DashboardServer:
             "/api/comparison", "api_comparison", self.api_comparison, methods=["GET"]
         )
 
+        # Backtest comparison dashboard
+        self.app.add_url_rule(
+            "/backtest-comparison", "backtest_comparison", self.backtest_comparison
+        )
+
         # Optimal parameters endpoint
         self.app.add_url_rule(
             "/api/optimal-parameters",
@@ -181,6 +186,10 @@ class DashboardServer:
     def indicators(self):
         """Serve the live indicators dashboard."""
         return render_template("live_indicators.html")
+
+    def backtest_comparison(self):
+        """Serve the backtest comparison dashboard."""
+        return render_template("backtest_comparison.html")
 
     def api_symbols(self):
         """Get available symbols from database."""

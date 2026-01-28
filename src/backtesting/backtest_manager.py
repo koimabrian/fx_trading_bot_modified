@@ -21,6 +21,7 @@ from tqdm import tqdm
 from src.core.data_handler import DataHandler
 from src.database.db_manager import DatabaseManager
 from src.strategies.factory import StrategyFactory
+from src.backtesting.trade_extractor import TradeExtractor
 
 
 class BacktestManager:
@@ -393,6 +394,12 @@ class BacktestManager:
                     "INSERT OR REPLACE INTO optimal_parameters (symbol_id, timeframe, strategy_name, parameter_value, last_optimized) VALUES (?, ?, ?, ?, ?)",
                     param_values,
                 )
+
+                # Extract and store individual trades from backtest results
+                self._extract_and_store_trades(
+                    best_stats, symbol_id, strategy_id, tf_str, best_params
+                )
+
             except (KeyError, TypeError, ValueError) as exc:
                 self.logger.error("Failed to save backtest results: %s", exc)
 
@@ -658,6 +665,74 @@ class BacktestManager:
                 )
             else:
                 self.sync(args.symbol)
+
+    def _extract_and_store_trades(
+        self, stats, symbol_id, strategy_id, timeframe, params
+    ):
+        """Extract individual trades from backtest stats and store in database.
+
+        Args:
+            stats: Stats object from backtesting.py
+            symbol_id: ID of symbol in tradable_pairs table
+            strategy_id: ID of strategy in backtest_strategies table
+            timeframe: Timeframe string (e.g., 'M15', 'H1')
+            params: Parameters used for the backtest
+        """
+        try:
+            # Extract trades using TradeExtractor
+            trades_df = TradeExtractor.extract_trades(stats)
+            if trades_df is None or len(trades_df) == 0:
+                self.logger.debug("No trades found in backtest results")
+                return
+
+            # Calculate trade statistics
+            trade_stats = TradeExtractor.calculate_trade_statistics(trades_df)
+
+            # Store each trade in database
+            for _, trade in trades_df.iterrows():
+                try:
+                    self.db.execute_query(
+                        """INSERT OR REPLACE INTO backtest_trades 
+                           (strategy_id, symbol_id, timeframe, entry_time, exit_time, 
+                            entry_price, exit_price, size, pnl, pnl_pct, duration_hours, 
+                            params, created_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (
+                            strategy_id,
+                            symbol_id,
+                            timeframe,
+                            str(trade["entry_time"]),
+                            str(trade["exit_time"]),
+                            float(trade["entry_price"]),
+                            float(trade["exit_price"]),
+                            float(trade["size"]),
+                            float(trade["pnl"]),
+                            float(trade["pnl_pct"]),
+                            float(trade["duration_hours"]),
+                            json.dumps(params),
+                            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        ),
+                    )
+                except (KeyError, TypeError, ValueError) as e:
+                    self.logger.warning(
+                        f"Failed to store trade for {symbol_id}/{strategy_id}: {e}"
+                    )
+                    continue
+
+            self.logger.info(
+                f"Stored {len(trades_df)} trades for strategy {strategy_id}, "
+                f"symbol {symbol_id}, timeframe {timeframe}"
+            )
+
+            # Log trade statistics summary
+            self.logger.info(
+                f"Trade Statistics: {trade_stats['total_trades']} total, "
+                f"{trade_stats['winning_trades']} wins ({trade_stats['win_rate']:.1f}%), "
+                f"Profit Factor: {trade_stats['profit_factor']:.2f}"
+            )
+
+        except Exception as e:
+            self.logger.error(f"Error extracting/storing trades: {e}")
 
 
 if __name__ == "__main__":
