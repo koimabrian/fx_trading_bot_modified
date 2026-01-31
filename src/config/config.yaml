@@ -110,11 +110,18 @@ risk_management:
   take_profit_percent: 2.0         # Take profit % above entry (2% = good risk/reward)
   trailing_stop: true              # Enable trailing stop loss
   trailing_stop_percent: 0.5       # Trailing stop % distance
+  trailing_activation_percent: 0.0 # Minimum profit % before trailing activates (0 = immediate)
+  max_hold_bars: 100               # Maximum bars to hold position before time-based exit
+  equity_target_percent: 5.0       # Exit all positions when account equity increases by this %
+  use_atr_stops: true              # Enable ATR-based dynamic stops
+  atr_stop_multiplier: 2.0         # ATR multiplier for stop loss calculation
   # Tuning Notes:
   # - min_signal_confidence: Increase to 0.6-0.7 for fewer but higher-quality signals
   # - take_profit_percent: Decrease to 1.5% for tighter exits, increase to 3-4% for swing trades
   # - confidence_multiplier: Higher = more aggressive sizing on high-confidence signals
   # - daily_loss_limit: Set to 2-5% of account balance for risk management
+  # - equity_target_percent: Set to desired daily profit target (e.g., 2-5%)
+  # - trailing_activation_percent: Set >0 to only trail after reaching minimum profit
 strategies:
 - name: rsi
   params:
