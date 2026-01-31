@@ -69,6 +69,8 @@ tests/
 **Run all tests:** `python run_tests.py`
 
 ### Documentation
+- [COMPONENTS.md](COMPONENTS.md) - **System architecture and component reference**
+- [IMPACT_ANALYSIS.md](IMPACT_ANALYSIS.md) - **Template for tracking change impact**
 - [FINAL_SUMMARY.md](FINAL_SUMMARY.md) - Performance testing results
 - [DELIVERABLES.md](DELIVERABLES.md) - Complete deliverables list
 - [PERFORMANCE_TESTING_INDEX.md](PERFORMANCE_TESTING_INDEX.md) - Test reference
@@ -496,5 +498,31 @@ Last Updated: January 2026
 - Categories auto-detected from MT5
 - Easy to modify later without code changes
 - Professional, scalable design
+
+---
+
+## Developer Resources
+
+For developers working on this codebase:
+
+### 📚 Architecture & Component Documentation
+- **[COMPONENTS.md](COMPONENTS.md)** - Comprehensive system architecture guide
+  - Component responsibilities and dependencies
+  - Data flow diagrams
+  - Testing coverage status
+  - Quick reference by functionality
+  
+### 📋 Impact Analysis Template
+- **[IMPACT_ANALYSIS.md](IMPACT_ANALYSIS.md)** - Change impact assessment template
+  - Use before starting any significant change
+  - Identifies all affected components
+  - Guides testing and deployment planning
+  - Includes complete worked example
+
+### 📖 Additional Resources
+- **[workflow.yaml](workflow.yaml)** - Development workflows and processes
+- **[commands.yaml](commands.yaml)** - Complete command reference
+- **[pytest.ini](pytest.ini)** - Test configuration
+- **[tests/](tests/)** - Test suite organization
 
 
