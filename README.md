@@ -74,6 +74,8 @@ tests/
 - [FINAL_SUMMARY.md](FINAL_SUMMARY.md) - Performance testing results
 - [DELIVERABLES.md](DELIVERABLES.md) - Complete deliverables list
 - [PERFORMANCE_TESTING_INDEX.md](PERFORMANCE_TESTING_INDEX.md) - Test reference
+- [EXIT_FEATURES_TIMELINE.md](EXIT_FEATURES_TIMELINE.md) - Exit features roadmap & responsibilities (detailed)
+- [EXIT_FEATURES_QUICK_REFERENCE.md](EXIT_FEATURES_QUICK_REFERENCE.md) - Exit features quick reference (summary)
 
 ## Operating Modes (6 Modes)
 
