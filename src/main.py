@@ -5,32 +5,34 @@ Implements the hybrid workflow with adaptive strategy selection, volatility
 filtering, and comprehensive parameter archiving.
 """
 
+import datetime
 import logging
 import os
 import sqlite3
-import sys
 import subprocess
+import sys
 import time
 
 import MetaTrader5 as mt5
 import yaml
 from PyQt5.QtWidgets import QApplication
 
+from src.backtesting.backtest_manager import BacktestManager
 from src.core.adaptive_trader import AdaptiveTrader
 from src.core.data_fetcher import DataFetcher
 from src.core.init_manager import InitManager
 from src.core.trade_monitor import TradeMonitor
 from src.database.db_manager import DatabaseManager
 from src.database.migrations import DatabaseMigrations
-from src.backtesting.backtest_manager import BacktestManager
 from src.mt5_connector import MT5Connector
 from src.strategy_manager import StrategyManager
 from src.ui.cli import setup_parser
 from src.ui.gui.init_wizard_dialog import InitWizardDialog
 from src.ui.web.dashboard_server import DashboardServer
+from src.utils.config_manager import ConfigManager
 from src.utils.data_validator import DataValidator
-from src.utils.logger import setup_logging
 from src.utils.live_trading_diagnostic import LiveTradingDiagnostic
+from src.utils.logging_factory import LoggingFactory
 
 # Add the project root directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -48,8 +50,8 @@ def main():
     - test: Run comprehensive test suite
     """
     # Setup logging
-    setup_logging()
-    logger = logging.getLogger(__name__)
+    LoggingFactory.configure(level="INFO", log_dir="logs")
+    logger = LoggingFactory.get_logger(__name__)
 
     logger.info("=" * 70)
     logger.info("FX Trading Bot - Adaptive Strategy Selection System")
@@ -61,13 +63,9 @@ def main():
 
     # Load config
     try:
-        with open("src/config/config.yaml", "r", encoding="utf-8") as file:
-            config = yaml.safe_load(file)
-    except FileNotFoundError:
-        logger.error("Configuration file not found: src/config/config.yaml")
-        return
-    except yaml.YAMLError as e:
-        logger.error("Failed to parse configuration: %s", e)
+        config = ConfigManager.get_config()
+    except Exception as e:
+        logger.error("Failed to load configuration: %s", e)
         return
 
     # Route to appropriate mode handler
@@ -135,9 +133,7 @@ def _mode_sync(config: dict, args, logger):
             else:
                 logger.info("Syncing data for all configured symbols...")
                 # Read from tradable_pairs (selected during init) instead of config
-                cursor = db.conn.cursor()
-                cursor.execute("SELECT symbol FROM tradable_pairs ORDER BY symbol")
-                symbols = [row[0] for row in cursor.fetchall()]
+                symbols = db.get_all_symbols()
 
                 if not symbols:
                     logger.warning(
@@ -446,8 +442,6 @@ def _mode_live(config: dict, args, logger):
             recent_signals = {}  # Format: "SYMBOL_ACTION_TIMEFRAME" -> timestamp
 
             # Daily loss tracking
-            import datetime
-
             trading_day_start = datetime.datetime.now().replace(
                 hour=0, minute=0, second=0, microsecond=0
             )

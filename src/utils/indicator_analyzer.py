@@ -7,12 +7,12 @@ for live display on the dashboard.
 
 import logging
 from typing import Dict, List, Optional, Tuple
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 
 from src.core.data_fetcher import DataFetcher
 from src.database.db_manager import DatabaseManager
-
 
 logger = logging.getLogger(__name__)
 

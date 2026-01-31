@@ -1,23 +1,23 @@
 """PyQt5 dialog for selecting trading pairs during initialization."""
 
 import logging
-from typing import List, Dict
+from typing import Dict, List
 
+from PyQt5.QtCore import Qt  # pylint: disable=no-name-in-module
 # pylint: disable=no-name-in-module
 from PyQt5.QtWidgets import (
-    QDialog,
-    QVBoxLayout,
-    QHBoxLayout,
-    QTabWidget,
-    QWidget,
     QCheckBox,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QScrollArea,
-    QLabel,
-    QMessageBox,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget
 )
-from PyQt5.QtCore import Qt  # pylint: disable=no-name-in-module
 
 
 class PairSelectorDialog(QDialog):

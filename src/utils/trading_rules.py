@@ -12,6 +12,8 @@ from datetime import datetime
 import pytz
 
 from src.database.db_manager import DatabaseManager
+from src.utils.config_manager import ConfigManager
+from src.utils.logging_factory import LoggingFactory
 
 
 class TradingRules:
@@ -28,7 +30,7 @@ class TradingRules:
 
     def __init__(self):
         """Initialize TradingRules and load symbol categories from database"""
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self._load_categories_from_database()
 
     @classmethod
@@ -38,11 +40,8 @@ class TradingRules:
             return  # Already loaded
 
         try:
-            import yaml
-
-            # Load config to pass to DatabaseManager
-            with open("src/config/config.yaml", "r", encoding="utf-8") as f:
-                config = yaml.safe_load(f)
+            # Load config
+            config = ConfigManager.get_config()
 
             db = DatabaseManager(config)
             db.connect()  # Establish connection
@@ -55,7 +54,7 @@ class TradingRules:
             rows = cursor.fetchall()
 
             if not rows:
-                logging.getLogger(__name__).warning(
+                LoggingFactory.get_logger(__name__).warning(
                     "No symbols found in tradable_pairs table. Categories will be empty until symbols are loaded."
                 )
                 db.close()
@@ -83,7 +82,7 @@ class TradingRules:
             db.close()
             cls._INITIALIZED = True
 
-            logging.getLogger(__name__).debug(
+            LoggingFactory.get_logger(__name__).debug(
                 "Loaded trading rules from database: %d crypto, %d forex, %d stocks, %d commodities, %d indices symbols",
                 len(cls._CRYPTO_SYMBOLS),
                 len(cls._FOREX_SYMBOLS),
@@ -92,7 +91,7 @@ class TradingRules:
                 len(cls._INDICES_SYMBOLS),
             )
         except Exception as e:
-            logging.getLogger(__name__).warning(
+            LoggingFactory.get_logger(__name__).warning(
                 "Failed to load symbol categories from database: %s. Categories will be empty.",
                 e,
             )

@@ -3,8 +3,8 @@
 # pylint: disable=no-member
 import pandas as pd
 import ta
-from backtesting import Strategy
 
+from backtesting import Strategy
 from src.core.base_strategy import BaseStrategy
 
 
@@ -33,16 +33,12 @@ class RSIStrategy(BaseStrategy):
         Uses momentum divergence + RSI levels for more reliable signals.
         Requires self.period + 5 rows minimum for accurate calculation.
         """
-        # RSI needs period + buffer rows (14 + 5 = 19 rows minimum)
+        # Fetch data with required rows
         required = self.period + 5
         data = self.fetch_data(symbol, required_rows=required)
-        if data.empty or len(data) < self.period + 1:
-            self.logger.warning(
-                "Insufficient data for RSI %s: got %d rows, need %d",
-                symbol or self.symbol,
-                len(data),
-                required,
-            )
+
+        # Use base class validation
+        if not self.validate_data(data, self.period):
             return None
 
         data["rsi"] = ta.momentum.RSIIndicator(data["close"], window=self.period).rsi()
@@ -50,29 +46,20 @@ class RSIStrategy(BaseStrategy):
         # Calculate RSI momentum (change in RSI)
         data["rsi_change"] = data["rsi"].diff()
 
-        # Calculate ATR for volatility (14-period standard)
-        atr = ta.volatility.AverageTrueRange(
-            data["high"], data["low"], data["close"], window=14
-        )
-        data["atr"] = atr.average_true_range()
-        data["atr_pct"] = (data["atr"] / data["close"]) * 100
+        # Use base class ATR calculation
+        data = self.calculate_atr(data)
 
-        latest = data.iloc[-1]
-        prev = data.iloc[-2] if len(data) > 1 else None
-        prev2 = data.iloc[-3] if len(data) > 2 else None
-
-        if prev is None:
+        # Use base class data getter
+        latest, prev, prev2 = self.get_latest_data(data)
+        if latest is None:
             return None
 
         # Validate indicator values before using them
         if not self.validate_indicator(latest["rsi"]):
             return None
 
-        signal = {
-            "symbol": symbol or self.symbol,
-            "volume": self.volume,
-            "timeframe": self.timeframe,
-        }
+        # Use base class signal creator
+        signal = self.create_base_signal(symbol)
 
         # ===== BUY SIGNALS (IMPROVED) =====
         # Signal 1: RSI oversold with upward momentum (stronger)

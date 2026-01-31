@@ -15,13 +15,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import yaml
-from backtesting.lib import FractionalBacktest
 from tqdm import tqdm
 
+from backtesting.lib import FractionalBacktest
+from src.backtesting.trade_extractor import TradeExtractor
 from src.core.data_handler import DataHandler
 from src.database.db_manager import DatabaseManager
 from src.strategies.factory import StrategyFactory
-from src.backtesting.trade_extractor import TradeExtractor
+from src.utils.error_handler import ErrorHandler
+from src.utils.logging_factory import LoggingFactory
 
 
 class BacktestManager:
@@ -37,7 +39,7 @@ class BacktestManager:
         self.db = DatabaseManager(config_dict["database"])
         self.db.connect()
         self.db.create_tables()
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
 
     def run_backtest(
         self,
@@ -293,8 +295,8 @@ class BacktestManager:
                 ):
                     best_stats = stats
                     best_params = param_dict
-            except (RuntimeError, ValueError, KeyError) as exc:
-                self.logger.error("Backtest failed for params %s: %s", param_dict, exc)
+            except Exception as exc:
+                ErrorHandler.handle_error(exc, context="backtest_run")
                 continue
 
         # Save results
@@ -400,8 +402,8 @@ class BacktestManager:
                     best_stats, symbol_id, strategy_id, tf_str, best_params
                 )
 
-            except (KeyError, TypeError, ValueError) as exc:
-                self.logger.error("Failed to save backtest results: %s", exc)
+            except Exception as exc:
+                ErrorHandler.handle_error(exc, context="save_backtest_results")
 
             # Note: Equity curve plotting removed per user request - only terminal progress required
             # Files would be saved to: backtests/results/equity_curve_{symbol}_{strategy_name}.html
@@ -550,8 +552,8 @@ class BacktestManager:
                 self.logger.info("=" * 80)
                 self.logger.info(df.to_string())
                 self.logger.info("=" * 80)
-        except (KeyError, ValueError, IOError) as exc:
-            self.logger.error("Failed to generate multi-backtest report: %s", exc)
+        except Exception as exc:
+            ErrorHandler.handle_error(exc, context="generate_multi_backtest_report")
 
     def generate_heatmap(self, results, symbol, timeframe):
         """Generate and save optimization heatmap for RSI parameters"""
@@ -584,8 +586,8 @@ class BacktestManager:
             self.logger.info(
                 "Saved heatmap to %s", heatmap_file.replace(".html", ".png")
             )
-        except (IOError, OSError, ValueError) as exc:
-            self.logger.error("Failed to generate heatmap: %s", exc)
+        except Exception as exc:
+            ErrorHandler.handle_error(exc, context="generate_heatmap")
 
     def run(self):
         """Parse arguments and run the specified mode"""
@@ -732,14 +734,14 @@ class BacktestManager:
             )
 
         except Exception as e:
-            self.logger.error(f"Error extracting/storing trades: {e}")
+            ErrorHandler.handle_error(e, context="extract_and_store_trades")
 
 
 if __name__ == "__main__":
-    from src.utils.logger import setup_logging
+    from src.utils.config_manager import ConfigManager
+    from src.utils.logging_factory import LoggingFactory
 
-    setup_logging()
-    with open("src/config/config.yaml", "r", encoding="utf-8") as file:
-        config_data = yaml.safe_load(file)
+    LoggingFactory.configure()
+    config_data = ConfigManager.get_config()
 
     BacktestManager(config_data).run()

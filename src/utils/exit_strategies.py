@@ -9,6 +9,7 @@ Provides multiple exit strategies:
 """
 
 import logging
+
 import pandas as pd
 import ta
 

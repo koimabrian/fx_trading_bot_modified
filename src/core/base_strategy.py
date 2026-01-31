@@ -8,6 +8,7 @@ import logging
 from abc import ABC, abstractmethod
 
 from src.core.data_fetcher import DataFetcher
+from src.utils.logging_factory import LoggingFactory
 
 
 class BaseStrategy(ABC):
@@ -25,7 +26,7 @@ class BaseStrategy(ABC):
         self.db = db
         self.config = config
         self.mode = mode
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.data_cache = None  # Set by StrategyManager
 
     def validate_indicator(self, value):
@@ -79,6 +80,79 @@ class BaseStrategy(ABC):
             self.data_cache.set(cache_key, data)
 
         return data
+
+    def validate_data(self, data, required_period: int) -> bool:
+        """Validate if data has sufficient rows for indicator calculation.
+
+        Args:
+            data: DataFrame to validate
+            required_period: Required minimum period (e.g., RSI period, EMA period)
+
+        Returns:
+            bool: True if data is valid, False otherwise
+        """
+        required_rows = required_period + 5
+        if data.empty or len(data) < required_period + 1:
+            self.logger.warning(
+                "Insufficient data for %s: got %d rows, need %d",
+                self.symbol,
+                len(data),
+                required_period + 1,
+            )
+            return False
+        return True
+
+    def calculate_atr(self, data, period: int = 14):
+        """Calculate ATR (Average True Range) volatility indicator.
+
+        Args:
+            data: DataFrame with OHLC data
+            period: ATR period (default 14)
+
+        Returns:
+            DataFrame with 'atr' and 'atr_pct' columns added
+        """
+        import ta
+
+        atr = ta.volatility.AverageTrueRange(
+            data["high"], data["low"], data["close"], window=period
+        )
+        data["atr"] = atr.average_true_range()
+        data["atr_pct"] = (data["atr"] / data["close"]) * 100
+        return data
+
+    def create_base_signal(self, symbol: str = None) -> dict:
+        """Create base signal dictionary structure.
+
+        Args:
+            symbol: Trading symbol (uses self.symbol if None)
+
+        Returns:
+            dict: Base signal with symbol, volume, and timeframe
+        """
+        return {
+            "symbol": symbol or self.symbol,
+            "volume": self.volume,
+            "timeframe": self.timeframe,
+        }
+
+    def get_latest_data(self, data):
+        """Get latest candle and previous candles for analysis.
+
+        Args:
+            data: DataFrame with market data
+
+        Returns:
+            Tuple of (latest, prev, prev2) or (None, None, None) if insufficient data
+        """
+        if len(data) < 2:
+            return None, None, None
+
+        latest = data.iloc[-1]
+        prev = data.iloc[-2]
+        prev2 = data.iloc[-3] if len(data) > 2 else None
+
+        return latest, prev, prev2
 
     @abstractmethod
     def generate_entry_signal(self, symbol=None):

@@ -1,8 +1,8 @@
 # src/strategies/factory.py
-from src.strategies.rsi_strategy import RSIStrategy
-from src.strategies.macd_strategy import MACDStrategy
-from src.strategies.sma_strategy import SMAStrategy
 from src.strategies.ema_strategy import EMAStrategy
+from src.strategies.macd_strategy import MACDStrategy
+from src.strategies.rsi_strategy import RSIStrategy
+from src.strategies.sma_strategy import SMAStrategy
 
 
 class StrategyFactory:

@@ -8,12 +8,13 @@ timeframes and symbols.
 
 import logging
 import time
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import yaml
 
 from src.strategies.factory import StrategyFactory
+from src.utils.logging_factory import LoggingFactory
 
 
 class DataCache:
@@ -28,7 +29,7 @@ class DataCache:
         self.cache: Dict[str, pd.DataFrame] = {}
         self.timestamps: Dict[str, float] = {}
         self.ttl = ttl_seconds
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
 
     def get(self, key: str) -> Optional[pd.DataFrame]:
         """Retrieve cached data if still valid.
@@ -88,15 +89,16 @@ class StrategyManager:
         self.symbol = symbol  # Store symbol filter if provided
         self.strategies = []
         self.data_cache = DataCache(ttl_seconds=20)
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.config = {}  # Store config for use in generate_signals
         self.load_config()
 
     def load_config(self) -> None:
         """Load strategy configurations from YAML and store in database"""
         try:
-            with open("src/config/config.yaml", "r", encoding="utf-8") as file:
-                config = yaml.safe_load(file)
+            from src.utils.config_manager import ConfigManager
+
+            config = ConfigManager.get_config()
             self.config = config  # Store config for generate_signals
             for strategy_config in config.get("strategies", []):
                 strategy_name = strategy_config["name"]

@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FX Trading Bot - Dashboard</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <title>FX Trading Bot - Unified Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -23,38 +23,42 @@
             --text-secondary: #64748b;
             --border: #e2e8f0;
             --bg-light: #f8fafc;
+            --bg-dark: #0f172a;
         }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--bg-light);
             color: var(--text-primary);
+            margin: 0;
+            padding: 0;
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
             padding: 20px;
         }
 
         .header {
-            background: white;
-            padding: 20px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            padding: 30px;
             border-radius: 8px;
-            border-bottom: 2px solid var(--primary);
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
 
         .header h1 {
-            color: var(--primary);
-            font-size: 2em;
-            margin-bottom: 5px;
+            font-size: 2.5em;
+            margin-bottom: 8px;
+            font-weight: 700;
         }
 
         .header p {
-            color: var(--text-secondary);
-            font-size: 0.9em;
+            font-size: 1.1em;
+            opacity: 0.95;
+            font-weight: 500;
         }
 
         .grid {
@@ -68,23 +72,30 @@
             background: white;
             padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             border-left: 4px solid var(--primary);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
         .card h3 {
             color: var(--text-secondary);
             font-size: 0.85em;
             font-weight: 600;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
 
         .card-value {
-            font-size: 1.8em;
+            font-size: 2.2em;
             font-weight: 700;
             color: var(--text-primary);
+            margin-bottom: 8px;
         }
 
         .card-positive {
@@ -96,44 +107,52 @@
         }
 
         .card-subtitle {
-            font-size: 0.85em;
+            font-size: 0.9em;
             color: var(--text-secondary);
-            margin-top: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .section {
             background: white;
-            padding: 20px;
+            padding: 25px;
             border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            margin-bottom: 25px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
         .section h2 {
             color: var(--text-primary);
-            font-size: 1.3em;
-            margin-bottom: 15px;
+            font-size: 1.4em;
+            margin-bottom: 20px;
             border-bottom: 2px solid var(--border);
-            padding-bottom: 10px;
+            padding-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
+            margin-top: 10px;
         }
 
         th {
             background: var(--bg-light);
-            padding: 10px;
+            padding: 12px;
             text-align: left;
             font-weight: 600;
             font-size: 0.85em;
             color: var(--text-secondary);
             border-bottom: 2px solid var(--border);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         td {
-            padding: 10px;
+            padding: 12px;
             border-bottom: 1px solid var(--border);
         }
 
@@ -141,10 +160,14 @@
             background: var(--bg-light);
         }
 
+        tr:last-child td {
+            border-bottom: none;
+        }
+
         .status {
             display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
+            padding: 6px 12px;
+            border-radius: 6px;
             font-size: 0.8em;
             font-weight: 600;
         }
@@ -167,133 +190,274 @@
         .chart-container {
             width: 100%;
             height: 400px;
-            margin-top: 15px;
+            margin-top: 20px;
+            border-radius: 6px;
+            overflow: hidden;
         }
 
         .no-data {
             text-align: center;
-            padding: 40px 20px;
+            padding: 50px 20px;
             color: var(--text-secondary);
+            font-size: 1.1em;
         }
 
         .loading {
             text-align: center;
-            padding: 20px;
+            padding: 30px;
             color: var(--text-secondary);
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            margin-left: 10px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .control-group label {
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+
+        select,
+        input {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.95em;
+            background: white;
+            cursor: pointer;
         }
 
         .refresh-btn {
             background: var(--primary);
             color: white;
             border: none;
-            padding: 8px 16px;
+            padding: 10px 20px;
             border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
-            float: right;
-            margin-bottom: 15px;
+            margin-left: auto;
+            transition: background 0.3s;
+            white-space: nowrap;
         }
 
         .refresh-btn:hover {
-            background: #5568d3;
+            background: var(--secondary);
         }
 
         .tabs {
             display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
+            gap: 8px;
+            margin-bottom: 25px;
             border-bottom: 2px solid var(--border);
+            flex-wrap: wrap;
+            background: white;
+            padding: 0;
+            border-radius: 8px 8px 0 0;
         }
 
         .tab-btn {
             background: none;
             border: none;
-            padding: 12px 20px;
-            font-size: 1em;
+            padding: 14px 20px;
+            font-size: 0.95em;
             font-weight: 600;
             color: var(--text-secondary);
             cursor: pointer;
             border-bottom: 3px solid transparent;
             transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .tab-btn:hover {
             color: var(--primary);
+            background: var(--bg-light);
         }
 
         .tab-btn.active {
             color: var(--primary);
             border-bottom-color: var(--primary);
+            background: var(--bg-light);
         }
 
         .tab-content {
             display: none;
+            animation: fadeIn 0.3s ease;
         }
 
         .tab-content.active {
             display: block;
         }
 
-        .live-stats-grid {
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .metric-row {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             gap: 15px;
             margin-bottom: 20px;
         }
 
-        .live-stat-card {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            border-left: 4px solid var(--primary);
-            text-align: center;
+        .metric-item {
+            background: var(--bg-light);
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 3px solid var(--primary);
         }
 
-        .live-stat-card h4 {
-            color: var(--text-secondary);
+        .metric-label {
             font-size: 0.85em;
+            color: var(--text-secondary);
             font-weight: 600;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            margin-bottom: 5px;
         }
 
-        .live-stat-value {
-            font-size: 2em;
+        .metric-value {
+            font-size: 1.8em;
             font-weight: 700;
             color: var(--text-primary);
         }
 
-        .live-stat-positive {
-            color: var(--success);
-        }
-
-        .live-stat-negative {
-            color: var(--danger);
-        }
-
-        .status-badge {
+        .rank-badge {
             display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.75em;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            text-align: center;
+            line-height: 28px;
+            font-weight: 700;
+            font-size: 0.85em;
+        }
+
+        .success-badge {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
             font-weight: 600;
         }
 
-        .status-badge-trading {
-            background: #d1fae5;
+        .warning-badge {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .highlight-positive {
+            color: var(--success);
+            font-weight: 700;
+        }
+
+        .highlight-negative {
+            color: var(--danger);
+            font-weight: 700;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        .heatmap-cell {
+            padding: 8px;
+            text-align: center;
+            font-weight: 600;
+            border-radius: 4px;
+        }
+
+        .heatmap-good {
+            background: rgba(16, 185, 129, 0.3);
             color: var(--success);
         }
 
-        .status-badge-paused {
-            background: #fef3c7;
-            color: var(--warning);
+        .heatmap-poor {
+            background: rgba(239, 68, 68, 0.3);
+            color: var(--danger);
         }
 
-        .status-badge-stopped {
-            background: #fee2e2;
-            color: var(--danger);
+        .heatmap-neutral {
+            background: rgba(102, 126, 234, 0.1);
+            color: var(--primary);
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tabs {
+                flex-direction: column;
+            }
+
+            .tab-btn {
+                border-bottom: none;
+                border-left: 3px solid transparent;
+                padding-left: 20px;
+            }
+
+            .tab-btn.active {
+                border-left-color: var(--primary);
+                border-bottom: none;
+            }
+
+            .refresh-btn {
+                margin-left: 0;
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -310,116 +474,247 @@
         <div class="tabs">
             <button class="tab-btn active" onclick="switchTab('live')">📊 Live Trading</button>
             <button class="tab-btn" onclick="switchTab('backtest')">📈 Backtesting</button>
+            <button class="tab-btn" onclick="switchTab('strategies')">🏆 Strategy Ranking</button>
+            <button class="tab-btn" onclick="switchTab('pairs')">📍 Pair Analysis</button>
+            <button class="tab-btn" onclick="switchTab('matrix')">🔥 Performance Matrix</button>
         </div>
 
-        <!-- LIVE TAB -->
+        <!-- ==================== LIVE TRADING TAB ==================== -->
         <div id="live" class="tab-content active">
-            <!-- Live Statistics Cards -->
-            <div class="live-stats-grid" id="live-stats-grid">
-                <div class="loading">Loading live statistics...</div>
-            </div>
-
-            <!-- Live Data Section -->
             <div class="section">
-                <h2>📊 Live Signals</h2>
-                <button class="refresh-btn" onclick="refreshData()">🔄 Refresh</button>
-                <div id="live-content"></div>
+                <h2>📊 Live Statistics</h2>
+                <div class="grid" id="live-stats-grid">
+                    <div class="loading">Loading live data...</div>
+                </div>
             </div>
 
-            <!-- Open Positions -->
+            <div class="section">
+                <h2>🚀 Recent Signals</h2>
+                <div id="live-signals"></div>
+            </div>
+
             <div class="section">
                 <h2>📈 Open Positions</h2>
-                <div id="positions-content"></div>
+                <div id="live-positions"></div>
             </div>
 
-            <!-- Recent Trades -->
             <div class="section">
                 <h2>📋 Recent Trades</h2>
-                <div id="trades-content"></div>
-            </div>
-
-            <!-- Real-time Performance -->
-            <div class="section">
-                <h2>💹 Real-time Performance</h2>
-                <div class="chart-container" id="performance-chart"></div>
+                <div id="live-trades"></div>
             </div>
         </div>
 
-        <!-- BACKTEST TAB -->
+        <!-- ==================== BACKTESTING TAB ==================== -->
         <div id="backtest" class="tab-content">
-            <!-- Backtest Statistics Cards -->
-            <div class="live-stats-grid" id="backtest-stats-grid">
-                <div class="loading">Loading backtest statistics...</div>
-            </div>
-
-            <!-- Backtest Results -->
             <div class="section">
-                <h2>📊 Backtest Results</h2>
-                <button class="refresh-btn" onclick="refreshData()">🔄 Refresh</button>
-                <div id="results-content"></div>
+                <h2>📊 Backtest Statistics</h2>
+                <div class="grid" id="backtest-stats-grid">
+                    <div class="loading">Loading backtest data...</div>
+                </div>
             </div>
 
-            <!-- Optimal Parameters -->
+            <div class="section">
+                <h2>📈 Backtest Results</h2>
+                <div id="backtest-results"></div>
+            </div>
+
             <div class="section">
                 <h2>⚡ Optimal Parameters</h2>
-                <div id="params-content"></div>
+                <div id="backtest-params"></div>
             </div>
 
-            <!-- Equity Curve -->
             <div class="section">
-                <h2>📉 Equity Curve Analysis</h2>
-                <div class="chart-container" id="equity-chart"></div>
+                <h2>💹 Performance Chart</h2>
+                <div class="chart-container" id="backtest-chart"></div>
+            </div>
+        </div>
+
+        <!-- ==================== STRATEGY RANKING TAB ==================== -->
+        <div id="strategies" class="tab-content">
+            <div class="section">
+                <h2>🏆 Best Overall Strategy</h2>
+                <div class="controls">
+                    <div class="control-group">
+                        <label for="strategyTimeframe">Timeframe:</label>
+                        <select id="strategyTimeframe" onchange="loadStrategyComparison()">
+                            <option value="15">15 Min</option>
+                            <option value="60" selected>1 Hour</option>
+                            <option value="240">4 Hours</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid" id="strategy-best"></div>
+            </div>
+
+            <div class="section">
+                <h2>📊 All Strategies Ranked</h2>
+                <div id="strategy-ranking"></div>
+            </div>
+
+            <div class="section">
+                <h2>📈 Strategy Comparison Chart</h2>
+                <div class="chart-container" id="strategy-chart"></div>
+            </div>
+        </div>
+
+        <!-- ==================== PAIR ANALYSIS TAB ==================== -->
+        <div id="pairs" class="tab-content">
+            <div class="section">
+                <h2>⭐ Best Trading Pair</h2>
+                <div class="controls">
+                    <div class="control-group">
+                        <label for="pairTimeframe">Timeframe:</label>
+                        <select id="pairTimeframe" onchange="loadPairComparison()">
+                            <option value="15">15 Min</option>
+                            <option value="60" selected>1 Hour</option>
+                            <option value="240">4 Hours</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid" id="pair-best"></div>
+            </div>
+
+            <div class="section">
+                <h2>📊 All Pairs Performance</h2>
+                <div id="pair-ranking"></div>
+            </div>
+
+            <div class="section">
+                <h2>📈 Pair Performance Chart</h2>
+                <div class="chart-container" id="pair-chart"></div>
+            </div>
+        </div>
+
+        <!-- ==================== PERFORMANCE MATRIX TAB ==================== -->
+        <div id="matrix" class="tab-content">
+            <div class="section">
+                <h2>🔥 Strategy vs Pair Performance Matrix</h2>
+                <div class="controls">
+                    <div class="control-group">
+                        <label for="matrixTimeframe">Timeframe:</label>
+                        <select id="matrixTimeframe" onchange="loadPerformanceMatrix()">
+                            <option value="15">15 Min</option>
+                            <option value="60" selected>1 Hour</option>
+                            <option value="240">4 Hours</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="chart-container" id="matrix-heatmap"></div>
+            </div>
+
+            <div class="section">
+                <h2>📋 Matrix Details</h2>
+                <div id="matrix-table"></div>
             </div>
         </div>
     </div>
 
     <script>
-        // Tab switching
+        const API_BASE = '/api';
+        let chartInstances = {};
+
+        // ==================== PLOTLY HELPER FUNCTION ====================
+        /**
+         * Create a standard bar chart using Plotly.
+         * Centralizes chart configuration to avoid duplication.
+         */
+        function createBarChart(chartId, xData, yData, title, xLabel, yLabel, colors = null) {
+            if (!colors) {
+                colors = yData.map(v => v >= 1 ? '#10b981' : v >= 0 ? '#f59e0b' : '#ef4444');
+            }
+
+            const chartData = [{
+                x: xData,
+                y: yData,
+                type: 'bar',
+                marker: { color: colors },
+                hovertemplate: '<b>%{x}</b><br>' + yLabel + ': %{y:.3f}<extra></extra>'
+            }];
+
+            const layout = {
+                title: title,
+                xaxis: { title: xLabel },
+                yaxis: { title: yLabel },
+                margin: { b: 80 },
+                plot_bgcolor: '#f8fafc',
+                paper_bgcolor: 'white'
+            };
+
+            Plotly.newPlot(chartId, chartData, layout, { responsive: true });
+        }
+
+        /**
+         * Create a standard heatmap using Plotly.
+         * Centralizes heatmap configuration.
+         */
+        function createHeatmap(chartId, zData, xData, yData, title, xLabel = 'Strategy', yLabel = 'Pair') {
+            const chartData = [{
+                z: zData,
+                x: xData,
+                y: yData,
+                type: 'heatmap',
+                colorscale: 'RdYlGn',
+                hovertemplate: '<b>%{y} × %{x}</b><br>Sharpe: %{z:.3f}<extra></extra>'
+            }];
+
+            const layout = {
+                title: title,
+                xaxis: { title: xLabel },
+                yaxis: { title: yLabel },
+                plot_bgcolor: '#f8fafc',
+                paper_bgcolor: 'white'
+            };
+
+            Plotly.newPlot(chartId, chartData, layout, { responsive: true });
+        }
+
+        // ==================== TAB SWITCHING ====================
         function switchTab(tabName) {
             // Hide all tabs
-            const tabs = document.querySelectorAll('.tab-content');
-            tabs.forEach(tab => tab.classList.remove('active'));
-
-            // Remove active from all buttons
-            const buttons = document.querySelectorAll('.tab-btn');
-            buttons.forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
 
             // Show selected tab
             document.getElementById(tabName).classList.add('active');
             event.target.classList.add('active');
 
-            // Refresh data for the new tab
-            refreshData();
+            // Load data for the new tab
+            loadTabData(tabName);
         }
 
-        // Auto-refresh every 5 seconds
-        setInterval(() => {
-            refreshData();
-        }, 5000);
+        function loadTabData(tabName) {
+            switch (tabName) {
+                case 'live':
+                    loadLiveData();
+                    break;
+                case 'backtest':
+                    loadBacktestData();
+                    break;
+                case 'strategies':
+                    loadStrategyComparison();
+                    break;
+                case 'pairs':
+                    loadPairComparison();
+                    break;
+                case 'matrix':
+                    loadPerformanceMatrix();
+                    break;
+            }
+        }
 
-        async function refreshData() {
+        // ==================== LIVE TRADING DATA ====================
+        async function loadLiveData() {
             try {
-                // Fetch live data
-                const liveResp = await fetch('/api/live-data');
-                const liveData = await liveResp.json();
-
-                // Fetch backtest results
-                const resultsResp = await fetch('/api/results');
-                const resultsData = await resultsResp.json();
-
-                // Fetch optimal parameters
-                const paramsResp = await fetch('/api/optimal-parameters');
-                const paramsData = await paramsResp.json();
-
-                // Display live tab data
-                displayLiveData(liveData);
-
-                // Display backtest tab data
-                displayBacktestData(liveData, resultsData, paramsData);
-
+                const response = await fetch(`${API_BASE}/live-data`);
+                const data = await response.json();
+                displayLiveData(data);
             } catch (error) {
-                console.error('Error fetching data:', error);
-                document.getElementById('live-content').innerHTML = '<div class="no-data">⚠️ Failed to load data</div>';
+                console.error('Error loading live data:', error);
+                document.getElementById('live-stats-grid').innerHTML = '<div class="empty-state">⚠️ Failed to load live data</div>';
             }
         }
 
@@ -429,34 +724,34 @@
             const positions = data.open_positions || [];
             const trades = data.recent_trades || [];
 
-            // Update live statistics
+            // Statistics cards
             const statsHtml = `
-                <div class="live-stat-card">
-                    <h4>Total Trades</h4>
-                    <div class="live-stat-value">${stats.total_trades || 0}</div>
-                    <p style="color: var(--text-secondary); font-size: 0.9em;">All executed trades</p>
+                <div class="card">
+                    <h3>Total Trades</h3>
+                    <div class="card-value">${stats.total_trades || 0}</div>
+                    <div class="card-subtitle">All executed trades</div>
                 </div>
-                <div class="live-stat-card">
-                    <h4>🟢 Open Positions</h4>
-                    <div class="live-stat-value live-stat-positive">${stats.open_positions || 0}</div>
-                    <p style="color: var(--text-secondary); font-size: 0.9em;">Active Now</p>
+                <div class="card">
+                    <h3>🟢 Open Positions</h3>
+                    <div class="card-value card-positive">${stats.open_positions || 0}</div>
+                    <div class="card-subtitle">Currently Active</div>
                 </div>
-                <div class="live-stat-card">
-                    <h4>Net Profit</h4>
-                    <div class="live-stat-value ${stats.net_profit >= 0 ? 'live-stat-positive' : 'live-stat-negative'}">
+                <div class="card">
+                    <h3>Net Profit</h3>
+                    <div class="card-value ${(stats.net_profit || 0) >= 0 ? 'card-positive' : 'card-negative'}">
                         $${Math.abs(stats.net_profit || 0).toFixed(2)}
                     </div>
-                    <p style="color: var(--text-secondary); font-size: 0.9em;">${stats.net_profit >= 0 ? '📈 Profit' : '📉 Loss'}</p>
+                    <div class="card-subtitle">${(stats.net_profit || 0) >= 0 ? '📈 Profit' : '📉 Loss'}</div>
                 </div>
-                <div class="live-stat-card">
-                    <h4>Win Rate</h4>
-                    <div class="live-stat-value live-stat-positive">${((stats.win_rate || 0) * 100).toFixed(1)}%</div>
-                    <p style="color: var(--text-secondary); font-size: 0.9em;">Success Rate</p>
+                <div class="card">
+                    <h3>Win Rate</h3>
+                    <div class="card-value card-positive">${((stats.win_rate || 0) * 100).toFixed(1)}%</div>
+                    <div class="card-subtitle">Success Rate</div>
                 </div>
             `;
             document.getElementById('live-stats-grid').innerHTML = statsHtml;
 
-            // Display signals
+            // Signals table
             if (signals.length > 0) {
                 const signalsHtml = `
                     <table>
@@ -478,20 +773,20 @@
                         `).join('')}
                     </table>
                 `;
-                document.getElementById('live-content').innerHTML = signalsHtml;
+                document.getElementById('live-signals').innerHTML = signalsHtml;
             } else {
-                document.getElementById('live-content').innerHTML = '<div class="no-data">No live signals yet</div>';
+                document.getElementById('live-signals').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><p>No live signals yet</p></div>';
             }
 
-            // Display positions
+            // Positions table
             if (positions.length > 0) {
                 const positionsHtml = `
                     <table>
                         <tr>
                             <th>Symbol</th>
                             <th>Side</th>
-                            <th>Entry Price</th>
-                            <th>Current Price</th>
+                            <th>Entry</th>
+                            <th>Current</th>
                             <th>P&L</th>
                             <th>P&L %</th>
                             <th>Volume</th>
@@ -504,10 +799,10 @@
                                 <td>${p.side === 'LONG' ? '🟢 LONG' : '🔴 SHORT'}</td>
                                 <td>${(p.entry_price || 0).toFixed(4)}</td>
                                 <td>${(p.current_price || 0).toFixed(4)}</td>
-                                <td class="${p.pnl >= 0 ? 'live-stat-positive' : 'live-stat-negative'}">
-                                    ${(p.pnl >= 0 ? '+' : '')}$${(p.pnl || 0).toFixed(2)}
+                                <td class="${(p.pnl || 0) >= 0 ? 'highlight-positive' : 'highlight-negative'}">
+                                    ${((p.pnl || 0) >= 0 ? '+' : '')}$${(p.pnl || 0).toFixed(2)}
                                 </td>
-                                <td class="${pnlPercent >= 0 ? 'live-stat-positive' : 'live-stat-negative'}">
+                                <td class="${pnlPercent >= 0 ? 'highlight-positive' : 'highlight-negative'}">
                                     ${(pnlPercent >= 0 ? '+' : '')}${pnlPercent.toFixed(2)}%
                                 </td>
                                 <td>${p.volume}</td>
@@ -515,12 +810,12 @@
                         `}).join('')}
                     </table>
                 `;
-                document.getElementById('positions-content').innerHTML = positionsHtml;
+                document.getElementById('live-positions').innerHTML = positionsHtml;
             } else {
-                document.getElementById('positions-content').innerHTML = '<div class="no-data">No open positions currently</div>';
+                document.getElementById('live-positions').innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔒</div><p>No open positions</p></div>';
             }
 
-            // Display recent trades
+            // Trades table
             if (trades.length > 0) {
                 const tradesHtml = `
                     <table>
@@ -536,62 +831,80 @@
                                 <td><strong>${t.symbol}</strong></td>
                                 <td>${t.action === 'BUY' ? '🟢 BUY' : '🔴 SELL'}</td>
                                 <td>${t.strategy_name}</td>
-                                <td>
-                                    <span class="status ${t.status === 'executed' ? 'status-active' : 'status-closed'}">
-                                        ${t.status === 'executed' ? '✅ Executed' : '❌ Closed'}
-                                    </span>
-                                </td>
+                                <td><span class="status ${t.status === 'executed' ? 'status-active' : 'status-closed'}">
+                                    ${t.status === 'executed' ? '✅ Executed' : '❌ Closed'}
+                                </span></td>
                                 <td>${new Date(t.timestamp).toLocaleString()}</td>
                             </tr>
                         `).join('')}
                     </table>
                 `;
-                document.getElementById('trades-content').innerHTML = tradesHtml;
+                document.getElementById('live-trades').innerHTML = tradesHtml;
             } else {
-                document.getElementById('trades-content').innerHTML = '<div class="no-data">No recent trades</div>';
+                document.getElementById('live-trades').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><p>No recent trades</p></div>';
             }
         }
 
-        function displayBacktestData(liveData, resultsData, paramsData) {
-            const results = resultsData.results || [];
-            const paramsObj = paramsData.parameters || {};
+        // ==================== BACKTEST DATA ====================
+        async function loadBacktestData() {
+            try {
+                const resultsResp = await fetch(`${API_BASE}/results`);
+                if (!resultsResp.ok) {
+                    throw new Error(`API error: ${resultsResp.status}`);
+                }
+                const resultsData = await resultsResp.json();
 
-            // Flatten parameters object for counting
-            let paramsCount = 0;
-            for (let strategy in paramsObj) {
-                paramsCount += paramsObj[strategy].length || 0;
+                const paramsResp = await fetch(`${API_BASE}/optimal-parameters`);
+                if (!paramsResp.ok) {
+                    console.warn('Parameters endpoint returned error, using empty object');
+                    displayBacktestData(resultsData, {});
+                    return;
+                }
+                const paramsData = await paramsResp.json();
+
+                displayBacktestData(resultsData, paramsData);
+            } catch (error) {
+                console.error('Error loading backtest data:', error);
+                document.getElementById('backtest-stats-grid').innerHTML = '<div class="empty-state">⚠️ Failed to load backtest data</div>';
             }
+        }
 
-            // Update backtest statistics
+        function displayBacktestData(resultsData, paramsData) {
+            const results = resultsData.results || [];
+            const paramsObj = (paramsData && paramsData.parameters) ? paramsData.parameters : {};
+
+            // Statistics
             const statsHtml = `
-                <div class="live-stat-card">
-                    <h4>Total Backtest Runs</h4>
-                    <div class="live-stat-value">${results.length}</div>
-                    <p style="color: var(--text-secondary); font-size: 0.9em;">Strategies Tested</p>
+                <div class="card">
+                    <h3>Total Backtests</h3>
+                    <div class="card-value">${results.length}</div>
+                    <div class="card-subtitle">Strategies Tested</div>
                 </div>
-                <div class="live-stat-card">
-                    <h4>Best Win Rate</h4>
-                    <div class="live-stat-value live-stat-positive">
-                        ${results.length > 0 ? (Math.max(...results.map(r => r.win_rate || 0)) * 100).toFixed(1) : '0'}%
+                <div class="card">
+                    <h3>Best Win Rate</h3>
+                    <div class="card-value card-positive">
+                        ${results.length > 0 ? (Math.max(...results.map(r => r.win_rate || 0)) * 100).toFixed(1) : 0}%
                     </div>
-                    <p style="color: var(--text-secondary); font-size: 0.9em;">Peak Performance</p>
+                    <div class="card-subtitle">Peak Performance</div>
                 </div>
-                <div class="live-stat-card">
-                    <h4>Avg Profit Factor</h4>
-                    <div class="live-stat-value live-stat-positive">
-                        ${results.length > 0 ? (results.reduce((a, b) => a + (b.profit_factor || 0), 0) / results.length).toFixed(2) : '0'}
+                <div class="card">
+                    <h3>Avg Profit Factor</h3>
+                    <div class="card-value card-positive">
+                        ${results.length > 0 ? (results.reduce((a, b) => a + (b.profit_factor || 0), 0) / results.length).toFixed(2) : 0}
                     </div>
-                    <p style="color: var(--text-secondary); font-size: 0.9em;">Average</p>
+                    <div class="card-subtitle">Average Across All</div>
                 </div>
-                <div class="live-stat-card">
-                    <h4>Optimal Parameters</h4>
-                    <div class="live-stat-value">${paramsCount}</div>
-                    <p style="color: var(--text-secondary); font-size: 0.9em;">Set Optimized</p>
+                <div class="card">
+                    <h3>Avg Sharpe Ratio</h3>
+                    <div class="card-value card-positive">
+                        ${results.length > 0 ? (results.reduce((a, b) => a + (b.sharpe_ratio || 0), 0) / results.length).toFixed(3) : 0}
+                    </div>
+                    <div class="card-subtitle">Risk-Adjusted Return</div>
                 </div>
             `;
             document.getElementById('backtest-stats-grid').innerHTML = statsHtml;
 
-            // Display backtest results
+            // Results table
             if (results.length > 0) {
                 const resultsHtml = `
                     <table>
@@ -599,36 +912,43 @@
                             <th>Symbol</th>
                             <th>Strategy</th>
                             <th>Timeframe</th>
+                            <th>Sharpe</th>
+                            <th>Return</th>
                             <th>Win Rate</th>
                             <th>Profit Factor</th>
-                            <th>Sharpe Ratio</th>
-                            <th>Total Return</th>
+                            <th>Max DD</th>
                         </tr>
-                        ${results.slice(0, 15).map(r => `
+                        ${results.slice(0, 20).map(r => `
                             <tr>
                                 <td><strong>${r.symbol}</strong></td>
-                                <td>${r.strategy_name}</td>
+                                <td>${r.strategy_name.toUpperCase()}</td>
                                 <td>${r.timeframe}</td>
-                                <td class="live-stat-positive">${((r.win_rate || 0) * 100).toFixed(1)}%</td>
-                                <td>${(r.profit_factor || 0).toFixed(2)}</td>
-                                <td>${(r.sharpe_ratio || 0).toFixed(2)}</td>
-                                <td class="${r.total_return >= 0 ? 'live-stat-positive' : 'live-stat-negative'}">
+                                <td class="highlight-positive">${(r.sharpe_ratio || 0).toFixed(3)}</td>
+                                <td class="${(r.total_return || 0) >= 0 ? 'highlight-positive' : 'highlight-negative'}">
                                     ${((r.total_return || 0) * 100).toFixed(2)}%
                                 </td>
+                                <td class="highlight-positive">${((r.win_rate || 0) * 100).toFixed(1)}%</td>
+                                <td>${(r.profit_factor || 0).toFixed(2)}</td>
+                                <td class="highlight-negative">${((r.max_drawdown || 0) * 100).toFixed(2)}%</td>
                             </tr>
                         `).join('')}
                     </table>
                 `;
-                document.getElementById('results-content').innerHTML = resultsHtml;
+                document.getElementById('backtest-results').innerHTML = resultsHtml;
             } else {
-                document.getElementById('results-content').innerHTML = '<div class="no-data">No backtest results available</div>';
+                document.getElementById('backtest-results').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><p>No backtest results available</p></div>';
             }
 
-            // Display optimal parameters
+            // Parameters table
             let allParams = [];
             for (let strategy in paramsObj) {
                 if (Array.isArray(paramsObj[strategy])) {
-                    allParams = allParams.concat(paramsObj[strategy]);
+                    // Add strategy_name to each parameter object
+                    const paramsWithStrategy = paramsObj[strategy].map(p => ({
+                        ...p,
+                        strategy_name: strategy
+                    }));
+                    allParams = allParams.concat(paramsWithStrategy);
                 }
             }
 
@@ -640,27 +960,327 @@
                             <th>Strategy</th>
                             <th>Timeframe</th>
                             <th>Parameters</th>
-                            <th>Sharpe Ratio</th>
                         </tr>
                         ${allParams.slice(0, 15).map(p => `
                             <tr>
                                 <td><strong>${p.symbol}</strong></td>
-                                <td>${p.timeframe ? p.timeframe.split('_')[0] : 'N/A'}</td>
-                                <td>${p.timeframe || 'N/A'}</td>
-                                <td style="font-size: 0.85em;">${JSON.stringify(p.parameters || {}).substring(0, 50)}</td>
-                                <td class="live-stat-positive">${(p.metrics?.sharpe_ratio || 0).toFixed(2)}</td>
+                                <td>${p.strategy_name.toUpperCase()}</td>
+                                <td>${p.timeframe}</td>
+                                <td style="font-size: 0.85em; font-family: monospace;">
+                                    ${JSON.stringify(p.parameters || {}).substring(0, 60)}...
+                                </td>
                             </tr>
                         `).join('')}
                     </table>
                 `;
-                document.getElementById('params-content').innerHTML = paramsHtml;
+                document.getElementById('backtest-params').innerHTML = paramsHtml;
             } else {
-                document.getElementById('params-content').innerHTML = '<div class="no-data">No optimal parameters found</div>';
+                document.getElementById('backtest-params').innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚙️</div><p>No optimal parameters found</p></div>';
+            }
+
+            // Performance Chart - Sharpe Ratio by Symbol
+            if (results.length > 0) {
+                const symbolGroups = {};
+                results.forEach(r => {
+                    if (!symbolGroups[r.symbol]) {
+                        symbolGroups[r.symbol] = [];
+                    }
+                    symbolGroups[r.symbol].push(r.sharpe_ratio || 0);
+                });
+
+                const symbols = Object.keys(symbolGroups).sort();
+                const avgSharpeBySymbol = symbols.map(sym => {
+                    const ratios = symbolGroups[sym];
+                    return ratios.reduce((a, b) => a + b, 0) / ratios.length;
+                });
+
+                createBarChart(
+                    'backtest-chart',
+                    symbols,
+                    avgSharpeBySymbol,
+                    'Average Sharpe Ratio by Symbol',
+                    'Trading Pair',
+                    'Sharpe Ratio'
+                );
+            } else {
+                document.getElementById('backtest-chart').innerHTML = '<div class="empty-state">No data to display</div>';
             }
         }
 
+        // ==================== STRATEGY COMPARISON ====================
+        async function loadStrategyComparison() {
+            try {
+                const tf = document.getElementById('strategyTimeframe')?.value || 60;
+                const response = await fetch(`${API_BASE}/comparison/strategies/${tf}`);
+                if (!response.ok) {
+                    throw new Error(`API returned ${response.status}`);
+                }
+                const data = await response.json();
+                console.log('Strategy comparison response:', data);
+
+                if (data.status === 'success' && data.all_strategies) {
+                    displayStrategyComparison(data);
+                } else {
+                    console.warn('Invalid strategy comparison response:', data);
+                    document.getElementById('strategy-best').innerHTML = '<div class="empty-state">⚠️ No comparison data available</div>';
+                }
+            } catch (error) {
+                console.error('Error loading strategy comparison:', error);
+                document.getElementById('strategy-best').innerHTML = '<div class="empty-state">⚠️ Failed to load comparison data</div>';
+            }
+        }
+
+        function displayStrategyComparison(data) {
+            const best = data.best_overall;
+            const strategies = data.all_strategies || [];
+
+            // Best strategy card
+            const bestHtml = best ? `
+                <div class="card" style="border-left-color: var(--success); background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), transparent);">
+                    <h3>🏆 Winner</h3>
+                    <div class="card-value card-positive">${best.name.toUpperCase()}</div>
+                    <div class="metric-row">
+                        <div class="metric-item">
+                            <div class="metric-label">Sharpe Ratio</div>
+                            <div class="metric-value card-positive">${best.avg_sharpe_ratio}</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-label">Avg Return</div>
+                            <div class="metric-value card-positive">${best.avg_return_pct}%</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-label">Win Rate</div>
+                            <div class="metric-value card-positive">${best.win_rate}%</div>
+                        </div>
+                    </div>
+                </div>
+            ` : '<div class="empty-state">No data</div>';
+
+            document.getElementById('strategy-best').innerHTML = bestHtml;
+
+            // All strategies table
+            if (strategies.length > 0) {
+                const rankingHtml = `
+                    <table>
+                        <tr>
+                            <th></th>
+                            <th>Strategy</th>
+                            <th>Pairs Tested</th>
+                            <th>Avg Sharpe</th>
+                            <th>Avg Return</th>
+                            <th>Win Rate</th>
+                            <th>Profit Factor</th>
+                            <th>Max DD</th>
+                        </tr>
+                        ${strategies.map((s, i) => `
+                            <tr>
+                                <td><span class="rank-badge">${i + 1}</span></td>
+                                <td><strong>${s.name.toUpperCase()}</strong></td>
+                                <td>${s.tested_pairs}</td>
+                                <td class="highlight-positive">${s.avg_sharpe_ratio}</td>
+                                <td class="${s.avg_return_pct >= 0 ? 'highlight-positive' : 'highlight-negative'}">
+                                    ${s.avg_return_pct}%
+                                </td>
+                                <td class="${s.win_rate >= 50 ? 'success-badge' : 'warning-badge'}">${s.win_rate}%</td>
+                                <td>${s.avg_profit_factor}</td>
+                                <td class="highlight-negative">${s.avg_max_drawdown_pct}%</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                `;
+                document.getElementById('strategy-ranking').innerHTML = rankingHtml;
+
+                // Chart
+                createBarChart(
+                    'strategy-chart',
+                    strategies.map(s => s.name.toUpperCase()),
+                    strategies.map(s => s.avg_sharpe_ratio),
+                    'Average Sharpe Ratio by Strategy',
+                    'Strategy',
+                    'Sharpe Ratio'
+                );
+            }
+        }
+
+        // ==================== PAIR COMPARISON ====================
+        async function loadPairComparison() {
+            try {
+                const tf = document.getElementById('pairTimeframe')?.value || 60;
+                const response = await fetch(`${API_BASE}/comparison/pairs/${tf}`);
+                if (!response.ok) {
+                    throw new Error(`API returned ${response.status}`);
+                }
+                const data = await response.json();
+                console.log('Pair comparison response:', data);
+
+                if (data.status === 'success' && data.all_pairs) {
+                    displayPairComparison(data);
+                } else {
+                    console.warn('Invalid pair comparison response:', data);
+                    document.getElementById('pair-best').innerHTML = '<div class="empty-state">⚠️ No data available</div>';
+                }
+            } catch (error) {
+                console.error('Error loading pair comparison:', error);
+                document.getElementById('pair-best').innerHTML = '<div class="empty-state">⚠️ Failed to load data</div>';
+            }
+        }
+
+        function displayPairComparison(data) {
+            const best = data.best_pair;
+            const pairs = data.all_pairs || [];
+
+            // Best pair card
+            const bestHtml = best ? `
+                <div class="card" style="border-left-color: var(--success); background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), transparent);">
+                    <h3>⭐ Best Pair</h3>
+                    <div class="card-value card-positive">${best.symbol}</div>
+                    <div class="metric-row">
+                        <div class="metric-item">
+                            <div class="metric-label">Best Strategy</div>
+                            <div class="metric-value">${best.best_strategy.toUpperCase()}</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-label">Sharpe</div>
+                            <div class="metric-value card-positive">${best.sharpe_ratio}</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-label">Return</div>
+                            <div class="metric-value card-positive">${best.return_pct}%</div>
+                        </div>
+                    </div>
+                </div>
+            ` : '<div class="empty-state">No data</div>';
+
+            document.getElementById('pair-best').innerHTML = bestHtml;
+
+            // All pairs table
+            if (pairs.length > 0) {
+                const rankingHtml = `
+                    <table>
+                        <tr>
+                            <th></th>
+                            <th>Pair</th>
+                            <th>Best Strategy</th>
+                            <th>Sharpe Ratio</th>
+                            <th>Return</th>
+                            <th>Profit Factor</th>
+                            <th>Max DD</th>
+                            <th>Strategies Tested</th>
+                        </tr>
+                        ${pairs.map((p, i) => `
+                            <tr>
+                                <td><span class="rank-badge">${i + 1}</span></td>
+                                <td><strong>${p.symbol}</strong></td>
+                                <td>${p.best_strategy.toUpperCase()}</td>
+                                <td class="highlight-positive">${p.sharpe_ratio}</td>
+                                <td class="${p.return_pct >= 0 ? 'highlight-positive' : 'highlight-negative'}">
+                                    ${p.return_pct}%
+                                </td>
+                                <td>${p.profit_factor}</td>
+                                <td class="highlight-negative">${p.max_drawdown_pct}%</td>
+                                <td>${p.strategies_tested}</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                `;
+                document.getElementById('pair-ranking').innerHTML = rankingHtml;
+
+                // Chart
+                createBarChart(
+                    'pair-chart',
+                    pairs.map(p => p.symbol),
+                    pairs.map(p => p.sharpe_ratio),
+                    'Sharpe Ratio by Pair',
+                    'Trading Pair',
+                    'Sharpe Ratio'
+                );
+            }
+        }
+
+        // ==================== PERFORMANCE MATRIX ====================
+        async function loadPerformanceMatrix() {
+            try {
+                const tf = document.getElementById('matrixTimeframe')?.value || 60;
+                const response = await fetch(`${API_BASE}/comparison/matrix/${tf}`);
+                if (!response.ok) {
+                    throw new Error(`API returned ${response.status}`);
+                }
+                const data = await response.json();
+                console.log('Performance matrix response:', data);
+
+                if (data.status === 'success' && data.matrix && Object.keys(data.matrix).length > 0) {
+                    displayPerformanceMatrix(data.matrix);
+                } else {
+                    console.warn('Invalid matrix response:', data);
+                    document.getElementById('matrix-heatmap').innerHTML = '<div class="empty-state">⚠️ No data available</div>';
+                }
+            } catch (error) {
+                console.error('Error loading performance matrix:', error);
+                document.getElementById('matrix-heatmap').innerHTML = '<div class="empty-state">⚠️ Failed to load data</div>';
+            }
+        }
+
+        function displayPerformanceMatrix(matrix) {
+            const symbols = Object.keys(matrix).sort();
+            const strategies = symbols.length > 0 ? Object.keys(matrix[symbols[0]]).sort() : [];
+
+            if (symbols.length === 0) {
+                document.getElementById('matrix-heatmap').innerHTML = '<div class="empty-state">No data available</div>';
+                return;
+            }
+
+            // Heatmap data
+            const z = symbols.map(symbol =>
+                strategies.map(strategy =>
+                    matrix[symbol][strategy]?.sharpe_ratio || 0
+                )
+            );
+
+            createHeatmap(
+                'matrix-heatmap',
+                z,
+                strategies,
+                symbols,
+                'Sharpe Ratio Heatmap (Strategy vs Pair)',
+                'Strategy',
+                'Pair'
+            );
+
+            // Table
+            if (symbols.length > 0) {
+                const tableHtml = `
+                    <table>
+                        <tr>
+                            <th>Pair</th>
+                            ${strategies.map(s => `<th>${s.toUpperCase()}</th>`).join('')}
+                        </tr>
+                        ${symbols.map(symbol => `
+                            <tr>
+                                <td><strong>${symbol}</strong></td>
+                                ${strategies.map(strategy => {
+                    const value = matrix[symbol][strategy]?.sharpe_ratio;
+                    const cellClass = value >= 1 ? 'heatmap-good' : value < 0 ? 'heatmap-poor' : 'heatmap-neutral';
+                    return `<td class="heatmap-cell ${cellClass}">${value ? value.toFixed(3) : '-'}</td>`;
+                }).join('')}
+                            </tr>
+                        `).join('')}
+                    </table>
+                `;
+                document.getElementById('matrix-table').innerHTML = tableHtml;
+            }
+        }
+
+        // ==================== AUTO-REFRESH ====================
+        setInterval(() => {
+            const activeTab = document.querySelector('.tab-btn.active');
+            if (activeTab) {
+                const tabName = activeTab.onclick.toString().match(/switchTab\('(\w+)'/)[1];
+                loadTabData(tabName);
+            }
+        }, 10000); // 10 seconds
+
         // Initial load
-        refreshData();
+        loadLiveData();
     </script>
 </body>
 

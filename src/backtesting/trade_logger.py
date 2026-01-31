@@ -6,13 +6,15 @@ from typing import Dict, List
 
 import pandas as pd
 
+from src.utils.logging_factory import LoggingFactory
+
 
 class TradeLogger:
     """Log and track detailed trade information during backtest."""
 
     def __init__(self):
         """Initialize trade logger."""
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.trades: List[Dict] = []
 
     def log_trade(

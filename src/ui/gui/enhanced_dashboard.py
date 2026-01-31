@@ -5,24 +5,25 @@ import json
 import logging
 from datetime import datetime
 
+import pandas as pd
+from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtWidgets import (
-    QMainWindow,
-    QWidget,
-    QVBoxLayout,
+    QComboBox,
+    QFrame,
+    QGridLayout,
     QHBoxLayout,
-    QTabWidget,
     QLabel,
+    QMainWindow,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
-    QComboBox,
-    QGridLayout,
-    QFrame,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt5.QtWebEngineWidgets import QWebEngineView
 
-from src.ui.gui.plotly_charts import PlotlyCharts
 from src.database.db_manager import DatabaseManager
+from src.ui.gui.plotly_charts import PlotlyCharts
 
 
 class MetricsCard(QFrame):
@@ -419,8 +420,6 @@ class EnhancedDashboard(QMainWindow):
         """Export trades to CSV."""
         if not self.current_trades:
             return
-
-        import pandas as pd
 
         df = pd.DataFrame(self.current_trades)
         filename = f"backtest_{self.current_backtest[1]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"

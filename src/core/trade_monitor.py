@@ -2,6 +2,8 @@
 # Purpose: Monitor and close open positions
 import logging
 
+from src.utils.logging_factory import LoggingFactory
+
 
 class TradeMonitor:
     """Monitors and closes open positions based on exit strategy."""
@@ -15,7 +17,7 @@ class TradeMonitor:
         """
         self.strategy_manager = strategy_manager
         self.mt5_conn = mt5_conn
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
 
     def monitor_positions(self, strategy_name: str = None):
         """Monitor and close positions based on exit strategy"""

@@ -3,8 +3,8 @@
 # pylint: disable=no-member
 import pandas as pd
 import ta
-from backtesting import Strategy
 
+from backtesting import Strategy
 from src.core.base_strategy import BaseStrategy
 
 
@@ -32,16 +32,12 @@ class SMAStrategy(BaseStrategy):
         Trades on crossover: fast SMA crosses above/below slow SMA.
         Requires slow_period + buffer rows for accurate calculation.
         """
-        # SMA needs slow_period + buffer rows
+        # Fetch data with required rows
         required = self.slow_period + 5
         data = self.fetch_data(symbol, required_rows=required)
-        if data.empty or len(data) < self.slow_period + 1:
-            self.logger.warning(
-                "Insufficient data for SMA %s: got %d rows, need %d",
-                symbol or self.symbol,
-                len(data),
-                required,
-            )
+
+        # Use base class validation
+        if not self.validate_data(data, self.slow_period):
             return None
 
         # Calculate SMAs
@@ -56,24 +52,16 @@ class SMAStrategy(BaseStrategy):
         data["sma_diff"] = data["sma_fast"] - data["sma_slow"]
         data["sma_diff_prev"] = data["sma_diff"].shift(1)
 
-        # Calculate ATR for volatility (14-period standard)
-        atr = ta.volatility.AverageTrueRange(
-            data["high"], data["low"], data["close"], window=14
-        )
-        data["atr"] = atr.average_true_range()
-        data["atr_pct"] = (data["atr"] / data["close"]) * 100
+        # Use base class ATR calculation
+        data = self.calculate_atr(data)
 
-        latest = data.iloc[-1]
-        prev = data.iloc[-2] if len(data) > 1 else None
-
-        if prev is None:
+        # Use base class data getter
+        latest, prev, prev2 = self.get_latest_data(data)
+        if latest is None:
             return None
 
-        signal = {
-            "symbol": symbol or self.symbol,
-            "volume": self.volume,
-            "timeframe": self.timeframe,
-        }
+        # Use base class signal creator
+        signal = self.create_base_signal(symbol)
 
         # ===== BUY SIGNAL =====
         # Fast SMA crosses above Slow SMA (golden cross)

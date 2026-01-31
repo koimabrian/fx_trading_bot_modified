@@ -6,10 +6,10 @@ metrics to connected clients using Socket.IO.
 
 import json
 import logging
-from datetime import datetime
-from typing import Dict, List, Optional
-from queue import Queue, Empty
 import threading
+from datetime import datetime
+from queue import Empty, Queue
+from typing import Dict, List, Optional
 
 from flask import Flask
 from flask_socketio import SocketIO, emit, join_room, leave_room

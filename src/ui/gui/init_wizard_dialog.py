@@ -9,31 +9,30 @@ Guides users through:
 
 import logging
 import time
-from typing import List, Dict, Optional
-
-# pylint: disable=no-name-in-module
-from PyQt5.QtWidgets import (
-    QDialog,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QPushButton,
-    QProgressBar,
-    QTabWidget,
-    QWidget,
-    QCheckBox,
-    QScrollArea,
-    QMessageBox,
-    QLineEdit,
-)
-from PyQt5.QtCore import Qt, QTimer  # pylint: disable=no-name-in-module
+from typing import Dict, List, Optional
 
 import MetaTrader5 as mt5
+from PyQt5.QtCore import Qt, QTimer  # pylint: disable=no-name-in-module
+# pylint: disable=no-name-in-module
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QScrollArea,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget
+)
 
+from src.core.init_manager import InitManager
 from src.database.db_manager import DatabaseManager
 from src.database.migrations import DatabaseMigrations
 from src.mt5_connector import MT5Connector
-from src.core.init_manager import InitManager
 
 
 class InitWizardDialog(QDialog):

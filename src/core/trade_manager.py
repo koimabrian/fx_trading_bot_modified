@@ -8,8 +8,13 @@ REFACTORING NOTES:
 """
 
 import logging
+from datetime import datetime
+
+import MetaTrader5 as mt5
 import pandas as pd
+
 from src.utils.exit_strategies import ExitStrategyManager
+from src.utils.logging_factory import LoggingFactory
 
 
 class TradeManager:
@@ -27,7 +32,7 @@ class TradeManager:
         self.db = db
         self.config = config or {}
         self.exit_manager = ExitStrategyManager(config)
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.position_tracking = {}  # Track entry_price, bars_held, etc.
 
     def track_position(self, position_id, entry_price, entry_bar=0):
@@ -153,3 +158,152 @@ class TradeManager:
         except Exception as e:
             self.logger.error("Position size calculation failed: %s", e)
             return 0.01
+
+    def close_all_positions(self):
+        """Close all open positions and release margin.
+
+        Iterates through all open positions, closes each one using the MT5Connector,
+        and provides a comprehensive summary of the closing operation.
+
+        Returns:
+            dict: Summary of the closing operation containing:
+                - total_positions: Number of positions closed
+                - successful_closes: Count of successful closures
+                - failed_closes: Count of failed closures
+                - closed_positions: List of successfully closed position details
+                - failed_positions: List of failed position details with errors
+                - account_status: Final account status after closing
+        """
+        try:
+            # Retrieve all open positions
+            positions = mt5.positions_get()
+
+            if not positions:
+                self.logger.info("No open positions to close")
+                return {
+                    "total_positions": 0,
+                    "successful_closes": 0,
+                    "failed_closes": 0,
+                    "closed_positions": [],
+                    "failed_positions": [],
+                    "account_status": self._get_account_status(),
+                }
+
+            self.logger.info("Starting closure of %d open positions", len(positions))
+
+            closed_positions = []
+            failed_positions = []
+
+            for pos in positions:
+                try:
+                    # Log position being closed
+                    self.logger.debug(
+                        "Closing position - Symbol: %s, Volume: %f, Type: %s, Ticket: %d",
+                        pos.symbol,
+                        pos.volume,
+                        "BUY" if pos.type == mt5.ORDER_TYPE_BUY else "SELL",
+                        pos.ticket,
+                    )
+
+                    # Use MT5Connector to close the position
+                    success = self.mt5_connector.close_position(
+                        position_id=pos.ticket,
+                        symbol=pos.symbol,
+                        position_type=pos.type,
+                        volume=pos.volume,
+                        comment="BULK_CLOSE_ALL_POSITIONS",
+                    )
+
+                    if success:
+                        closed_positions.append(
+                            {
+                                "ticket": pos.ticket,
+                                "symbol": pos.symbol,
+                                "volume": pos.volume,
+                                "type": (
+                                    "BUY" if pos.type == mt5.ORDER_TYPE_BUY else "SELL"
+                                ),
+                            }
+                        )
+                        self.logger.info(
+                            "Successfully closed position: %s (%f lots)",
+                            pos.symbol,
+                            pos.volume,
+                        )
+                    else:
+                        failed_positions.append(
+                            {
+                                "ticket": pos.ticket,
+                                "symbol": pos.symbol,
+                                "volume": pos.volume,
+                                "error": "MT5Connector close_position returned False",
+                            }
+                        )
+                        self.logger.warning(
+                            "Failed to close position: %s (%f lots)",
+                            pos.symbol,
+                            pos.volume,
+                        )
+
+                except Exception as e:
+                    failed_positions.append(
+                        {
+                            "ticket": pos.ticket,
+                            "symbol": pos.symbol,
+                            "volume": pos.volume,
+                            "error": str(e),
+                        }
+                    )
+                    self.logger.error(
+                        "Exception while closing position %s: %s", pos.symbol, e
+                    )
+
+            # Compile final summary
+            summary = {
+                "total_positions": len(positions),
+                "successful_closes": len(closed_positions),
+                "failed_closes": len(failed_positions),
+                "closed_positions": closed_positions,
+                "failed_positions": failed_positions,
+                "account_status": self._get_account_status(),
+            }
+
+            self.logger.info(
+                "Position closure complete: %d successful, %d failed",
+                summary["successful_closes"],
+                summary["failed_closes"],
+            )
+
+            return summary
+
+        except Exception as e:
+            self.logger.error("Critical error in close_all_positions: %s", e)
+            return {
+                "total_positions": 0,
+                "successful_closes": 0,
+                "failed_closes": 0,
+                "closed_positions": [],
+                "failed_positions": [{"error": str(e)}],
+                "account_status": None,
+            }
+
+    def _get_account_status(self):
+        """Get current account status.
+
+        Returns:
+            dict: Account status containing balance, equity, and open position count
+        """
+        try:
+            account = mt5.account_info()
+            if account:
+                positions = mt5.positions_get()
+                return {
+                    "balance": account.balance,
+                    "equity": account.equity,
+                    "open_positions": len(positions) if positions else 0,
+                    "trade_allowed": account.trade_allowed,
+                }
+            return None
+        except Exception as e:
+            self.logger.error("Failed to get account status: %s", e)
+            return None

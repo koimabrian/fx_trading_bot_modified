@@ -10,6 +10,8 @@ best practices for professional-grade trade selection.
 import logging
 from typing import Dict, Optional
 
+from src.utils.logging_factory import LoggingFactory
+
 
 class TradeQualityFilter:
     """
@@ -30,7 +32,7 @@ class TradeQualityFilter:
     def __init__(self, config: Dict):
         """Initialize filter with config thresholds."""
         self.config = config
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.thresholds = config.get("trade_quality", {})
         self._log_thresholds()
 
@@ -211,7 +213,7 @@ class PositionLimitManager:
         self.config = config
         self.mt5 = mt5_connector
         self.rules = trading_rules
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.rm_config = config.get("risk_management", {})
 
     def get_position_limits(self) -> Dict:

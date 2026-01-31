@@ -6,9 +6,10 @@ results. Implements the parameter fallback strategy for live trading.
 
 import json
 import logging
-from typing import Dict, Optional, Any, List
-
 import sqlite3
+from typing import Any, Dict, List, Optional
+
+from src.utils.logging_factory import LoggingFactory
 
 
 class ParameterArchiver:
@@ -23,7 +24,7 @@ class ParameterArchiver:
         """
         self.db = db
         self.config = config
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
 
     def store_optimal_parameters(
         self,

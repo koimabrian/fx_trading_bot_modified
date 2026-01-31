@@ -5,14 +5,15 @@ Utility functions for report generation, data formatting, and transformations.
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple
 from datetime import datetime
+from typing import Dict, List, Optional, Tuple
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
+from src.utils.logging_factory import LoggingFactory
 
-logger = logging.getLogger(__name__)
+logger = LoggingFactory.get_logger(__name__)
 
 
 class ReportFormatter:

@@ -6,13 +6,15 @@ from typing import Dict, List
 import empyrical as ep
 import pandas as pd
 
+from src.utils.logging_factory import LoggingFactory
+
 
 class MetricsEngine:
     """Calculate 15 comprehensive backtesting metrics."""
 
     def __init__(self):
         """Initialize metrics engine."""
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
 
     def calculate_all_metrics(
         self,

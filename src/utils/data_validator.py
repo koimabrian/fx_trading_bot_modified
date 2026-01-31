@@ -11,6 +11,7 @@ import MetaTrader5 as mt5
 import pandas as pd
 
 from src.core.data_fetcher import DataFetcher
+from src.utils.logging_factory import LoggingFactory
 
 
 class DataValidator:
@@ -27,7 +28,7 @@ class DataValidator:
         self.db = db
         self.config = config
         self.mt5_conn = mt5_conn
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.min_rows_per_symbol = config.get("data", {}).get(
             "min_rows_threshold", 5000
         )
@@ -83,10 +84,11 @@ class DataValidator:
     def _check_tables_exist(self):
         """Check if market_data and backtest_market_data tables exist"""
         try:
-            self.db.conn.cursor().execute(
+            cursor = self.db.conn.cursor()
+            cursor.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name='market_data'"
             )
-            exists = self.db.conn.cursor().fetchone() is not None
+            exists = cursor.fetchone() is not None
             self.logger.debug("market_data table exists: %s", exists)
             return exists
         except (RuntimeError, ValueError, KeyError) as e:

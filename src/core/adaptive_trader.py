@@ -6,17 +6,18 @@ Includes confidence scoring and strategy caching for optimization.
 """
 
 import logging
-from typing import List, Dict, Optional
+from typing import Any, Dict, List, Optional
+
+import yaml
 
 from src.core.strategy_selector import StrategySelector
 from src.strategies.factory import StrategyFactory
+from src.utils.backtesting_utils import (get_strategy_parameters_from_optimal,
+                                         query_top_strategies_by_rank_score,
+                                         volatility_rank_pairs)
+from src.utils.error_handler import ErrorHandler
+from src.utils.logging_factory import LoggingFactory
 from src.utils.trading_rules import TradingRules
-from src.utils.backtesting_utils import (
-    volatility_rank_pairs,
-    get_strategy_parameters_from_optimal,
-    query_top_strategies_by_rank_score,
-)
-import yaml
 
 
 class AdaptiveTrader:
@@ -33,7 +34,7 @@ class AdaptiveTrader:
         self.strategy_manager = strategy_manager
         self.mt5_connector = mt5_connector
         self.db = db
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.strategy_selector = StrategySelector(db)
         self.trading_rules = TradingRules()
         self.loaded_strategies = {}  # Cache for loaded strategy instances
@@ -42,15 +43,16 @@ class AdaptiveTrader:
     def _load_config(self) -> Dict:
         """Load configuration from YAML file."""
         try:
-            with open("src/config/config.yaml", "r", encoding="utf-8") as file:
-                return yaml.safe_load(file)
-        except (FileNotFoundError, yaml.YAMLError, IOError, UnicodeDecodeError) as e:
+            from src.utils.config_manager import ConfigManager
+
+            return ConfigManager.get_config()
+        except Exception as e:
             self.logger.error("Failed to load config: %s", e)
             return {}
 
     def _get_strategy_instance(
         self, strategy_name: str, symbol: str, timeframe: str
-    ) -> Optional:
+    ) -> Optional[Any]:
         """Load or retrieve cached strategy instance.
 
         Args:
@@ -92,8 +94,8 @@ class AdaptiveTrader:
             self.logger.debug("Loaded and cached strategy: %s", cache_key)
             return strategy
 
-        except (ValueError, KeyError, TypeError, AttributeError) as e:
-            self.logger.error("Failed to load strategy %s: %s", strategy_name, e)
+        except Exception as e:
+            ErrorHandler.handle_error(e, context="load_strategy")
             return None
 
     def _compute_confidence(self, strategy_info: Dict) -> float:
@@ -247,8 +249,8 @@ class AdaptiveTrader:
 
             return signals
 
-        except (KeyError, ValueError, TypeError, AttributeError, RuntimeError) as e:
-            self.logger.error("Error generating adaptive signals for %s: %s", symbol, e)
+        except Exception as e:
+            ErrorHandler.handle_error(e, context="generate_adaptive_signals")
             return []
 
     def run_pre_signal_checks(
@@ -359,9 +361,8 @@ class AdaptiveTrader:
                                 f"(rank={rank_score:.4f})"
                             )
                             # Extract params from metrics
-                            from src.utils.backtesting_utils import (
-                                extract_strategy_params_from_metrics,
-                            )
+                            from src.utils.backtesting_utils import \
+                                extract_strategy_params_from_metrics
 
                             params = extract_strategy_params_from_metrics(metrics)
 
@@ -384,7 +385,7 @@ class AdaptiveTrader:
             return selected_pairs
 
         except Exception as e:
-            logger.error(f"Error in pre-signal checks: {e}")
+            ErrorHandler.handle_error(e, context="run_pre_signal_checks")
             return {}
 
     def execute_adaptive_trades(self, symbol: Optional[str] = None) -> None:
@@ -449,13 +450,11 @@ class AdaptiveTrader:
                                 signal["symbol"],
                             )
 
-                    except (KeyError, ValueError, TypeError, RuntimeError) as e:
-                        self.logger.error(
-                            "Error executing signal for %s: %s", signal["symbol"], e
-                        )
+                    except Exception as e:
+                        ErrorHandler.handle_error(e, context="execute_signal")
 
-        except (KeyError, ValueError, TypeError, RuntimeError, AttributeError) as e:
-            self.logger.error("Error executing adaptive trades: %s", e)
+        except Exception as e:
+            ErrorHandler.handle_error(e, context="execute_adaptive_trades")
 
     def _can_open_position(self) -> bool:
         """Check if a new position can be opened based on position limits.

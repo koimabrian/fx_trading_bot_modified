@@ -3,8 +3,8 @@
 
 import pandas as pd
 import ta
-from backtesting import Strategy
 
+from backtesting import Strategy
 from src.core.base_strategy import BaseStrategy
 
 
@@ -32,16 +32,12 @@ class MACDStrategy(BaseStrategy):
         Uses MACD histogram strength + direction for more reliable signals.
         Requires slow_period + signal_period + buffer rows for accuracy.
         """
-        # MACD needs slow + signal periods + buffer
+        # Fetch data with required rows
         required = self.slow_period + self.signal_period + 5
         data = self.fetch_data(symbol, required_rows=required)
-        if data.empty or len(data) < self.slow_period + 1:
-            self.logger.warning(
-                "Insufficient data for MACD %s: got %d rows, need %d",
-                symbol or self.symbol,
-                len(data),
-                required,
-            )
+
+        # Use base class validation
+        if not self.validate_data(data, self.slow_period):
             return None
 
         macd = ta.trend.MACD(
@@ -57,16 +53,11 @@ class MACDStrategy(BaseStrategy):
         # Calculate MACD histogram momentum (change in histogram)
         data["hist_change"] = data["macd_hist"].diff()
 
-        # Calculate ATR for volatility (14-period standard)
-        atr = ta.volatility.AverageTrueRange(
-            data["high"], data["low"], data["close"], window=14
-        )
-        data["atr"] = atr.average_true_range()
-        data["atr_pct"] = (data["atr"] / data["close"]) * 100
+        # Use base class ATR calculation
+        data = self.calculate_atr(data)
 
-        latest = data.iloc[-1]
-        prev = data.iloc[-2] if len(data) > 1 else None
-        prev2 = data.iloc[-3] if len(data) > 2 else None
+        # Use base class data getter
+        latest, prev, prev2 = self.get_latest_data(data)
 
         if prev is None:
             return None
@@ -74,12 +65,11 @@ class MACDStrategy(BaseStrategy):
         # Validate indicator values before using them
         if not self.validate_indicator(latest["macd_hist"]):
             return None
+        if latest is None:
+            return None
 
-        signal = {
-            "symbol": symbol or self.symbol,
-            "volume": self.volume,
-            "timeframe": self.timeframe,
-        }
+        # Use base class signal creator
+        signal = self.create_base_signal(symbol)
 
         # ===== BUY SIGNALS (IMPROVED) =====
         # Signal 1: Histogram crosses above zero (stronger momentum change)

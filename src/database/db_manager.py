@@ -4,9 +4,9 @@ import logging
 import os
 import sqlite3
 
-from src.utils.logger import setup_logging
+from src.utils.logging_factory import LoggingFactory
 
-setup_logging()
+LoggingFactory.configure()
 
 
 class DatabaseManager:
@@ -50,7 +50,7 @@ class DatabaseManager:
             self.config = {}
 
         self.conn = None
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
 
     def __enter__(self):
         """Context manager entry point."""
@@ -132,3 +132,59 @@ class DatabaseManager:
 
         migrations = DatabaseMigrations(self.conn)
         return migrations.create_indexes()
+
+    def get_all_symbols(self) -> list:
+        """Get all tradable symbols from database.
+
+        Returns:
+            List of symbol strings, sorted alphabetically
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT symbol FROM tradable_pairs ORDER BY symbol")
+            symbols = [row[0] for row in cursor.fetchall()]
+            self.logger.debug(f"Retrieved {len(symbols)} tradable symbols")
+            return symbols
+        except sqlite3.Error as e:
+            self.logger.error("Failed to get symbols: %s", e)
+            return []
+
+    def get_symbol_sample(self, limit: int = 5) -> list:
+        """Get a sample of tradable symbols.
+
+        Args:
+            limit: Number of symbols to return
+
+        Returns:
+            List of symbol strings (limited)
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT symbol FROM tradable_pairs LIMIT ?", (limit,))
+            symbols = [row[0] for row in cursor.fetchall()]
+            self.logger.debug(
+                f"Retrieved {len(symbols)} symbol samples (limit={limit})"
+            )
+            return symbols
+        except sqlite3.Error as e:
+            self.logger.error("Failed to get symbol sample: %s", e)
+            return []
+
+    def symbol_exists(self, symbol: str) -> bool:
+        """Check if a symbol exists in tradable pairs.
+
+        Args:
+            symbol: Symbol name to check
+
+        Returns:
+            True if symbol exists, False otherwise
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "SELECT 1 FROM tradable_pairs WHERE symbol = ? LIMIT 1", (symbol,)
+            )
+            return cursor.fetchone() is not None
+        except sqlite3.Error as e:
+            self.logger.error("Failed to check symbol existence: %s", e)
+            return False

@@ -13,6 +13,8 @@ from typing import Optional
 import MetaTrader5 as mt5
 import pandas as pd
 
+from src.utils.logging_factory import LoggingFactory
+
 
 class DataFetcher:
     """Fetches and syncs market data from MT5 or database."""
@@ -28,7 +30,7 @@ class DataFetcher:
         self.mt5_conn = mt5_conn
         self.db = db
         self.config = config or {}
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.pairs = self.load_pairs()
 
     def load_pairs(self):

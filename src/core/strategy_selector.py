@@ -2,7 +2,9 @@
 # Purpose: Ranks and selects best-performing strategies based on backtest results
 import json
 import logging
-from typing import List, Dict
+from typing import Dict, List
+
+from src.utils.logging_factory import LoggingFactory
 
 
 class StrategySelector:
@@ -15,7 +17,7 @@ class StrategySelector:
             db: Database manager instance
         """
         self.db = db
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.strategy_cache = {}  # Cache loaded strategies
 
     def get_best_strategies(

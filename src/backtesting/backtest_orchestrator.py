@@ -8,6 +8,7 @@ import pandas as pd
 
 from src.backtesting.metrics_engine import MetricsEngine
 from src.backtesting.trade_logger import TradeLogger
+from src.utils.logging_factory import LoggingFactory
 
 
 class BacktestOrchestrator:
@@ -25,7 +26,7 @@ class BacktestOrchestrator:
         self.strategy_name = strategy_name
         self.timeframe = timeframe
 
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.metrics_engine = MetricsEngine()
         self.trade_logger = TradeLogger()
 

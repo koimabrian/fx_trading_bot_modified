@@ -5,12 +5,13 @@ and trade execution to identify blockers preventing trades from executing.
 """
 
 import logging
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional, Tuple
+
+from src.core.adaptive_trader import AdaptiveTrader
 from src.database.db_manager import DatabaseManager
 from src.mt5_connector import MT5Connector
-from src.utils.backtesting_utils import volatility_rank_pairs
-from src.core.adaptive_trader import AdaptiveTrader
 from src.strategy_manager import StrategyManager
+from src.utils.backtesting_utils import volatility_rank_pairs
 
 
 class LiveTradingDiagnostic:
@@ -124,8 +125,7 @@ class LiveTradingDiagnostic:
                 )
                 return
 
-            cursor.execute("SELECT symbol FROM tradable_pairs LIMIT 5")
-            sample_pairs = [row[0] for row in cursor.fetchall()]
+            sample_pairs = self.db.get_symbol_sample(limit=5)
             self.info.append(
                 f"Found {pair_count} tradable pairs (e.g., {', '.join(sample_pairs)})"
             )
@@ -264,17 +264,15 @@ class LiveTradingDiagnostic:
             strategy_manager = StrategyManager(self.db, mode="live")
 
             # Try to generate signals
-            cursor = self.db.conn.cursor()
-            cursor.execute("SELECT symbol FROM tradable_pairs LIMIT 1")
-            result = cursor.fetchone()
+            test_symbol = self.db.get_symbol_sample(limit=1)
 
-            if not result:
+            if not test_symbol:
                 self.warnings.append(
                     "Cannot test signal generation - no pairs available"
                 )
                 return
 
-            test_symbol = result[0]
+            test_symbol = test_symbol[0] if test_symbol else None
             signals = strategy_manager.generate_signals()
 
             if signals:
@@ -301,9 +299,7 @@ class LiveTradingDiagnostic:
             top_n = volatility_config.get("top_n_pairs", 10)
 
             # Get list of tradable pairs
-            cursor = self.db.conn.cursor()
-            cursor.execute("SELECT symbol FROM tradable_pairs LIMIT 20")
-            tradable_pairs = [row[0] for row in cursor.fetchall()]
+            tradable_pairs = self.db.get_symbol_sample(limit=20)
 
             if not tradable_pairs:
                 self.warnings.append("No tradable pairs - cannot rank volatility")

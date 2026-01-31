@@ -5,7 +5,11 @@ applies trading rules, and manages MT5 order placement.
 """
 
 import logging
+
 import yaml
+
+from src.utils.error_handler import ErrorHandler
+from src.utils.logging_factory import LoggingFactory
 from src.utils.trading_rules import TradingRules
 
 
@@ -21,17 +25,18 @@ class Trader:
         """
         self.strategy_manager = strategy_manager
         self.mt5_connector = mt5_connector
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.trading_rules = TradingRules()
         self.config = self._load_config()
 
     def _load_config(self):
         """Load configuration from YAML file."""
         try:
-            with open("src/config/config.yaml", "r", encoding="utf-8") as file:
-                return yaml.safe_load(file)
-        except (FileNotFoundError, PermissionError, yaml.YAMLError) as e:
-            self.logger.error("Failed to load config: %s", e)
+            from src.utils.config_manager import ConfigManager
+
+            return ConfigManager.get_config()
+        except Exception as e:
+            ErrorHandler.handle_error(e, context="load_config")
             return {}
 
     def get_max_open_positions(self):
@@ -124,5 +129,5 @@ class Trader:
                     self.logger.error(
                         "Failed to execute trade for %s", signal["symbol"]
                     )
-        except (RuntimeError, ValueError, KeyError) as e:
-            self.logger.error("Error executing trades: %s", e)
+        except Exception as e:
+            ErrorHandler.handle_error(e, context="execute_trades")

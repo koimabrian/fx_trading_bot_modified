@@ -6,10 +6,13 @@ strategy from the hybrid workflow.
 """
 
 import logging
-from typing import List, Dict, Tuple, Optional
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 import ta
+
+from src.core.data_fetcher import DataFetcher
+from src.utils.logging_factory import LoggingFactory
 
 
 class VolatilityManager:
@@ -24,7 +27,7 @@ class VolatilityManager:
         """
         self.config = config
         self.db = db
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.volatility_config = config.get("volatility", {})
         self.atr_period = self.volatility_config.get("atr_period", 14)
         self.min_threshold = self.volatility_config.get("min_threshold", 0.001)
@@ -43,7 +46,7 @@ class VolatilityManager:
         Returns:
             DataFrame with 'atr' column added
         """
-        if data.empty or len(data) < period or period is None:
+        if period is None or data.empty:
             period = self.atr_period
 
         if len(data) < period:
@@ -157,8 +160,6 @@ class VolatilityManager:
             Tuple of (DataFrame, latest_atr) or (None, 0) if data unavailable
         """
         try:
-            from src.core.data_fetcher import DataFetcher
-
             fetcher = DataFetcher(None, self.db, self.config)
             data = fetcher.fetch_data(
                 symbol,

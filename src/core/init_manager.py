@@ -8,11 +8,12 @@ from MT5, and fetches historical data for backtesting.
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
-
-import pandas as pd
+from typing import Dict, List, Optional
 
 import MetaTrader5 as mt5
+import pandas as pd
+
+from src.utils.logging_factory import LoggingFactory
 
 
 class InitManager:
@@ -29,7 +30,7 @@ class InitManager:
         self.db = db
         self.mt5_conn = mt5_conn
         self.config = config
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.sync_config = config.get("sync", {})
         self.min_rows_threshold = self.sync_config.get("min_rows_threshold", 1000)
         self.selected_symbols = []  # Will be populated by GUI or init flow
@@ -191,9 +192,7 @@ class InitManager:
             data_fetcher = DataFetcher(self.mt5_conn, self.db, self.config)
 
             # Get selected pairs from tradable_pairs table (not config)
-            cursor = self.db.conn.cursor()
-            cursor.execute("SELECT symbol FROM tradable_pairs ORDER BY symbol")
-            symbols = [row[0] for row in cursor.fetchall()]
+            symbols = self.db.get_all_symbols()
 
             if not symbols:
                 self.logger.error("No symbols found in tradable_pairs table")

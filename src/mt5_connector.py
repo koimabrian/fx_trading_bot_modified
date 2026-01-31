@@ -16,6 +16,8 @@ import pandas as pd
 import yaml
 
 from src.strategies.factory import StrategyFactory
+from src.utils.logging_factory import LoggingFactory
+from src.utils.mt5_decorator import mt5_safe
 
 
 class MT5Connector:
@@ -37,10 +39,11 @@ class MT5Connector:
     def _init_instance(self, db):
         """Initialize instance once (called only on first creation)."""
         self.db = db
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         # Load credentials from config.yaml or environment variables
-        with open("src/config/config.yaml", "r", encoding="utf-8") as file:
-            config = yaml.safe_load(file)
+        from src.utils.config_manager import ConfigManager
+
+        config = ConfigManager.get_config()
         mt5_config = config.get("mt5", {})
         self.login = int(os.getenv("MT5_LOGIN", mt5_config.get("login", 0)))
         self.password = os.getenv("MT5_PASSWORD", mt5_config.get("password", ""))
@@ -102,6 +105,7 @@ class MT5Connector:
             self.logger.error("Unexpected error during MT5 initialization: %s", e)
             return False
 
+    @mt5_safe(max_retries=3, retry_delay=1.0)
     def fetch_market_data(self, symbol, timeframe, count=1000):
         """Fetch market data from MT5 with improved error handling and logging.
 
@@ -193,15 +197,92 @@ class MT5Connector:
             self.logger.error("Error getting open positions count: %s", e)
             return 0
 
+    def _validate_volume(self, symbol, volume, symbol_info):
+        """Validate and adjust volume to meet symbol requirements.
+
+        Args:
+            symbol: Trading symbol
+            volume: Requested volume
+            symbol_info: MT5 symbol info object
+
+        Returns:
+            Validated volume adjusted to meet constraints
+        """
+        min_volume = getattr(symbol_info, "volume_min", 0.01)
+        max_volume = getattr(symbol_info, "volume_max", 1000.0)
+        volume_step = getattr(symbol_info, "volume_step", 0.01)
+
+        if volume < min_volume:
+            self.logger.warning(
+                "Volume %f for %s below minimum %f, adjusting",
+                volume,
+                symbol,
+                min_volume,
+            )
+            volume = min_volume
+
+        if volume > max_volume:
+            self.logger.warning(
+                "Volume %f for %s exceeds maximum %f, adjusting",
+                volume,
+                symbol,
+                max_volume,
+            )
+            volume = max_volume
+
+        volume = round(volume / volume_step) * volume_step
+        self.logger.debug(
+            "Validated volume for %s: %f (min=%f, max=%f, step=%f)",
+            symbol,
+            volume,
+            min_volume,
+            max_volume,
+            volume_step,
+        )
+        return volume
+
+    def _build_order_request(
+        self, action, symbol, volume, order_type, price, sl, tp, comment
+    ):
+        """Build MT5 order request dictionary.
+
+        Args:
+            action: MT5 trade action constant
+            symbol: Trading symbol
+            volume: Order volume
+            order_type: MT5 order type constant
+            price: Order price
+            sl: Stop loss price
+            tp: Take profit price
+            comment: Order comment
+
+        Returns:
+            Dictionary with order parameters for mt5.order_send()
+        """
+        return {
+            "action": action,
+            "symbol": symbol,
+            "volume": volume,
+            "type": order_type,
+            "price": price,
+            "sl": sl,
+            "tp": tp,
+            "type_time": mt5.ORDER_TIME_GTC,
+            "comment": comment,
+        }
+
+    @mt5_safe(max_retries=5, retry_delay=2.0)
     def place_order(self, signal, strategy_name):
         """Implement trade order placement logic"""
-        with open("src/config/config.yaml", "r", encoding="utf-8") as file:
-            config = yaml.safe_load(file)
+        symbol = signal["symbol"]
+
+        from src.utils.config_manager import ConfigManager
+
+        config = ConfigManager.get_config()
         risk_params = config.get("risk_management", {})
         stop_loss_percent = risk_params.get("stop_loss_percent", 1.0) / 100
         take_profit_percent = risk_params.get("take_profit_percent", 2.0) / 100
 
-        symbol = signal["symbol"]
         action = mt5.TRADE_ACTION_DEAL
         order_type = (
             mt5.ORDER_TYPE_BUY if signal["action"] == "buy" else mt5.ORDER_TYPE_SELL
@@ -209,7 +290,7 @@ class MT5Connector:
         volume = signal.get("volume", 0.01)
 
         try:
-            # Get symbol info to validate volume
+            # Get symbol info and validate volume
             symbol_info = mt5.symbol_info(symbol)
             if symbol_info is None:
                 self.logger.error(
@@ -217,42 +298,7 @@ class MT5Connector:
                 )
                 return False
 
-            # Validate and adjust volume
-            min_volume = symbol_info.volume_min
-            max_volume = symbol_info.volume_max
-            volume_step = symbol_info.volume_step
-
-            # Ensure volume meets minimum requirement
-            if volume < min_volume:
-                self.logger.warning(
-                    "Volume %f for %s below minimum %f, adjusting to minimum",
-                    volume,
-                    symbol,
-                    min_volume,
-                )
-                volume = min_volume
-
-            # Ensure volume doesn't exceed maximum
-            if volume > max_volume:
-                self.logger.warning(
-                    "Volume %f for %s exceeds maximum %f, adjusting to maximum",
-                    volume,
-                    symbol,
-                    max_volume,
-                )
-                volume = max_volume
-
-            # Round volume to nearest valid step
-            volume = round(volume / volume_step) * volume_step
-
-            self.logger.debug(
-                "Validated volume for %s: %f (min=%f, max=%f, step=%f)",
-                symbol,
-                volume,
-                min_volume,
-                max_volume,
-                volume_step,
-            )
+            volume = self._validate_volume(symbol, volume, symbol_info)
 
             tick = mt5.symbol_info_tick(symbol)
             if tick is None:
@@ -272,24 +318,31 @@ class MT5Connector:
                 if signal["action"] == "buy"
                 else price * (1 - take_profit_percent)
             )
-            request = {
-                "action": action,
-                "symbol": symbol,
-                "volume": volume,
-                "type": order_type,
-                "price": price,
-                "sl": sl,
-                "tp": tp,
-                "type_time": mt5.ORDER_TIME_GTC,
-                "type_filling": mt5.ORDER_FILLING_IOC,
-                "comment": f"{strategy_name} Entry",
-            }
 
-            self.logger.debug("Placing order: %s", request)
+            request = self._build_order_request(
+                action,
+                symbol,
+                volume,
+                order_type,
+                price,
+                sl,
+                tp,
+                f"{strategy_name} Entry",
+            )
+
+            self.logger.debug(
+                "Placing order for %s: volume=%f, type=%s, price=%f, sl=%f, tp=%f",
+                symbol,
+                volume,
+                "BUY" if signal["action"] == "buy" else "SELL",
+                price,
+                sl,
+                tp,
+            )
             result = mt5.order_send(request)
             if result.retcode != mt5.TRADE_RETCODE_DONE:
                 self.logger.error(
-                    "Order failed for %s: %s, retcode: %s",
+                    "Order failed for %s: %s (retcode: %s)",
                     symbol,
                     result.comment,
                     result.retcode,
@@ -304,10 +357,11 @@ class MT5Connector:
             )
             # Trade is logged in main.py loop to avoid schema conflicts
             return True
-        except (RuntimeError, OSError, ValueError) as e:
+        except (RuntimeError, OSError, ValueError, AttributeError, TypeError) as e:
             self.logger.error("Error placing order for %s: %s", symbol, e)
             return False
 
+    @mt5_safe(max_retries=3, retry_delay=1.5)
     def monitor_and_close_positions(self, strategy_name):
         """Monitor open positions and close based on exit strategy or profitability"""
         try:
@@ -316,8 +370,9 @@ class MT5Connector:
                 self.logger.debug("No open positions to monitor")
                 return
 
-            with open("src/config/config.yaml", "r", encoding="utf-8") as file:
-                config = yaml.safe_load(file)
+            from src.utils.config_manager import ConfigManager
+
+            config = ConfigManager.get_config()
             risk_params = config.get("risk_management", {})
             take_profit_percent = risk_params.get("take_profit_percent", 2.0) / 100
 
@@ -374,6 +429,7 @@ class MT5Connector:
         except (RuntimeError, OSError, ValueError) as e:
             self.logger.error("Error monitoring positions: %s", e)
 
+    @mt5_safe(max_retries=4, retry_delay=1.0)
     def close_position(self, position_id, symbol, position_type, volume, comment):
         """Close an open position"""
         try:
@@ -385,21 +441,23 @@ class MT5Connector:
                 return False
 
             price = tick.bid if position_type == mt5.ORDER_TYPE_BUY else tick.ask
-            request = {
-                "action": mt5.TRADE_ACTION_DEAL,
-                "symbol": symbol,
-                "volume": volume,
-                "type": (
-                    mt5.ORDER_TYPE_SELL
-                    if position_type == mt5.ORDER_TYPE_BUY
-                    else mt5.ORDER_TYPE_BUY
-                ),
-                "position": position_id,
-                "price": price,
-                "type_time": mt5.ORDER_TIME_GTC,
-                "type_filling": mt5.ORDER_FILLING_IOC,
-                "comment": comment,
-            }
+            close_type = (
+                mt5.ORDER_TYPE_SELL
+                if position_type == mt5.ORDER_TYPE_BUY
+                else mt5.ORDER_TYPE_BUY
+            )
+
+            request = self._build_order_request(
+                mt5.TRADE_ACTION_DEAL,
+                symbol,
+                volume,
+                close_type,
+                price,
+                0.0,
+                0.0,
+                comment,
+            )
+            request["position"] = position_id
 
             self.logger.debug("Closing position: %s", request)
             result = mt5.order_send(request)

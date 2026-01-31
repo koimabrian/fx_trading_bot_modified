@@ -1,34 +1,110 @@
-# Byte-compiled / optimized / DLL files
-**/__pycache__/
+# ============================================================================
+# FX Trading Bot - Professional .gitignore
+# ============================================================================
+
+# === Python Byte-compiled / Optimized / DLL Files ===
+__pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
 
-# Virtual environment
+# === Virtual Environments ===
 .venv/
 .env/
+venv/
 ENV/
+env/
+.venv.bak/
 
-# Jupyter Notebook checkpoints
-.ipynb_checkpoints/
-
-# VS Code settings
+# === IDE and Editor Settings ===
 .vscode/
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
 
-# Python egg metadata
+# === Python Environment and Package Distribution ===
 *.egg-info/
+.eggs/
 dist/
 build/
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
+
+# === Testing ===
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.cover
+coverage.xml
+.hypothesis/
+
+# === Jupyter Notebooks ===
+.ipynb_checkpoints/
+*.ipynb
+
+# === Application-Specific ===
+
+# Database files (SQLite)
+*.db
+*.sqlite
+*.sqlite3
+!src/database/migrations.py
 
 # Logs
 logs/*
-!logs/terminal_log.txt
+!logs/.gitkeep
 
-# Allow this .gitignore file itself
+# Configuration secrets (environment-specific)
+config/secrets.yaml
+config/local_config.yaml
+.env.local
+.env.*.local
+
+# Trading data and backtest results
+backtests/results/*
+!backtests/results/.gitkeep
+backtests/cache/
+backtests/temp/
+
+# MT5 related temporary files
+*.log.*
+*.tmp
+*.temp
+
+# Reports (generated)
+src/reports/generated/*
+!src/reports/generated/.gitkeep
+
+# Cache files
+.cache/
+cache/
+*.cache
+
+# Test results and metrics
+high_load_test_results.json
+test_results.json
+
+# OS files
+.DS_Store
+*.exe
+*.dll
+
+# === Project-Specific Exceptions (Tracked in Repo) ===
 !.gitignore
 !.github/
+!.github/copilot-instructions.md
+!src/config/config.yaml.example
+!src/config/sample_config.yaml
 
-# Source code
-!src/config/
-!src/data/
-/backtests/results
-/src/data/market_data.sqlite
+# === Allow Essential Source Files ===
+!src/
+!src/**/*.py
+!tests/
+!tests/**/*.py

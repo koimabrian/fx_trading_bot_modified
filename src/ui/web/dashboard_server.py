@@ -10,15 +10,20 @@ import logging
 import math
 import os
 import time
-from flask import Flask, render_template, jsonify, request, send_file
+
+import MetaTrader5 as mt5
+from flask import Flask, jsonify, render_template, request, send_file
 from flask.json.provider import DefaultJSONProvider
 from flask_cors import CORS
 from flask_socketio import SocketIO
-import MetaTrader5 as mt5
+
 from src.database.db_manager import DatabaseManager
-from src.ui.web.live_broadcaster import broadcaster
+from src.reports.report_generator import ReportGenerator
 from src.ui.web.dashboard_api import DashboardAPI
+from src.ui.web.live_broadcaster import broadcaster
 from src.utils.indicator_analyzer import IndicatorAnalyzer
+from src.utils.logging_factory import LoggingFactory
+from src.utils.timeframe_utils import format_timeframe
 
 
 class SafeJSONProvider(DefaultJSONProvider):
@@ -45,7 +50,7 @@ class DashboardServer:
         self.config = config
         self.host = host
         self.port = port
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
 
         # Create Flask app with absolute paths
         base_dir = os.path.dirname(
@@ -70,7 +75,6 @@ class DashboardServer:
 
         # Register routes
         self.app.add_url_rule("/", "index", self.index)
-        self.app.add_url_rule("/indicators", "indicators", self.indicators)
         self.app.add_url_rule("/api/symbols", "api_symbols", self.api_symbols)
         self.app.add_url_rule("/api/timeframes", "api_timeframes", self.api_timeframes)
         self.app.add_url_rule("/api/categories", "api_categories", self.api_categories)
@@ -94,11 +98,6 @@ class DashboardServer:
         self.app.add_url_rule("/view-heatmap", "view_heatmap", self.view_heatmap)
         self.app.add_url_rule(
             "/api/comparison", "api_comparison", self.api_comparison, methods=["GET"]
-        )
-
-        # Backtest comparison dashboard
-        self.app.add_url_rule(
-            "/backtest-comparison", "backtest_comparison", self.backtest_comparison
         )
 
         # Optimal parameters endpoint
@@ -141,30 +140,6 @@ class DashboardServer:
             methods=["GET"],
         )
 
-        # Live indicators endpoint
-        self.app.add_url_rule(
-            "/api/indicators/<symbol>/<timeframe>",
-            "api_indicators",
-            self.api_indicators,
-            methods=["GET"],
-        )
-
-        # Entry signal checks endpoint
-        self.app.add_url_rule(
-            "/api/signal-checks/<symbol>/<timeframe>",
-            "api_signal_checks",
-            self.api_signal_checks,
-            methods=["GET"],
-        )
-
-        # All symbols indicators endpoint
-        self.app.add_url_rule(
-            "/api/all-indicators",
-            "api_all_indicators",
-            self.api_all_indicators,
-            methods=["GET"],
-        )
-
         # Register DashboardAPI blueprint for additional report endpoints
         dashboard_api = DashboardAPI(self.db, config)
         self.app.register_blueprint(dashboard_api.blueprint)
@@ -182,14 +157,6 @@ class DashboardServer:
     def index(self):
         """Serve the main dashboard HTML (unified live + backtest analysis)."""
         return render_template("dashboard_unified.html")
-
-    def indicators(self):
-        """Serve the live indicators dashboard."""
-        return render_template("live_indicators.html")
-
-    def backtest_comparison(self):
-        """Serve the backtest comparison dashboard."""
-        return render_template("backtest_comparison.html")
 
     def api_symbols(self):
         """Get available symbols from database."""
@@ -256,21 +223,16 @@ class DashboardServer:
     def _timeframe_to_string(timeframe):
         """Convert numeric timeframe to string format.
 
+        Delegates to shared utility function.
+        See src.utils.timeframe_utils.format_timeframe for details.
+
         Args:
             timeframe: Numeric timeframe (15, 60, 240) or string
 
         Returns:
             String format (M15, H1, H4)
         """
-        timeframe_map = {
-            15: "M15",
-            "15": "M15",
-            60: "H1",
-            "60": "H1",
-            240: "H4",
-            "240": "H4",
-        }
-        return timeframe_map.get(timeframe, str(timeframe))
+        return format_timeframe(timeframe)
 
     @staticmethod
     def _safe_round(value, decimals=2):
@@ -735,7 +697,10 @@ class DashboardServer:
                                 signal["strategy_info"] = json.loads(
                                     signal["strategy_info"]
                                 )
-                            except:
+                            except (ValueError, TypeError) as e:
+                                self.logger.debug(
+                                    "Failed to parse strategy_info JSON: %s", e
+                                )
                                 signal["strategy_info"] = {
                                     "name": signal.get("strategy_name", "N/A"),
                                     "confidence": 0.5,
@@ -1154,8 +1119,6 @@ class DashboardServer:
 
     def _register_report_routes(self):
         """Register Phase 3 report generation API routes."""
-        from src.reports.report_generator import ReportGenerator
-
         report_gen = ReportGenerator(self.db, self.config)
 
         # Summary metrics endpoint
@@ -1208,74 +1171,6 @@ class DashboardServer:
                 return jsonify({"error": str(e)}), 500
 
         self.logger.info("Phase 3 report API routes registered")
-
-    def api_indicators(self, symbol, timeframe):
-        """Get all technical indicators for a symbol/timeframe.
-
-        Args:
-            symbol: Trading symbol (e.g., BTCUSD)
-            timeframe: Timeframe (M15, H1, H4, etc.)
-
-        Returns:
-            JSON with RSI, MACD, SMA, EMA, volatility values
-        """
-        try:
-            analyzer = IndicatorAnalyzer(self._get_db(), config=self.config)
-            indicators = analyzer.get_all_indicators(symbol, timeframe)
-            return jsonify({"status": "success", "data": indicators})
-        except Exception as e:
-            self.logger.error(f"Error getting indicators: {e}")
-            return jsonify({"status": "error", "message": str(e)}), 500
-
-    def api_signal_checks(self, symbol, timeframe):
-        """Get detailed entry signal checks with all values.
-
-        Args:
-            symbol: Trading symbol
-            timeframe: Timeframe
-
-        Returns:
-            JSON with signal checks and their results
-        """
-        try:
-            analyzer = IndicatorAnalyzer(self._get_db(), config=self.config)
-            checks = analyzer.get_entry_signal_checks(symbol, timeframe)
-            return jsonify({"status": "success", "data": checks})
-        except Exception as e:
-            self.logger.error(f"Error getting signal checks: {e}")
-            return jsonify({"status": "error", "message": str(e)}), 500
-
-    def api_all_indicators(self):
-        """Get indicators for all configured symbols.
-
-        Returns:
-            JSON with indicators for each symbol/timeframe
-        """
-        try:
-            timeframe = request.args.get("timeframe", "M15")
-            db = self._get_db()
-            analyzer = IndicatorAnalyzer(db, config=self.config)
-
-            # Get all tradable pairs
-            cursor = self.db.conn.cursor()
-            cursor.execute("SELECT DISTINCT symbol FROM tradable_pairs")
-            symbols = [row[0] for row in cursor.fetchall()]
-
-            result = {
-                "status": "success",
-                "timestamp": time.time(),
-                "timeframe": timeframe,
-                "symbols": {},
-            }
-
-            for symbol in symbols:
-                indicators = analyzer.get_all_indicators(symbol, timeframe)
-                result["symbols"][symbol] = indicators
-
-            return jsonify(result)
-        except Exception as e:
-            self.logger.error(f"Error getting all indicators: {e}")
-            return jsonify({"status": "error", "message": str(e)}), 500
 
     def run(self, debug=False):
         """Start the dashboard server."""
