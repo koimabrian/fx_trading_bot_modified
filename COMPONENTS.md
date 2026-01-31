@@ -400,13 +400,15 @@ RSI    MACD    EMA       SMA
   - `_create_schema_version_table()` - Version tracking
 - **Schema Tables:**
   - `schema_version` - Migration tracking
-  - `tradable_pairs` - Symbol selections
+  - `tradable_pairs` - Symbol selections (includes category)
   - `market_data` - OHLCV historical data
   - `backtest_market_data` - Backtest data cache
   - `backtest_backtests` - Backtest results
-  - `trades` - Trade audit trail
+  - `backtest_strategies` - Strategy definitions
+  - `backtest_results` - Backtest result details
+  - `backtest_trades` - Individual backtest trades
+  - `trades` - Live trade audit trail
   - `optimal_parameters` - Best found parameters
-  - `symbols` - Symbol metadata
 - **Affected By Changes To:**
   - Schema requirements
   - New table additions
