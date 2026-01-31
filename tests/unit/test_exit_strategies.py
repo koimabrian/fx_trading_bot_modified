@@ -14,6 +14,7 @@ from src.utils.exit_strategies import (
     FixedPercentageTakeProfit,
     TrailingStopStrategy,
     EquityTargetExit,
+    SignalChangeExit,
 )
 
 
@@ -754,3 +755,200 @@ class TestBaseExitStrategyPnLCalculation:
             position_side="long",
         )
         assert pnl == 0.0
+
+
+class TestSignalChangeExit:
+    """Test SignalChangeExit strategy."""
+
+    def test_signal_reversal_long_buy_to_sell(self):
+        """Test signal reversal for long position: BUY → SELL."""
+        strategy = SignalChangeExit()
+        signal = strategy.evaluate(
+            entry_price=1.2500,
+            current_price=1.2520,
+            position_side="long",
+            entry_signal="BUY",
+            current_signal="SELL",
+        )
+        assert signal.triggered is True
+        assert signal.exit_type == ExitType.SIGNAL_REVERSAL
+        assert "BUY → SELL" in signal.reason
+        assert signal.confidence == 1.0
+        assert signal.close_percent == 100.0
+
+    def test_signal_reversal_short_sell_to_buy(self):
+        """Test signal reversal for short position: SELL → BUY."""
+        strategy = SignalChangeExit()
+        signal = strategy.evaluate(
+            entry_price=1.2500,
+            current_price=1.2480,
+            position_side="short",
+            entry_signal="SELL",
+            current_signal="BUY",
+        )
+        assert signal.triggered is True
+        assert signal.exit_type == ExitType.SIGNAL_REVERSAL
+        assert "SELL → BUY" in signal.reason
+        assert signal.confidence == 1.0
+
+    def test_no_signal_change_long_hold(self):
+        """Test no signal change for long position (HOLD signal)."""
+        strategy = SignalChangeExit()
+        signal = strategy.evaluate(
+            entry_price=1.2500,
+            current_price=1.2520,
+            position_side="long",
+            entry_signal="BUY",
+            current_signal="HOLD",
+        )
+        assert signal.triggered is False
+        assert signal.exit_type == ExitType.SIGNAL_REVERSAL
+        assert "unchanged" in signal.reason.lower()
+
+    def test_no_signal_change_long_buy_continues(self):
+        """Test no signal change when BUY continues."""
+        strategy = SignalChangeExit()
+        signal = strategy.evaluate(
+            entry_price=1.2500,
+            current_price=1.2550,
+            position_side="long",
+            entry_signal="BUY",
+            current_signal="BUY",
+        )
+        assert signal.triggered is False
+        assert signal.confidence == 0.0
+
+    def test_no_signal_change_short_sell_continues(self):
+        """Test no signal change when SELL continues."""
+        strategy = SignalChangeExit()
+        signal = strategy.evaluate(
+            entry_price=1.2500,
+            current_price=1.2450,
+            position_side="short",
+            entry_signal="SELL",
+            current_signal="SELL",
+        )
+        assert signal.triggered is False
+
+    def test_missing_entry_signal(self):
+        """Test handling of missing entry signal."""
+        strategy = SignalChangeExit()
+        signal = strategy.evaluate(
+            entry_price=1.2500,
+            current_price=1.2520,
+            position_side="long",
+            entry_signal=None,
+            current_signal="SELL",
+        )
+        assert signal.triggered is False
+        assert "Missing" in signal.reason
+
+    def test_missing_current_signal(self):
+        """Test handling of missing current signal."""
+        strategy = SignalChangeExit()
+        signal = strategy.evaluate(
+            entry_price=1.2500,
+            current_price=1.2520,
+            position_side="long",
+            entry_signal="BUY",
+            current_signal=None,
+        )
+        assert signal.triggered is False
+        assert "Missing" in signal.reason
+
+    def test_case_insensitive_signals(self):
+        """Test that signals are case-insensitive."""
+        strategy = SignalChangeExit()
+        signal = strategy.evaluate(
+            entry_price=1.2500,
+            current_price=1.2520,
+            position_side="long",
+            entry_signal="buy",  # lowercase
+            current_signal="SELL",  # uppercase
+        )
+        assert signal.triggered is True
+        assert signal.exit_type == ExitType.SIGNAL_REVERSAL
+
+    def test_exit_price_set_on_trigger(self):
+        """Test that exit_price is set when signal change is triggered."""
+        strategy = SignalChangeExit()
+        current_price = 1.2530
+        signal = strategy.evaluate(
+            entry_price=1.2500,
+            current_price=current_price,
+            position_side="long",
+            entry_signal="BUY",
+            current_signal="SELL",
+        )
+        assert signal.triggered is True
+        assert signal.exit_price == current_price
+
+    def test_exit_price_none_when_not_triggered(self):
+        """Test that exit_price is None when not triggered."""
+        strategy = SignalChangeExit()
+        signal = strategy.evaluate(
+            entry_price=1.2500,
+            current_price=1.2520,
+            position_side="long",
+            entry_signal="BUY",
+            current_signal="BUY",
+        )
+        assert signal.triggered is False
+        assert signal.exit_price is None
+
+    def test_long_position_ignores_buy_to_hold(self):
+        """Test that long position doesn't exit on BUY → HOLD."""
+        strategy = SignalChangeExit()
+        signal = strategy.evaluate(
+            entry_price=1.2500,
+            current_price=1.2520,
+            position_side="long",
+            entry_signal="BUY",
+            current_signal="HOLD",
+        )
+        assert signal.triggered is False
+
+    def test_short_position_ignores_sell_to_hold(self):
+        """Test that short position doesn't exit on SELL → HOLD."""
+        strategy = SignalChangeExit()
+        signal = strategy.evaluate(
+            entry_price=1.2500,
+            current_price=1.2480,
+            position_side="short",
+            entry_signal="SELL",
+            current_signal="HOLD",
+        )
+        assert signal.triggered is False
+
+
+class TestSignalChangeExitIntegration:
+    """Integration tests for SignalChangeExit with other strategies."""
+
+    def test_signal_change_in_factory(self):
+        """Test creating SignalChangeExit from factory."""
+        manager = ExitStrategyManager()
+        strategy = manager.create_exit_strategy_from_config("signal_change")
+        assert isinstance(strategy, SignalChangeExit)
+
+    def test_signal_change_with_config(self):
+        """Test SignalChangeExit with configuration."""
+        config = {"risk_management": {}}
+        strategy = SignalChangeExit(config)
+        assert strategy is not None
+        assert strategy.config == config
+
+    def test_signal_change_to_dict(self):
+        """Test SignalChangeExit signal serialization."""
+        strategy = SignalChangeExit()
+        signal = strategy.evaluate(
+            entry_price=1.2500,
+            current_price=1.2520,
+            position_side="long",
+            entry_signal="BUY",
+            current_signal="SELL",
+        )
+        result = signal.to_dict()
+        assert result["triggered"] is True
+        assert result["exit_type"] == "signal_reversal"
+        assert result["confidence"] == 1.0
+        assert result["close_percent"] == 100.0

@@ -359,6 +359,79 @@ class EquityTargetExit(BaseExitStrategy):
         )
 
 
+class SignalChangeExit(BaseExitStrategy):
+    """Exit strategy based on signal reversal/change.
+
+    Triggers an exit when the trading signal changes from the entry signal
+    (e.g., BUY signal changes to SELL signal, or vice versa).
+    """
+
+    def __init__(self, config: Optional[Dict] = None):
+        """Initialize signal change exit.
+
+        Args:
+            config: Additional configuration
+        """
+        super().__init__(config)
+
+    def evaluate(
+        self,
+        entry_price: float,
+        current_price: float,
+        position_side: str,
+        entry_signal: Optional[str] = None,
+        current_signal: Optional[str] = None,
+        **kwargs,
+    ) -> ExitSignal:
+        """Check if signal has changed/reversed.
+
+        Args:
+            entry_price: Entry price (for interface consistency)
+            current_price: Current price (for interface consistency)
+            position_side: Position side ('long' or 'short')
+            entry_signal: Original signal that opened the position ('BUY' or 'SELL')
+            current_signal: Current market signal ('BUY', 'SELL', or 'HOLD')
+
+        Returns:
+            ExitSignal indicating if signal reversal occurred
+        """
+        # Validate inputs
+        if not entry_signal or not current_signal:
+            return ExitSignal(
+                triggered=False,
+                exit_type=ExitType.SIGNAL_REVERSAL,
+                reason="Missing entry_signal or current_signal",
+            )
+
+        # Normalize signals to uppercase
+        entry_sig = str(entry_signal).upper()
+        current_sig = str(current_signal).upper()
+
+        # Check for signal reversal
+        triggered = False
+        reason = f"Signal unchanged: {current_sig}"
+
+        # For long positions (entered on BUY), exit if signal changes to SELL
+        if position_side.lower() == "long" and entry_sig == "BUY":
+            if current_sig == "SELL":
+                triggered = True
+                reason = "Signal reversed: BUY → SELL"
+        # For short positions (entered on SELL), exit if signal changes to BUY
+        elif position_side.lower() == "short" and entry_sig == "SELL":
+            if current_sig == "BUY":
+                triggered = True
+                reason = "Signal reversed: SELL → BUY"
+
+        return ExitSignal(
+            triggered=triggered,
+            exit_type=ExitType.SIGNAL_REVERSAL,
+            exit_price=current_price if triggered else None,
+            reason=reason,
+            confidence=1.0 if triggered else 0.0,
+            close_percent=100.0,  # Close entire position on signal reversal
+        )
+
+
 class ExitStrategyManager:
     """Manages multiple exit strategies for positions."""
 
@@ -814,7 +887,7 @@ class ExitStrategyManager:
 
         Args:
             strategy_type: Type of exit strategy ('stop_loss', 'take_profit',
-                          'trailing_stop', 'equity_target')
+                          'trailing_stop', 'equity_target', 'signal_change')
             config: Configuration dict with strategy parameters
 
         Returns:
@@ -836,6 +909,7 @@ class ExitStrategyManager:
             "equity_target": lambda: EquityTargetExit(
                 cfg.get("equity_target_percent", 5.0)
             ),
+            "signal_change": lambda: SignalChangeExit(cfg),
         }
 
         factory_fn = strategy_map.get(strategy_type.lower())
