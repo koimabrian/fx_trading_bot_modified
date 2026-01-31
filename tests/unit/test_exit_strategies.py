@@ -952,3 +952,123 @@ class TestSignalChangeExitIntegration:
         assert result["exit_type"] == "signal_reversal"
         assert result["confidence"] == 1.0
         assert result["close_percent"] == 100.0
+
+
+class TestAutoStopLoss:
+    """Test auto_stop_loss functionality."""
+
+    @pytest.fixture
+    def manager(self):
+        """Create ExitStrategyManager with config."""
+        config = {
+            "risk_management": {
+                "stop_loss_percent": 1.0,
+                "take_profit_percent": 2.0,
+                "trailing_stop_percent": 0.5,
+                "trailing_stop": True,
+            }
+        }
+        return ExitStrategyManager(config)
+
+    def test_auto_stop_loss_with_signal_change(self, manager):
+        """Test auto_stop_loss with signal change exit."""
+        result = manager.auto_stop_loss(
+            entry_price=1.2500,
+            current_price=1.2520,
+            position_side="long",
+            entry_signal="BUY",
+            current_signal="SELL"
+        )
+        assert result["should_exit"] is True
+        assert result["primary_exit"] == "signal_change"
+        assert result["recommended_action"] == "close_all"
+
+    def test_auto_stop_loss_stop_loss_priority(self, manager):
+        """Test that stop loss has highest priority in auto_stop_loss."""
+        result = manager.auto_stop_loss(
+            entry_price=1.2500,
+            current_price=1.2370,  # 1.04% loss
+            position_side="long",
+            entry_signal="BUY",
+            current_signal="SELL"  # Signal also changed
+        )
+        # Stop loss should trigger before signal change
+        assert result["should_exit"] is True
+        assert result["primary_exit"] == "stop_loss"
+
+    def test_auto_stop_loss_no_exit(self, manager):
+        """Test auto_stop_loss with no exit conditions met."""
+        result = manager.auto_stop_loss(
+            entry_price=1.2500,
+            current_price=1.2520,  # Small profit
+            position_side="long",
+            entry_signal="BUY",
+            current_signal="BUY"  # No signal change
+        )
+        assert result["should_exit"] is False
+        assert result["recommended_action"] == "hold"
+
+    def test_auto_stop_loss_combines_all_exits(self, manager):
+        """Test that auto_stop_loss evaluates all exit strategies."""
+        result = manager.auto_stop_loss(
+            entry_price=1.2500,
+            current_price=1.2520,
+            position_side="long",
+            bars_held=50,
+            initial_equity=10000,
+            current_equity=10200
+        )
+        # Should have multiple exit evaluations in results
+        assert "exits" in result
+        assert len(result["exits"]) > 0
+
+
+class TestEvaluateAllExitsWithSignalChange:
+    """Test evaluate_all_exits with signal change integration."""
+
+    @pytest.fixture
+    def manager(self):
+        """Create ExitStrategyManager with config."""
+        config = {
+            "risk_management": {
+                "stop_loss_percent": 1.0,
+                "take_profit_percent": 2.0,
+            }
+        }
+        return ExitStrategyManager(config)
+
+    def test_evaluate_all_exits_signal_change_triggered(self, manager):
+        """Test evaluate_all_exits with signal change trigger."""
+        result = manager.evaluate_all_exits(
+            entry_price=1.2500,
+            current_price=1.2520,
+            position_side="long",
+            entry_signal="BUY",
+            current_signal="SELL"
+        )
+        assert result["should_exit"] is True
+        assert result["primary_exit"] == "signal_change"
+        assert result["recommended_action"] == "close_all"
+
+    def test_evaluate_all_exits_no_signal_change(self, manager):
+        """Test evaluate_all_exits when signal doesn't change."""
+        result = manager.evaluate_all_exits(
+            entry_price=1.2500,
+            current_price=1.2520,
+            position_side="long",
+            entry_signal="BUY",
+            current_signal="BUY"
+        )
+        # Should not exit on signal change
+        assert result["should_exit"] is False
+
+    def test_evaluate_all_exits_without_signals(self, manager):
+        """Test evaluate_all_exits works without signal parameters."""
+        result = manager.evaluate_all_exits(
+            entry_price=1.2500,
+            current_price=1.2520,
+            position_side="long"
+        )
+        # Should work without signals (signal check skipped)
+        assert "should_exit" in result
+        assert "exits" in result

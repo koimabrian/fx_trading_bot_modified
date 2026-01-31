@@ -232,6 +232,62 @@ def example_5_signal_change_scenarios():
         print(f"   Reason: {signal.reason}")
 
 
+def example_6_auto_stop_loss():
+    """Example 6: Auto Stop Loss - combining all exit strategies."""
+    print("\n" + "="*60)
+    print("Example 6: Auto Stop Loss (All Exits)")
+    print("="*60)
+    
+    config = {
+        'risk_management': {
+            'stop_loss_percent': 1.0,
+            'take_profit_percent': 2.0,
+            'trailing_stop_percent': 0.5,
+            'equity_target_percent': 5.0,
+        }
+    }
+    
+    manager = ExitStrategyManager(config)
+    
+    # Scenario 1: Signal change triggers exit
+    print("\nScenario 1: Signal change (BUY→SELL)")
+    result = manager.auto_stop_loss(
+        entry_price=1.2500,
+        current_price=1.2520,
+        position_side="long",
+        entry_signal="BUY",
+        current_signal="SELL"
+    )
+    print(f"Should Exit: {result['should_exit']}")
+    print(f"Primary Exit: {result['primary_exit']}")
+    print(f"Action: {result['recommended_action']}")
+    
+    # Scenario 2: Stop loss has priority over signal change
+    print("\nScenario 2: Stop loss priority (even with signal change)")
+    result = manager.auto_stop_loss(
+        entry_price=1.2500,
+        current_price=1.2370,  # 1.04% loss
+        position_side="long",
+        entry_signal="BUY",
+        current_signal="SELL"  # Signal also changed
+    )
+    print(f"Should Exit: {result['should_exit']}")
+    print(f"Primary Exit: {result['primary_exit']} (stop loss has priority)")
+    
+    # Scenario 3: Multiple exits evaluated, none triggered
+    print("\nScenario 3: No exit conditions met")
+    result = manager.auto_stop_loss(
+        entry_price=1.2500,
+        current_price=1.2520,  # Small profit
+        position_side="long",
+        entry_signal="BUY",
+        current_signal="BUY"  # No signal change
+    )
+    print(f"Should Exit: {result['should_exit']}")
+    print(f"Action: {result['recommended_action']}")
+    print(f"Exit checks performed: {len(result['exits'])}")
+
+
 if __name__ == "__main__":
     print("\n" + "="*60)
     print("EXIT STRATEGY FRAMEWORK - USAGE EXAMPLES")
@@ -242,6 +298,7 @@ if __name__ == "__main__":
     example_3_manager_usage()
     example_4_factory_pattern()
     example_5_signal_change_scenarios()
+    example_6_auto_stop_loss()
     
     print("\n" + "="*60)
     print("Examples completed successfully!")

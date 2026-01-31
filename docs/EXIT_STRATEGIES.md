@@ -211,6 +211,93 @@ exit_strategies:
 
 ---
 
+## Auto Stop Loss - Combining All Exit Strategies ⭐
+
+The framework provides an **automatic stop-loss mechanism** that evaluates ALL exit strategies in a single call. This is the easiest way to implement comprehensive exit logic.
+
+### `auto_stop_loss()` Method
+
+**Purpose**: Automatically evaluate all configured exit strategies and return the first triggered exit.
+
+**Priority Order**:
+1. Fixed stop loss (capital protection - highest priority)
+2. Take profit (lock in gains)
+3. Trailing stop (profit protection)
+4. Time-based exit
+5. Equity target
+6. Signal change (strategy reversal)
+7. ATR-based stops
+
+**Usage**:
+```python
+from src.utils.exit_strategies import ExitStrategyManager
+
+config = {
+    'risk_management': {
+        'stop_loss_percent': 1.0,
+        'take_profit_percent': 2.0,
+        'trailing_stop_percent': 0.5,
+        'equity_target_percent': 5.0,
+    }
+}
+
+manager = ExitStrategyManager(config)
+
+# Evaluate all exits at once
+result = manager.auto_stop_loss(
+    entry_price=1.2500,
+    current_price=1.2520,
+    position_side="long",
+    entry_signal="BUY",        # For signal change detection
+    current_signal="SELL",     # Current market signal
+    bars_held=50,              # For time-based exit
+    initial_equity=10000,      # For equity target
+    current_equity=10300,
+    data=ohlc_dataframe        # For ATR calculations
+)
+
+if result['should_exit']:
+    print(f"Exit triggered: {result['primary_exit']}")
+    print(f"Action: {result['recommended_action']}")
+    # Close position
+```
+
+**Return Value**:
+```python
+{
+    'should_exit': bool,              # Whether to exit position
+    'primary_exit': str,              # Type of exit triggered
+    'recommended_action': str,        # 'hold', 'close_all', 'close_partial'
+    'exits': [...]                    # All exit evaluations
+}
+```
+
+**Example with Signal Change Priority**:
+```python
+# Even if stop loss would trigger, it has highest priority
+result = manager.auto_stop_loss(
+    entry_price=1.2500,
+    current_price=1.2370,  # 1.04% loss (stop loss!)
+    position_side="long",
+    entry_signal="BUY",
+    current_signal="SELL"  # Signal also changed
+)
+# result['primary_exit'] == 'stop_loss'  (highest priority)
+```
+
+**Minimal Usage** (without optional parameters):
+```python
+# Works with just price and side
+result = manager.auto_stop_loss(
+    entry_price=1.2500,
+    current_price=1.2370,
+    position_side="long"
+)
+# Will check: stop loss, take profit, trailing stop
+```
+
+---
+
 ## Using Exit Strategies in Your Trading Strategy
 
 ### Method 1: Direct Instantiation
