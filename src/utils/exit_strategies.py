@@ -779,6 +779,7 @@ class ExitStrategyManager:
             if data is not None and not data.empty:
                 atr_result = self.atr_based_exit(data, entry_price)
                 if atr_result:
+                    atr_multiplier = cfg.get("atr_stop_multiplier", 2.0)
                     # Check if stop is hit
                     if position_side.lower() == "long":
                         if current_price <= atr_result["stop_loss"]:
@@ -791,7 +792,7 @@ class ExitStrategyManager:
                                 results["should_exit"] = True
                     else:
                         # For short positions, ATR stop is above entry
-                        atr_short_stop = entry_price + atr_result["atr"] * 2.0
+                        atr_short_stop = entry_price + atr_result["atr"] * atr_multiplier
                         if current_price >= atr_short_stop:
                             results["exits"].append(
                                 {"triggered": True, "exit_type": "atr_stop", "stop_loss": atr_short_stop}
