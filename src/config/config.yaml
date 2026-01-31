@@ -122,6 +122,34 @@ risk_management:
   # - daily_loss_limit: Set to 2-5% of account balance for risk management
   # - equity_target_percent: Set to desired daily profit target (e.g., 2-5%)
   # - trailing_activation_percent: Set >0 to only trail after reaching minimum profit
+
+# Exit Strategies Configuration (Framework)
+# Allows composing multiple exit strategies with flexible parameters.
+# Each strategy can be independently configured and combined.
+exit_strategies:
+  # Example configuration showing all available exit strategy types:
+  # - type: stop_loss
+  #   params:
+  #     sl_pct: 0.01  # 1% stop loss
+  # - type: take_profit
+  #   params:
+  #     tp_pct: 0.02  # 2% take profit
+  # - type: trailing_stop
+  #   params:
+  #     trail_pct: 0.005  # 0.5% trailing distance
+  # - type: trailing_sl
+  #   params:
+  #     activate_pct: 0.05  # Activate trailing after +5% profit
+  #     trail_pct: 0.02     # Trail by 2% once activated
+  # - type: equity_percent
+  #   params:
+  #     pct: 5  # Exit when account grows by 5%
+  # - type: signal_change
+  #   params: {}  # Exit when signal reverses (BUY→SELL or SELL→BUY)
+  
+  # Note: The trailing_sl type uses TrailingStopStrategy with activation_percent parameter.
+  # To use it, specify: trail_pct (trailing distance) and activate_pct (min profit to activate).
+
 strategies:
 - name: rsi
   params:

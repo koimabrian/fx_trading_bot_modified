@@ -359,6 +359,79 @@ class EquityTargetExit(BaseExitStrategy):
         )
 
 
+class SignalChangeExit(BaseExitStrategy):
+    """Exit strategy based on signal reversal/change.
+
+    Triggers an exit when the trading signal changes from the entry signal
+    (e.g., BUY signal changes to SELL signal, or vice versa).
+    """
+
+    def __init__(self, config: Optional[Dict] = None):
+        """Initialize signal change exit.
+
+        Args:
+            config: Additional configuration
+        """
+        super().__init__(config)
+
+    def evaluate(
+        self,
+        entry_price: float,
+        current_price: float,
+        position_side: str,
+        entry_signal: Optional[str] = None,
+        current_signal: Optional[str] = None,
+        **kwargs,
+    ) -> ExitSignal:
+        """Check if signal has changed/reversed.
+
+        Args:
+            entry_price: Entry price (for interface consistency)
+            current_price: Current price (for interface consistency)
+            position_side: Position side ('long' or 'short')
+            entry_signal: Original signal that opened the position ('BUY' or 'SELL')
+            current_signal: Current market signal ('BUY', 'SELL', or 'HOLD')
+
+        Returns:
+            ExitSignal indicating if signal reversal occurred
+        """
+        # Validate inputs
+        if not entry_signal or not current_signal:
+            return ExitSignal(
+                triggered=False,
+                exit_type=ExitType.SIGNAL_REVERSAL,
+                reason="Missing entry_signal or current_signal",
+            )
+
+        # Normalize signals to uppercase
+        entry_sig = str(entry_signal).upper()
+        current_sig = str(current_signal).upper()
+
+        # Check for signal reversal
+        triggered = False
+        reason = f"Signal unchanged: {current_sig}"
+
+        # For long positions (entered on BUY), exit if signal changes to SELL
+        if position_side.lower() == "long" and entry_sig == "BUY":
+            if current_sig == "SELL":
+                triggered = True
+                reason = "Signal reversed: BUY → SELL"
+        # For short positions (entered on SELL), exit if signal changes to BUY
+        elif position_side.lower() == "short" and entry_sig == "SELL":
+            if current_sig == "BUY":
+                triggered = True
+                reason = "Signal reversed: SELL → BUY"
+
+        return ExitSignal(
+            triggered=triggered,
+            exit_type=ExitType.SIGNAL_REVERSAL,
+            exit_price=current_price if triggered else None,
+            reason=reason,
+            confidence=1.0 if triggered else 0.0,
+            close_percent=100.0,  # Close entire position on signal reversal
+        )
+
+
 class ExitStrategyManager:
     """Manages multiple exit strategies for positions."""
 
@@ -682,13 +755,16 @@ class ExitStrategyManager:
         bars_held: int = 0,
         initial_equity: float = 0.0,
         current_equity: float = 0.0,
+        entry_signal: Optional[str] = None,
+        current_signal: Optional[str] = None,
         config: Optional[Dict] = None,
     ) -> Dict:
         """Evaluate all exit strategies and return comprehensive results.
 
         This method provides a unified interface for evaluating multiple exit
         strategies at once, making it strategy-agnostic and suitable for use
-        by any trading strategy.
+        by any trading strategy. This is the AUTO-SL mechanism that combines
+        all exit strategies.
 
         Args:
             entry_price: Entry price of the position
@@ -698,6 +774,8 @@ class ExitStrategyManager:
             bars_held: Number of bars position has been held
             initial_equity: Account equity at session start
             current_equity: Current account equity
+            entry_signal: Signal that opened position (for signal change exit)
+            current_signal: Current market signal (for signal change exit)
             config: Optional config override for exit strategy parameters
 
         Returns:
@@ -775,7 +853,22 @@ class ExitStrategyManager:
                     results["recommended_action"] = "close_all"
                     results["should_exit"] = True
 
-            # 6. Check ATR-based exits (if data provided)
+            # 6. Check signal change exit (if signals provided)
+            if entry_signal and current_signal:
+                signal_strategy = SignalChangeExit()
+                signal_result = signal_strategy.evaluate(
+                    entry_price, current_price, position_side,
+                    entry_signal=entry_signal,
+                    current_signal=current_signal
+                )
+                results["exits"].append(signal_result.to_dict())
+                if signal_result.triggered:
+                    results["primary_exit"] = "signal_change"
+                    results["recommended_action"] = "close_all"
+                    results["should_exit"] = True
+                    return results  # Signal change is high priority
+
+            # 7. Check ATR-based exits (if data provided)
             if data is not None and not data.empty:
                 atr_result = self.atr_based_exit(data, entry_price)
                 if atr_result:
@@ -814,7 +907,7 @@ class ExitStrategyManager:
 
         Args:
             strategy_type: Type of exit strategy ('stop_loss', 'take_profit',
-                          'trailing_stop', 'equity_target')
+                          'trailing_stop', 'equity_target', 'signal_change')
             config: Configuration dict with strategy parameters
 
         Returns:
@@ -836,6 +929,7 @@ class ExitStrategyManager:
             "equity_target": lambda: EquityTargetExit(
                 cfg.get("equity_target_percent", 5.0)
             ),
+            "signal_change": lambda: SignalChangeExit(cfg),
         }
 
         factory_fn = strategy_map.get(strategy_type.lower())
@@ -844,3 +938,73 @@ class ExitStrategyManager:
 
         self.logger.warning("Unknown exit strategy type: %s", strategy_type)
         return None
+
+    def auto_stop_loss(
+        self,
+        entry_price: float,
+        current_price: float,
+        position_side: str = "long",
+        **kwargs
+    ) -> Dict:
+        """Automatic stop loss using all available exit strategies.
+
+        This is a convenience method that wraps evaluate_all_exits() to provide
+        an easy-to-use auto-SL mechanism. It evaluates all configured exit
+        strategies (stop loss, take profit, trailing stop, signal change, etc.)
+        and returns the first triggered exit in priority order.
+
+        Priority order:
+        1. Fixed stop loss (capital protection)
+        2. Take profit (lock in gains)
+        3. Trailing stop (profit protection)
+        4. Time-based exit
+        5. Equity target
+        6. Signal change (strategy reversal)
+        7. ATR-based stops
+
+        Args:
+            entry_price: Entry price of the position
+            current_price: Current market price
+            position_side: 'long' or 'short'
+            **kwargs: Additional parameters:
+                - data: DataFrame for ATR calculations
+                - bars_held: Number of bars position held
+                - initial_equity: Starting equity
+                - current_equity: Current equity
+                - entry_signal: Original signal (BUY/SELL)
+                - current_signal: Current signal (BUY/SELL/HOLD)
+                - highest_price: Peak price for trailing stop
+                - position_id: Position identifier for tracking
+                - config: Override configuration
+
+        Returns:
+            Dict with exit evaluation results:
+                - should_exit: bool - Whether to exit position
+                - primary_exit: str - Type of exit triggered
+                - recommended_action: str - 'hold', 'close_all', 'close_partial'
+                - exits: list - All exit evaluations
+
+        Example:
+            >>> manager = ExitStrategyManager(config)
+            >>> result = manager.auto_stop_loss(
+            ...     entry_price=1.2500,
+            ...     current_price=1.2370,
+            ...     position_side="long",
+            ...     entry_signal="BUY",
+            ...     current_signal="SELL"
+            ... )
+            >>> if result['should_exit']:
+            ...     print(f"Exit: {result['primary_exit']}")
+        """
+        return self.evaluate_all_exits(
+            entry_price=entry_price,
+            current_price=current_price,
+            position_side=position_side,
+            data=kwargs.get('data'),
+            bars_held=kwargs.get('bars_held', 0),
+            initial_equity=kwargs.get('initial_equity', 0.0),
+            current_equity=kwargs.get('current_equity', 0.0),
+            entry_signal=kwargs.get('entry_signal'),
+            current_signal=kwargs.get('current_signal'),
+            config=kwargs.get('config'),
+        )
