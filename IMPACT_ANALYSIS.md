@@ -95,7 +95,7 @@ Use the checklist below to identify all affected components:
 #### Database Layer
 - [ ] **src/database/db_manager.py** - Database operations
 - [ ] **src/database/migrations.py** - Schema management
-- [ ] **Database Schema:** `tradable_pairs`, `market_data`, `backtest_market_data`, `backtest_backtests`, `backtest_strategies`, `backtest_results`, `backtest_trades`, `trades`, `optimal_parameters`
+- [ ] **Database Schema:** `tradable_pairs`, `market_data` (unified), `backtest_backtests`, `backtest_strategies`, `backtest_results`, `backtest_trades`, `trades`, `optimal_parameters`
 
 #### MT5 Integration
 - [ ] **src/mt5_connector.py** - MT5 API wrapper
