@@ -154,7 +154,7 @@ class TestBacktestDataProcessing:
         """Test data validation."""
         # Check OHLC relationships
         valid = bool((sample_ohlc_data["high"] >= sample_ohlc_data["low"]).all())
-        assert valid is True
+        assert valid
 
     def test_data_filtering(self, sample_ohlc_data):
         """Test data filtering."""

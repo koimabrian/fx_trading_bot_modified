@@ -1,9 +1,11 @@
 """PyQt5 dialog for selecting trading pairs during initialization."""
 
-import logging
 from typing import Dict, List
 
+from src.utils.logging_factory import LoggingFactory
+
 from PyQt5.QtCore import Qt  # pylint: disable=no-name-in-module
+
 # pylint: disable=no-name-in-module
 from PyQt5.QtWidgets import (
     QCheckBox,
@@ -16,7 +18,7 @@ from PyQt5.QtWidgets import (
     QScrollArea,
     QTabWidget,
     QVBoxLayout,
-    QWidget
+    QWidget,
 )
 
 
@@ -31,7 +33,7 @@ class PairSelectorDialog(QDialog):
             parent: Parent widget
         """
         super().__init__(parent)
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.symbols = sorted(symbols)
         self.selected_pairs = []
         self.checkboxes = {}

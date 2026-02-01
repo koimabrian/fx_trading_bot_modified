@@ -2,8 +2,9 @@
 # Purpose: Enhanced PyQt5 dashboard with 5 tabs for backtest visualization
 # pylint: disable=no-name-in-module
 import json
-import logging
 from datetime import datetime
+
+from src.utils.logging_factory import LoggingFactory
 
 import pandas as pd
 from PyQt5.QtWebEngineWidgets import QWebEngineView
@@ -78,7 +79,7 @@ class EnhancedDashboard(QMainWindow):
         super().__init__()
         self.db = db
         self.config = config
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.charts = PlotlyCharts()
 
         self.setWindowTitle("FX Trading Bot - Backtest Dashboard")

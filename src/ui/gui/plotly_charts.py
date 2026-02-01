@@ -6,13 +6,15 @@ from typing import Dict, List
 import pandas as pd
 import plotly.graph_objects as go
 
+from src.utils.logging_factory import LoggingFactory
+
 
 class PlotlyCharts:
     """Generate interactive Plotly charts for backtest visualization."""
 
     def __init__(self):
         """Initialize Plotly charts generator."""
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
 
     def create_equity_curve(
         self,

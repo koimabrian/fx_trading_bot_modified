@@ -7,12 +7,14 @@ Guides users through:
 4. Confirmation and initialization
 """
 
-import logging
 import time
 from typing import Dict, List, Optional
 
 import MetaTrader5 as mt5
+
+from src.utils.logging_factory import LoggingFactory
 from PyQt5.QtCore import Qt, QTimer  # pylint: disable=no-name-in-module
+
 # pylint: disable=no-name-in-module
 from PyQt5.QtWidgets import (
     QCheckBox,
@@ -26,7 +28,7 @@ from PyQt5.QtWidgets import (
     QScrollArea,
     QTabWidget,
     QVBoxLayout,
-    QWidget
+    QWidget,
 )
 
 from src.core.init_manager import InitManager
@@ -46,7 +48,7 @@ class InitWizardDialog(QDialog):
             parent: Parent widget
         """
         super().__init__(parent)
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.config = config
         self.db = None
         self.mt5_conn = None

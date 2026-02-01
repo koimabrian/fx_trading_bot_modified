@@ -4,10 +4,11 @@ Provides common patterns for error handling, response formatting, and data valid
 to reduce code duplication across dashboard API endpoints.
 """
 
-import logging
 from typing import Any, Dict, Tuple
 
 from flask import jsonify
+
+from src.utils.logging_factory import LoggingFactory
 
 
 def safe_api_call(
@@ -30,7 +31,7 @@ def safe_api_call(
         ...     error_message_prefix="Failed to fetch results"
         ... )
     """
-    logger = logging.getLogger(__name__)
+    logger = LoggingFactory.get_logger(__name__)
 
     if default_data is None:
         default_data = {}
@@ -86,7 +87,7 @@ def handle_api_error(
     error_message: str,
     default_data: Any = None,
     status_code: int = 500,
-    logger: logging.Logger = None,
+    logger=None,
 ) -> Tuple[Dict, int]:
     """Create a standardized error response.
 
@@ -112,7 +113,7 @@ def handle_api_error(
     if logger:
         logger.error(error_message)
     else:
-        logging.getLogger(__name__).error(error_message)
+        LoggingFactory.get_logger(__name__).error(error_message)
 
     return api_response(
         default_data, status="error", message=error_message, status_code=status_code

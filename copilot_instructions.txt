@@ -1,0 +1,26 @@
+always:
+    all newly created and exisitng .md files shoulbe places in docs excluding readme.md only
+    all test files should be created and updated at the right location and Clear, unified pattern throughout
+    check Code Quality Standards:
+        - Modularity - Each file has single responsibility
+        - DRY - No code duplication across files
+        - Reusability - Functions can be reused
+        - Testability - functions can be unit tested, and no missing tests
+        - Maintainability - Easy to update one component, Clear, unified pattern throughout
+        - Performance - Files can be minified and cached
+        
+        - Proper imports
+        - Error handling
+        - Clear documentation
+        - Functions: run_command(), main()
+        - Result tracking
+        - Proper docstrings
+        - Function naming (snake_case)
+        - Import organization
+        - Code structure
+        - File organization (root cluttering)
+        - Duplicate elimination
+        - Deprecated cleanup /files are deprecated (should be archived)
+    have one standard dashboard_unified ui template and should be one single file in templates folder
+    files follow best practices and should be kept
+    files are duplicates (consolidation needed)

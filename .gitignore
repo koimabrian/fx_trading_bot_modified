@@ -108,3 +108,4 @@ test_results.json
 !src/**/*.py
 !tests/
 !tests/**/*.py
+/docs

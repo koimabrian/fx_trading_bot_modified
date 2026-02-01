@@ -1,0 +1,126 @@
+version: '3.8'
+
+services:
+  # Main FX Trading Bot Application
+  tradingbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fx-trading-bot
+    ports:
+      - "5000:5000"
+    environment:
+      FLASK_ENV: production
+      FLASK_APP: src.main
+      DATABASE_URL: postgresql://tradingbot:secure_password@db:5432/fx_trading_bot
+      REDIS_URL: redis://redis:6379/0
+      LOG_LEVEL: INFO
+      SECRET_KEY: ${SECRET_KEY}
+      API_KEY: ${API_KEY}
+      MT5_SERVER: ${MT5_SERVER}
+      MT5_ACCOUNT: ${MT5_ACCOUNT}
+      MT5_PASSWORD: ${MT5_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./backtests:/app/backtests
+    restart: unless-stopped
+    networks:
+      - tradingbot-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: fx-tradingbot-db
+    environment:
+      POSTGRES_USER: tradingbot
+      POSTGRES_PASSWORD: secure_password
+      POSTGRES_DB: fx_trading_bot
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - tradingbot-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tradingbot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: fx-tradingbot-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - tradingbot-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: fx-tradingbot-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    restart: unless-stopped
+    networks:
+      - tradingbot-network
+    depends_on:
+      - tradingbot
+
+  # Grafana Dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: fx-tradingbot-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    restart: unless-stopped
+    networks:
+      - tradingbot-network
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  tradingbot-network:
+    driver: bridge

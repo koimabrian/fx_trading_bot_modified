@@ -31,6 +31,12 @@ PyQtWebEngine>=5.15.0
 # Configuration & Data
 PyYAML>=5.4.0
 
+# Security
+bleach>=5.0.0
+Flask-Talisman>=1.0.0
+Flask-Limiter>=3.0.0
+werkzeug>=2.0.0
+
 # Testing
 pytest>=9.0.0
 pytest-cov>=4.0.0

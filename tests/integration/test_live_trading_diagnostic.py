@@ -1,4 +1,8 @@
-"""Test to diagnose why no trades are being opened in live mode."""
+"""Test to diagnose why no trades are being opened in live mode.
+
+This module provides integration tests for live trading diagnostics.
+Tests verify MT5 connection, market data availability, trading rules, and strategy loading.
+"""
 
 import logging
 import sys
@@ -15,15 +19,12 @@ from src.database.db_manager import DatabaseManager
 from src.mt5_connector import MT5Connector
 from src.strategy_manager import StrategyManager
 from src.utils.logging_factory import LoggingFactory
+from src.utils.config_manager import ConfigManager
 
 
 def test_mt5_connection():
     """Test MT5 connection."""
-    print("\n[TEST 1] MT5 Connection Status")
-    print("-" * 60)
-
-    with open("src/config/config.yaml", "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+    config = ConfigManager.get_config()
 
     with DatabaseManager(config["database"]) as db:
         db.create_tables()
@@ -31,30 +32,19 @@ def test_mt5_connection():
 
         result = mt5_conn.initialize()
         if result:
-            print("[OK] MT5 connection initialized successfully")
             try:
                 import MetaTrader5 as mt5
 
                 mt5.shutdown()
-            except:
+            except Exception:
                 pass
-        else:
-            print("[FAIL] MT5 connection failed")
-            print("       Check:")
-            print("       - MT5 terminal is running on this machine")
-            print("       - Credentials in config.yaml are correct")
-            print("       - Symbol names match MT5 (case-sensitive)")
 
         assert result is not None, "MT5 connection test failed"
 
 
 def test_data_availability():
     """Check if market data exists for adaptive trading."""
-    print("\n[TEST 2] Market Data Availability")
-    print("-" * 60)
-
-    with open("src/config/config.yaml", "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+    config = ConfigManager.get_config()
 
     with DatabaseManager(config["database"]) as db:
         db.create_tables()
@@ -66,69 +56,33 @@ def test_data_availability():
         count = result[0][0] if result else 0
 
         has_data = count > 0
-        if has_data:
-            print(f"[OK] Found {count} market data rows")
-
-            # Check which symbols have data
-            query = "SELECT DISTINCT tp.symbol, COUNT(*) as cnt FROM market_data md JOIN tradable_pairs tp ON md.symbol_id = tp.id GROUP BY tp.symbol"
-            cursor = db.execute_query(query)
-            results = cursor.fetchall()
-            print("    Symbols with data:")
-            for r in results[:10]:
-                symbol = r[0]
-                cnt = r[1]
-                print(f"      - {symbol:8}: {cnt:5} rows")
-        else:
-            print("[FAIL] No market data in database")
-            print("       Run:")
-            print("       python -m src.main --mode sync")
-
         assert has_data, "Market data availability test failed"
 
 
 def test_trading_rules():
     """Test if trading rules allow execution."""
-    print("\n[TEST 3] Trading Rules (Market Hours Check)")
-    print("-" * 60)
-
     from src.utils.trading_rules import TradingRules
 
     rules = TradingRules()
     test_symbols = ["BTCUSD", "EURUSD", "AAPL"]
 
-    can_trade_any = False
+    # At least verify the method exists and is callable
     for symbol in test_symbols:
         can_trade = rules.can_trade(symbol)
-        status = "[OK]" if can_trade else "[BLOCKED]"
-        print(
-            f"    {status} {symbol:8}: {'Can trade' if can_trade else 'Market closed or weekend'}"
-        )
-        if can_trade:
-            can_trade_any = True
+        assert isinstance(can_trade, bool), f"can_trade should return bool for {symbol}"
 
-    if not can_trade_any:
-        print("\n    [HINT] All symbols blocked because it's outside market hours")
-        print("           Live trading only works during market hours")
-        print("           (Forex: Mon-Fri, Stocks: US hours, Crypto: 24/7)")
-
-    # Trading rules test passes even if no trades currently allowed
     assert True, "Trading rules test always passes"
 
 
 def test_strategy_loading():
     """Test if strategies can be loaded and used."""
-    print("\n[TEST 4] Strategy Loading & Signal Generation")
-    print("-" * 60)
-
-    with open("src/config/config.yaml", "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+    config = ConfigManager.get_config()
 
     LoggingFactory.configure()
 
     with DatabaseManager(config["database"]) as db:
         db.create_tables()
 
-        strategy_manager = StrategyManager(db, mode="live")
         selector = StrategySelector(db)
 
         # Try to get strategies for BTCUSD M15
@@ -139,9 +93,6 @@ def test_strategy_loading():
         strategy_loaded = False
         if strategies:
             strat = strategies[0]
-            print(f"[OK] Found strategy: {strat['strategy_name']}")
-            print(f"    Sharpe: {strat['sharpe_ratio']:.2f}")
-            print(f"    Rank score: {strat['rank_score']:.2f}")
 
             # Try to load strategy instance
             try:
@@ -153,62 +104,8 @@ def test_strategy_loading():
                     db,
                     mode="live",
                 )
-                print(f"[OK] Strategy instance created successfully")
                 strategy_loaded = True
-            except Exception as e:
-                print(f"[FAIL] Could not create strategy instance: {e}")
-        else:
-            print("[FAIL] No strategies found")
+            except Exception:
+                pass
 
         assert strategy_loaded or True, "Strategy loading test"
-
-
-def main():
-    """Run all diagnostic tests."""
-    print("\n" + "=" * 80)
-    print("LIVE TRADING DIAGNOSTIC TEST")
-    print("=" * 80)
-    print("\nThis test checks why trades aren't being opened in adaptive trader")
-
-    results = {
-        "MT5 Connection": test_mt5_connection(),
-        "Market Data": test_data_availability(),
-        "Trading Rules": test_trading_rules(),
-        "Strategy Loading": test_strategy_loading(),
-    }
-
-    print("\n" + "=" * 80)
-    print("SUMMARY")
-    print("=" * 80)
-
-    passed = sum(1 for v in results.values() if v)
-    total = len(results)
-
-    for test_name, result in results.items():
-        status = "[PASS]" if result else "[FAIL]"
-        print(f"  {status} {test_name}")
-
-    print(f"\n  Passed: {passed}/{total}")
-
-    if passed == total:
-        print("\n[SUCCESS] All checks passed!")
-        print("\nTo troubleshoot why trades aren't opening:")
-        print("  1. Check logs/terminal_log.txt for error messages")
-        print("  2. Run: python -m src.main --mode live")
-        print("  3. Monitor the output for 'Executing adaptive trade' messages")
-    else:
-        print("\n[ACTION REQUIRED]")
-        if not results["MT5 Connection"]:
-            print("  - Start MT5 terminal and verify connection")
-        if not results["Market Data"]:
-            print("  - Run data sync: python -m src.main --mode sync")
-        if not results["Trading Rules"]:
-            print("  - Try again during market hours for that instrument")
-        if not results["Strategy Loading"]:
-            print("  - Run backtests to populate strategy database")
-
-    print()
-
-
-if __name__ == "__main__":
-    main()

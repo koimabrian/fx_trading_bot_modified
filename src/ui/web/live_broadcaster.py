@@ -14,13 +14,15 @@ from typing import Dict, List, Optional
 from flask import Flask
 from flask_socketio import SocketIO, emit, join_room, leave_room
 
+from src.utils.logging_factory import LoggingFactory
+
 
 class LiveTradingBroadcaster:
     """Manages real-time updates for live trading signals and trades."""
 
     def __init__(self):
         """Initialize the broadcaster."""
-        self.logger = logging.getLogger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.socketio = None
         self.signal_queue = Queue()
         self.trade_queue = Queue()
