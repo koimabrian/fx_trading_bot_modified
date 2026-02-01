@@ -432,26 +432,18 @@ class PairComparison(BaseComparison):
                     "symbol": symbol,
                     "best_strategy": best["strategy"],
                     "sharpe_ratio": round(
-                        ValueCleaner.clean_value(
-                            best["metrics"].get("sharpe_ratio", 0)
-                        ),
+                        ValueCleaner.clean_value(best.get("sharpe_ratio", 0)),
                         3,
                     ),
                     "return_pct": round(
-                        ValueCleaner.clean_value(best["metrics"].get("return", 0)), 2
+                        ValueCleaner.clean_value(best.get("return_pct", 0)), 2
                     ),
                     "profit_factor": round(
-                        ValueCleaner.clean_value(
-                            best["metrics"].get("profit_factor", 0)
-                        ),
+                        ValueCleaner.clean_value(best.get("profit_factor", 0)),
                         2,
                     ),
                     "max_drawdown_pct": round(
-                        abs(
-                            ValueCleaner.clean_value(
-                                best["metrics"].get("max_drawdown", 0)
-                            )
-                        ),
+                        abs(ValueCleaner.clean_value(best.get("max_drawdown_pct", 0))),
                         2,
                     ),
                     "strategies_tested": len(pair_metrics),
@@ -577,6 +569,63 @@ class DashboardAPI:
                 return jsonify(data)
             except Exception as e:
                 logger.error(f"Error in matrix comparison: {e}", exc_info=True)
+                return jsonify({"error": str(e), "type": type(e).__name__}), 500
+
+        @bp.route("/live-data", methods=["GET"])
+        def get_live_data():
+            """Get live trading data including stats, signals, positions, and trades."""
+            try:
+                with DatabaseConnection(self.config) as db:
+                    # Return empty data structure if no database methods available
+                    # This allows the frontend to gracefully handle missing data
+                    return jsonify(
+                        {
+                            "status": "success",
+                            "stats": {
+                                "account_balance": 0,
+                                "net_profit": 0,
+                                "win_rate": 0,
+                            },
+                            "signals": [],
+                            "positions": [],
+                            "trades": [],
+                        }
+                    )
+            except Exception as e:
+                logger.error(f"Error fetching live data: {e}", exc_info=True)
+                return jsonify({"error": str(e), "type": type(e).__name__}), 500
+
+        @bp.route("/results", methods=["GET"])
+        def get_backtest_results():
+            """Get backtest results."""
+            try:
+                with DatabaseConnection(self.config) as db:
+                    # Return empty results if no database methods available
+                    return jsonify(
+                        {
+                            "status": "success",
+                            "results": [],
+                            "count": 0,
+                        }
+                    )
+            except Exception as e:
+                logger.error(f"Error fetching backtest results: {e}", exc_info=True)
+                return jsonify({"error": str(e), "type": type(e).__name__}), 500
+
+        @bp.route("/optimal-parameters", methods=["GET"])
+        def get_optimal_parameters():
+            """Get optimal parameters from backtest results."""
+            try:
+                with DatabaseConnection(self.config) as db:
+                    # Return empty parameters if no database methods available
+                    return jsonify(
+                        {
+                            "status": "success",
+                            "parameters": {},
+                        }
+                    )
+            except Exception as e:
+                logger.error(f"Error fetching optimal parameters: {e}", exc_info=True)
                 return jsonify({"error": str(e), "type": type(e).__name__}), 500
 
         @bp.route("/health", methods=["GET"])

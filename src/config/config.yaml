@@ -137,15 +137,15 @@ exit_strategies:
   # - type: trailing_stop
   #   params:
   #     trail_pct: 0.005  # 0.5% trailing distance
-  # - type: trailing_sl
-  #   params:
-  #     activate_pct: 0.05  # Activate trailing after +5% profit
-  #     trail_pct: 0.02     # Trail by 2% once activated
-  # - type: equity_percent
-  #   params:
-  #     pct: 5  # Exit when account grows by 5%
-  # - type: signal_change
-  #   params: {}  # Exit when signal reverses (BUY→SELL or SELL→BUY)
+  - type: trailing_sl
+    params:
+      activate_pct: 0.05  # Activate trailing after +5% profit
+      trail_pct: 0.02     # Trail by 2% once activated
+  - type: equity_percent
+    params:
+      pct: 5  # Exit when account grows by 5%
+  - type: signal_change
+    params: {}  # Exit when signal reverses (BUY→SELL or SELL→BUY)
   
   # Note: The trailing_sl type uses TrailingStopStrategy with activation_percent parameter.
   # To use it, specify: trail_pct (trailing distance) and activate_pct (min profit to activate).

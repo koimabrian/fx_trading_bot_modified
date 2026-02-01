@@ -105,8 +105,152 @@ const tableEventDelegation = {
     }
 };
 
+/** * Load and display live trading data
+ * Fetches current market statistics, signals, positions, and trades
+ */
+async function loadLiveData() {
+    showLoading('live-stats-grid');
+    try {
+        const data = await fetchLiveData();
+        displayLiveData(data);
+    } catch (error) {
+        console.error('Error loading live data:', error);
+        showError('live-stats-grid', 'Failed to load live data. Check API connection.');
+    }
+}
+
 /**
- * Optimized table interactions using event delegation
+ * Display live trading data in the dashboard
+ * @param {Object} data - Live data object containing stats, signals, positions, trades
+ */
+function displayLiveData(data) {
+    const stats = data.stats || {};
+    const signals = data.signals || [];
+    const positions = data.positions || [];
+    const trades = data.trades || [];
+
+    // Statistics cards
+    const statsHtml = `
+        <div class="card">
+            <h3>Account Balance</h3>
+            <div class="card-value card-positive">${formatCurrency(stats.account_balance || 0)}</div>
+            <div class="card-subtitle">Current Balance</div>
+        </div>
+        <div class="card">
+            <h3>Open Trades</h3>
+            <div class="card-value">${positions.length}</div>
+            <div class="card-subtitle">Active Positions</div>
+        </div>
+        <div class="card">
+            <h3>Net Profit</h3>
+            <div class="card-value ${getValueClass(stats.net_profit || 0)}">
+                ${formatCurrency(stats.net_profit || 0)}
+            </div>
+            <div class="card-subtitle">${(stats.net_profit || 0) >= 0 ? '📈 Profit' : '📉 Loss'}</div>
+        </div>
+        <div class="card">
+            <h3>Win Rate</h3>
+            <div class="card-value card-positive">${formatPercent(stats.win_rate || 0, 1)}</div>
+            <div class="card-subtitle">Success Rate</div>
+        </div>
+    `;
+    document.getElementById('live-stats-grid').innerHTML = statsHtml;
+
+    // Signals table
+    if (signals.length > 0) {
+        const limit = DASHBOARD_CONFIG.TABLE_LIMITS.live_signals;
+        const signalsHtml = `
+            <table>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Action</th>
+                    <th>Strategy</th>
+                    <th>Status</th>
+                    <th>Time</th>
+                </tr>
+                ${signals.slice(0, limit).map(s => `
+                    <tr>
+                        <td><strong>${s.symbol}</strong></td>
+                        <td>${s.action === 'BUY' ? '🟢 BUY' : '🔴 SELL'}</td>
+                        <td>${s.strategy_name}</td>
+                        <td>${getStatusBadge(s.status)}</td>
+                        <td>${formatDateTime(s.timestamp)}</td>
+                    </tr>
+                `).join('')}
+            </table>
+        `;
+        document.getElementById('live-signals').innerHTML = signalsHtml;
+    } else {
+        showEmptyState('live-signals', '📭', 'No live signals yet');
+    }
+
+    // Positions table
+    if (positions.length > 0) {
+        const positionsHtml = `
+            <table>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Side</th>
+                    <th>Entry</th>
+                    <th>Current</th>
+                    <th>P&L</th>
+                    <th>P&L %</th>
+                    <th>Volume</th>
+                </tr>
+                ${positions.map(p => {
+            const pnlPercent = ((p.pnl || 0) / (p.entry_price * p.volume) * 100);
+            return `
+                        <tr>
+                            <td><strong>${p.symbol}</strong></td>
+                            <td>${p.side === 'LONG' ? '🟢 LONG' : '🔴 SHORT'}</td>
+                            <td>${formatNumber(p.entry_price || 0, 4)}</td>
+                            <td>${formatNumber(p.current_price || 0, 4)}</td>
+                            <td class="${getValueClass(p.pnl || 0)}">
+                                ${formatCurrency(p.pnl || 0)}
+                            </td>
+                            <td class="${getValueClass(pnlPercent)}">
+                                ${formatPercent(pnlPercent / 100)}
+                            </td>
+                            <td>${p.volume}</td>
+                        </tr>
+                    `}).join('')}
+            </table>
+        `;
+        document.getElementById('live-positions').innerHTML = positionsHtml;
+    } else {
+        showEmptyState('live-positions', '🔒', 'No open positions');
+    }
+
+    // Trades table
+    if (trades.length > 0) {
+        const limit = DASHBOARD_CONFIG.TABLE_LIMITS.recent_trades;
+        const tradesHtml = `
+            <table>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Action</th>
+                    <th>Strategy</th>
+                    <th>Status</th>
+                    <th>Time</th>
+                </tr>
+                ${trades.slice(0, limit).map(t => `
+                    <tr>
+                        <td><strong>${t.symbol}</strong></td>
+                        <td>${t.action === 'BUY' ? '🟢 BUY' : '🔴 SELL'}</td>
+                        <td>${t.strategy_name}</td>
+                        <td>${getStatusBadge(t.status)}</td>
+                        <td>${formatDateTime(t.timestamp)}</td>
+                    </tr>
+                `).join('')}
+            </table>
+        `;
+        document.getElementById('live-trades').innerHTML = tradesHtml;
+    } else {
+        showEmptyState('live-trades', '📊', 'No recent trades');
+    }
+}
+
+/** * Optimized table interactions using event delegation
  */
 function setupTableDelegation() {
     // Example: Handle all trade clicks in live-trades table
@@ -126,121 +270,6 @@ function setupTableDelegation() {
             // Handle strategy click
         }
     });
-}
-        </div >
-        <div class="card">
-            <h3>Net Profit</h3>
-            <div class="card-value ${getValueClass(stats.net_profit || 0)}">
-                ${formatCurrency(stats.net_profit || 0)}
-            </div>
-            <div class="card-subtitle">${(stats.net_profit || 0) >= 0 ? '📈 Profit' : '📉 Loss'}</div>
-        </div>
-        <div class="card">
-            <h3>Win Rate</h3>
-            <div class="card-value card-positive">${formatPercent(stats.win_rate || 0, 1)}</div>
-            <div class="card-subtitle">Success Rate</div>
-        </div>
-`;
-    document.getElementById('live-stats-grid').innerHTML = statsHtml;
-
-    // Signals table
-    if (signals.length > 0) {
-        const limit = DASHBOARD_CONFIG.TABLE_LIMITS.live_signals;
-        const signalsHtml = `
-    < table >
-    <tr>
-        <th>Symbol</th>
-        <th>Action</th>
-        <th>Strategy</th>
-        <th>Status</th>
-        <th>Time</th>
-    </tr>
-                ${
-    signals.slice(0, limit).map(s => `
-                    <tr>
-                        <td><strong>${s.symbol}</strong></td>
-                        <td>${s.action === 'BUY' ? '🟢 BUY' : '🔴 SELL'}</td>
-                        <td>${s.strategy_name}</td>
-                        <td>${getStatusBadge(s.status)}</td>
-                        <td>${formatDateTime(s.timestamp)}</td>
-                    </tr>
-                `).join('')
-}
-            </table >
-    `;
-        document.getElementById('live-signals').innerHTML = signalsHtml;
-    } else {
-        showEmptyState('live-signals', '📭', 'No live signals yet');
-    }
-
-    // Positions table
-    if (positions.length > 0) {
-        const positionsHtml = `
-    < table >
-    <tr>
-        <th>Symbol</th>
-        <th>Side</th>
-        <th>Entry</th>
-        <th>Current</th>
-        <th>P&L</th>
-        <th>P&L %</th>
-        <th>Volume</th>
-    </tr>
-                ${
-    positions.map(p => {
-        const pnlPercent = ((p.pnl || 0) / (p.entry_price * p.volume) * 100);
-        return `
-                        <tr>
-                            <td><strong>${p.symbol}</strong></td>
-                            <td>${p.side === 'LONG' ? '🟢 LONG' : '🔴 SHORT'}</td>
-                            <td>${formatNumber(p.entry_price || 0, 4)}</td>
-                            <td>${formatNumber(p.current_price || 0, 4)}</td>
-                            <td class="${getValueClass(p.pnl || 0)}">
-                                ${formatCurrency(p.pnl || 0)}
-                            </td>
-                            <td class="${getValueClass(pnlPercent)}">
-                                ${formatPercent(pnlPercent / 100)}
-                            </td>
-                            <td>${p.volume}</td>
-                        </tr>
-                    `}).join('')
-}
-            </table >
-    `;
-        document.getElementById('live-positions').innerHTML = positionsHtml;
-    } else {
-        showEmptyState('live-positions', '🔒', 'No open positions');
-    }
-
-    // Trades table
-    if (trades.length > 0) {
-        const limit = DASHBOARD_CONFIG.TABLE_LIMITS.recent_trades;
-        const tradesHtml = `
-    < table >
-    <tr>
-        <th>Symbol</th>
-        <th>Action</th>
-        <th>Strategy</th>
-        <th>Status</th>
-        <th>Time</th>
-    </tr>
-                ${
-    trades.slice(0, limit).map(t => `
-                    <tr>
-                        <td><strong>${t.symbol}</strong></td>
-                        <td>${t.action === 'BUY' ? '🟢 BUY' : '🔴 SELL'}</td>
-                        <td>${t.strategy_name}</td>
-                        <td>${getStatusBadge(t.status)}</td>
-                        <td>${formatDateTime(t.timestamp)}</td>
-                    </tr>
-                `).join('')
-}
-            </table >
-    `;
-        document.getElementById('live-trades').innerHTML = tradesHtml;
-    } else {
-        showEmptyState('live-trades', '📊', 'No recent trades');
-    }
 }
 
 // ==================== BACKTEST DATA ====================
@@ -268,11 +297,11 @@ function displayBacktestData(resultsData, paramsData) {
         results.reduce((a, b) => a + (b.sharpe_ratio || 0), 0) / results.length : 0;
 
     const statsHtml = `
-    < div class="card" >
+    <div class="card">
             <h3>Total Backtests</h3>
             <div class="card-value">${results.length}</div>
             <div class="card-subtitle">Strategies Tested</div>
-        </div >
+        </div>
         <div class="card">
             <h3>Best Win Rate</h3>
             <div class="card-value card-positive">${formatPercent(bestWinRate, 1)}</div>
@@ -295,7 +324,7 @@ function displayBacktestData(resultsData, paramsData) {
     if (results.length > 0) {
         const limit = DASHBOARD_CONFIG.TABLE_LIMITS.backtest_results;
         const resultsHtml = `
-    < table >
+    <table>
     <tr>
         <th>Symbol</th>
         <th>Strategy</th>
@@ -306,8 +335,7 @@ function displayBacktestData(resultsData, paramsData) {
         <th>Profit Factor</th>
         <th>Max DD</th>
     </tr>
-                ${
-    results.slice(0, limit).map(r => `
+                ${results.slice(0, limit).map(r => `
                     <tr>
                         <td><strong>${r.symbol}</strong></td>
                         <td>${r.strategy_name.toUpperCase()}</td>
@@ -321,7 +349,7 @@ function displayBacktestData(resultsData, paramsData) {
                         <td class="highlight-negative">${formatPercent(r.max_drawdown || 0)}</td>
                     </tr>
                 `).join('')
-}
+            }
             </table >
     `;
         document.getElementById('backtest-results').innerHTML = resultsHtml;
@@ -343,15 +371,14 @@ function displayBacktestData(resultsData, paramsData) {
 
     if (allParams.length > 0) {
         const paramsHtml = `
-    < table >
+    <table>
     <tr>
         <th>Symbol</th>
         <th>Strategy</th>
         <th>Timeframe</th>
         <th>Parameters</th>
     </tr>
-                ${
-    allParams.slice(0, 15).map(p => `
+                ${allParams.slice(0, 15).map(p => `
                     <tr>
                         <td><strong>${p.symbol}</strong></td>
                         <td>${p.strategy_name.toUpperCase()}</td>
@@ -361,7 +388,7 @@ function displayBacktestData(resultsData, paramsData) {
                         </td>
                     </tr>
                 `).join('')
-}
+            }
             </table >
     `;
         document.getElementById('backtest-params').innerHTML = paramsHtml;
@@ -422,7 +449,7 @@ function displayStrategyComparison(data) {
 
     // Best strategy card
     const bestHtml = best ? `
-    < div class="card" style = "border-left-color: var(--success); background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), transparent);" >
+    <div class="card" style="border-left-color: var(--success); background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), transparent);">
             <h3>🏆 Winner</h3>
             <div class="card-value card-positive">${best.name.toUpperCase()}</div>
             <div class="metric-row">
@@ -447,7 +474,7 @@ function displayStrategyComparison(data) {
     // All strategies table
     if (strategies.length > 0) {
         const rankingHtml = `
-    < table >
+    <table>
     <tr>
         <th></th>
         <th>Strategy</th>
@@ -458,8 +485,7 @@ function displayStrategyComparison(data) {
         <th>Profit Factor</th>
         <th>Max DD</th>
     </tr>
-                ${
-    strategies.map((s, i) => `
+                ${strategies.map((s, i) => `
                     <tr>
                         <td>${getRankBadge(i + 1)}</td>
                         <td><strong>${s.name.toUpperCase()}</strong></td>
@@ -473,7 +499,7 @@ function displayStrategyComparison(data) {
                         <td class="highlight-negative">${s.avg_max_drawdown_pct}%</td>
                     </tr>
                 `).join('')
-}
+            }
             </table >
     `;
         document.getElementById('strategy-ranking').innerHTML = rankingHtml;
@@ -513,7 +539,7 @@ function displayPairComparison(data) {
 
     // Best pair card
     const bestHtml = best ? `
-    < div class="card" style = "border-left-color: var(--success); background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), transparent);" >
+    <div class="card" style="border-left-color: var(--success); background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), transparent);">
             <h3>⭐ Best Pair</h3>
             <div class="card-value card-positive">${best.symbol}</div>
             <div class="metric-row">
@@ -539,7 +565,7 @@ function displayPairComparison(data) {
     if (pairs.length > 0) {
         const limit = DASHBOARD_CONFIG.TABLE_LIMITS.pair_ranking;
         const rankingHtml = `
-    < table >
+    <table>
     <tr>
         <th></th>
         <th>Pair</th>
@@ -550,8 +576,7 @@ function displayPairComparison(data) {
         <th>Max DD</th>
         <th>Strategies Tested</th>
     </tr>
-                ${
-    pairs.slice(0, limit).map((p, i) => `
+                ${pairs.slice(0, limit).map((p, i) => `
                     <tr>
                         <td>${getRankBadge(i + 1)}</td>
                         <td><strong>${p.symbol}</strong></td>
@@ -565,7 +590,7 @@ function displayPairComparison(data) {
                         <td>${p.strategies_tested}</td>
                     </tr>
                 `).join('')
-}
+            }
             </table >
     `;
         document.getElementById('pair-ranking').innerHTML = rankingHtml;
@@ -628,23 +653,22 @@ function displayPerformanceMatrix(matrix) {
     // Table
     if (symbols.length > 0) {
         const tableHtml = `
-    < table >
+    <table>
     <tr>
         <th>Pair</th>
         ${strategies.map(s => `<th>${s.toUpperCase()}</th>`).join('')}
     </tr>
-                ${
-    symbols.map(symbol => `
+                ${symbols.map(symbol => `
                     <tr>
                         <td><strong>${symbol}</strong></td>
                         ${strategies.map(strategy => {
-        const value = matrix[symbol][strategy]?.sharpe_ratio;
-        const cellClass = getHeatmapCellClass(value);
-        return `<td class="heatmap-cell ${cellClass}">${value ? value.toFixed(3) : '-'}</td>`;
-    }).join('')}
+            const value = matrix[symbol][strategy]?.sharpe_ratio;
+            const cellClass = getHeatmapCellClass(value);
+            return `<td class="heatmap-cell ${cellClass}">${value ? value.toFixed(3) : '-'}</td>`;
+        }).join('')}
                     </tr>
                 `).join('')
-}
+            }
             </table >
     `;
         document.getElementById('matrix-table').innerHTML = tableHtml;
