@@ -4,13 +4,10 @@ Eliminates duplicate yaml.safe_load() calls across 8 files.
 Provides singleton pattern with automatic caching.
 """
 
-import logging
 from pathlib import Path
 from typing import Dict
 
 import yaml
-
-logger = logging.getLogger(__name__)
 
 
 class ConfigError(Exception):
@@ -74,6 +71,8 @@ class ConfigManager:
                     f"Configuration file is empty or invalid: {cls._config_path}"
                 )
 
+            from src.utils.logging_factory import LoggingFactory
+            logger = LoggingFactory.get_logger(__name__)
             logger.debug(f"Configuration loaded from {cls._config_path}")
             return config
 
@@ -96,6 +95,8 @@ class ConfigManager:
             Configuration dictionary
         """
         cls._config = None
+        from src.utils.logging_factory import LoggingFactory
+        logger = LoggingFactory.get_logger(__name__)
         logger.info("Configuration cache cleared, reloading from file")
         return cls.get_config()
 

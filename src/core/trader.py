@@ -4,7 +4,6 @@ Executes trades based on strategy signals, enforces position limits,
 applies trading rules, and manages MT5 order placement.
 """
 
-import logging
 
 import yaml
 

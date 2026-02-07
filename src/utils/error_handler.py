@@ -4,11 +4,8 @@ Provides consistent error handling, recovery strategies, and severity-based resp
 across the entire trading system. Eliminates duplicate error handling patterns.
 """
 
-import logging
 from enum import Enum
 from typing import Any, Callable, Optional
-
-logger = logging.getLogger(__name__)
 
 
 class ErrorSeverity(Enum):
@@ -106,6 +103,9 @@ class ErrorHandler:
         error_msg = str(error) if str(error) else default_msg
         full_msg = f"{context}: {error_msg}" if context else error_msg
 
+        from src.utils.logging_factory import LoggingFactory
+        logger = LoggingFactory.get_logger(__name__)
+
         if severity == ErrorSeverity.RECOVERABLE:
             logger.warning("[RECOVERABLE] %s", full_msg)
             if retry_func:
@@ -163,6 +163,8 @@ class ErrorHandler:
             msg += f" in {context}"
         msg += f": {value}"
 
+        from src.utils.logging_factory import LoggingFactory
+        logger = LoggingFactory.get_logger(__name__)
         logger.warning("[VALIDATION] %s", msg)
         return False
 
@@ -181,6 +183,9 @@ class ErrorHandler:
             critical_count: Number of critical errors
             operation: Name of operation being summarized
         """
+        from src.utils.logging_factory import LoggingFactory
+        logger = LoggingFactory.get_logger(__name__)
+        
         if critical_count > 0:
             logger.critical(
                 "[SUMMARY] %s: %d CRITICAL errors!",
@@ -224,6 +229,8 @@ class ErrorHandler:
                 current = current[k]
             return current
         except (KeyError, TypeError) as e:
+            from src.utils.logging_factory import LoggingFactory
+            logger = LoggingFactory.get_logger(__name__)
             logger.warning("[CONFIG] Missing key '%s': %s", key, str(e))
             return default
 

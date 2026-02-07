@@ -10,7 +10,6 @@ Provides multiple exit strategies:
 - Account equity % target exits
 """
 
-import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -80,7 +79,8 @@ class BaseExitStrategy(ABC):
             config: Configuration dictionary with strategy-specific settings
         """
         self.config = config or {}
-        self.logger = logging.getLogger(self.__class__.__name__)
+        from src.utils.logging_factory import LoggingFactory
+        self.logger = LoggingFactory.get_logger(self.__class__.__name__)
 
     @abstractmethod
     def evaluate(
@@ -442,7 +442,8 @@ class ExitStrategyManager:
             config: Configuration dict with exit strategy settings
         """
         self.config = config or {}
-        self.logger = logging.getLogger(__name__)
+        from src.utils.logging_factory import LoggingFactory
+        self.logger = LoggingFactory.get_logger(__name__)
 
     def atr_based_exit(self, data, entry_price, atr_multiplier=2.0):
         """Calculate ATR-based stop loss and take profit.

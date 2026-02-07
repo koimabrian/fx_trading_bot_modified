@@ -1,6 +1,5 @@
 # fx_trading_bot/src/core/data_handler.py
 # Purpose: Manages backtesting data preparation and storage
-import logging
 
 import pandas as pd
 
@@ -17,7 +16,8 @@ class DataHandler:
         """
         self.db = db
         self.config = config
-        self.logger = logging.getLogger(__name__)
+        from src.utils.logging_factory import LoggingFactory
+        self.logger = LoggingFactory.get_logger(__name__)
 
     def prepare_backtest_data(self, symbol, timeframe):
         """Prepare data for backtesting from database.

@@ -4,10 +4,15 @@ Provides functions for ATR-based volatility ranking, parameter selection,
 and adaptive strategy choosing for live trading.
 """
 
-import logging
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
+
+
+def _get_logger():
+    """Get logger instance lazily."""
+    from src.utils.logging_factory import LoggingFactory
+    return LoggingFactory.get_logger(__name__)
 
 
 def calculate_atr(data: pd.DataFrame, period: int = 14) -> pd.Series:
@@ -20,7 +25,7 @@ def calculate_atr(data: pd.DataFrame, period: int = 14) -> pd.Series:
     Returns:
         Series of ATR values
     """
-    logger = logging.getLogger(__name__)
+    logger = _get_logger()
 
     try:
         # Calculate True Range
@@ -77,7 +82,7 @@ def volatility_rank_pairs(
         ... )
         >>> # Returns: {'EURUSD': 0.0125, 'GBPUSD': 0.0110, ...}
     """
-    logger = logging.getLogger(__name__)
+    logger = _get_logger()
     ranked_pairs = {}
     skipped_pairs = []
 
@@ -168,7 +173,7 @@ def get_strategy_parameters_from_optimal(
     Returns:
         Tuple of (strategy_name, parameters_dict) or None if not found
     """
-    logger = logging.getLogger(__name__)
+    logger = _get_logger()
 
     try:
         # Query optimal parameters using FK join (symbol_id -> tradable_pairs)
@@ -222,7 +227,7 @@ def query_top_strategies_by_rank_score(
     Returns:
         List of tuples: [(strategy_name, metrics_dict, rank_score), ...]
     """
-    logger = logging.getLogger(__name__)
+    logger = _get_logger()
 
     try:
         cursor = db_conn.cursor()
@@ -280,7 +285,7 @@ def extract_strategy_params_from_metrics(metrics: Dict) -> Dict:
     Returns:
         Dictionary of strategy parameters
     """
-    logger = logging.getLogger(__name__)
+    logger = _get_logger()
 
     # Map metric keys to strategy parameter keys
     # This depends on strategy type - customize as needed

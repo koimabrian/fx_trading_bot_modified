@@ -5,7 +5,6 @@ data validation and caching interfaces for strategy backtesting.
 Uses LRU cache to avoid redundant fetches.
 """
 
-import logging
 import sqlite3
 from functools import lru_cache
 from typing import Optional

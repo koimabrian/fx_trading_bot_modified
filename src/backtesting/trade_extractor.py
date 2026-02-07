@@ -18,13 +18,16 @@ Key Fixes Applied:
     4. Safe trade extraction: Validate trade attributes before processing
 """
 
-import logging
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger(__name__)
+
+def _get_logger():
+    """Get logger instance lazily to avoid circular imports."""
+    from src.utils.logging_factory import LoggingFactory
+    return LoggingFactory.get_logger(__name__)
 
 
 class TradeExtractor:
@@ -48,29 +51,29 @@ class TradeExtractor:
         try:
             # Access the private _trades attribute from stats object
             if not hasattr(stats, "_trades"):
-                logger.warning("Stats object has no _trades attribute")
+                _get_logger().warning("Stats object has no _trades attribute")
                 return pd.DataFrame()
 
             trades_list = stats._trades
             # Handle empty or None trades safely
             if trades_list is None:
-                logger.info("No trades found in backtest results")
+                _get_logger().info("No trades found in backtest results")
                 return pd.DataFrame()
 
             try:
                 trades_count = len(trades_list)
             except TypeError:
-                logger.warning(f"Unable to get trades count from {type(trades_list)}")
+                _get_logger().warning(f"Unable to get trades count from {type(trades_list)}")
                 return pd.DataFrame()
 
             if trades_count == 0:
-                logger.info("No trades found in backtest results")
+                _get_logger().info("No trades found in backtest results")
                 return pd.DataFrame()
 
             # Handle both DataFrame and list of Trade objects
             if isinstance(trades_list, pd.DataFrame):
                 # If already a DataFrame, use it directly (from backtesting.py)
-                logger.debug(
+                _get_logger().debug(
                     f"trades_list is already a DataFrame with {len(trades_list)} trades"
                 )
                 if trades_list.empty:
@@ -114,14 +117,14 @@ class TradeExtractor:
                     try:
                         # Skip string entries or non-trade objects
                         if isinstance(trade, str):
-                            logger.debug(f"Skipping non-trade object (str): {trade}")
+                            _get_logger().debug(f"Skipping non-trade object (str): {trade}")
                             continue
 
                         # Verify trade has required attributes
                         if not hasattr(trade, "entry_time") or not hasattr(
                             trade, "exit_time"
                         ):
-                            logger.debug(
+                            _get_logger().debug(
                                 f"Skipping incomplete trade object: {type(trade)}"
                             )
                             continue
@@ -142,19 +145,19 @@ class TradeExtractor:
                         }
                         trades_data.append(trade_dict)
                     except (AttributeError, TypeError) as e:
-                        logger.warning(f"Error extracting trade data: {e}")
+                        _get_logger().warning(f"Error extracting trade data: {e}")
                         continue
 
             if not trades_data:
-                logger.warning("No valid trades could be extracted")
+                _get_logger().warning("No valid trades could be extracted")
                 return pd.DataFrame()
 
             df = pd.DataFrame(trades_data)
-            logger.info(f"Extracted {len(df)} trades from backtest results")
+            _get_logger().info(f"Extracted {len(df)} trades from backtest results")
             return df
 
         except Exception as e:
-            logger.error(f"Error extracting trades from stats: {e}")
+            _get_logger().error(f"Error extracting trades from stats: {e}")
             return pd.DataFrame()
 
     @staticmethod
@@ -221,14 +224,14 @@ class TradeExtractor:
                 "total_pnl_pct": trades_df["pnl_pct"].sum(),
             }
 
-            logger.info(
+            _get_logger().info(
                 f"Trade statistics calculated: {stats['total_trades']} trades, "
                 f"{stats['win_rate']:.1f}% win rate"
             )
             return stats
 
         except Exception as e:
-            logger.error(f"Error calculating trade statistics: {e}")
+            _get_logger().error(f"Error calculating trade statistics: {e}")
             return {}
 
     @staticmethod
@@ -259,13 +262,13 @@ class TradeExtractor:
                         "total_pnl": hour_trades["pnl"].sum(),
                     }
 
-            logger.info(
+            _get_logger().info(
                 f"Calculated hourly trade distribution for {len(hourly_stats)} hours"
             )
             return hourly_stats
 
         except Exception as e:
-            logger.error(f"Error calculating trades by timeframe: {e}")
+            _get_logger().error(f"Error calculating trades by timeframe: {e}")
             return {}
 
     @staticmethod
@@ -310,7 +313,7 @@ class TradeExtractor:
             }
 
         except Exception as e:
-            logger.error(f"Error calculating winning/losing breakdown: {e}")
+            _get_logger().error(f"Error calculating winning/losing breakdown: {e}")
             return {}
 
     @staticmethod
@@ -356,13 +359,13 @@ class TradeExtractor:
         """
         try:
             if trades_df is None or trades_df.empty:
-                logger.warning("No trades to export")
+                _get_logger().warning("No trades to export")
                 return False
 
             trades_df.to_csv(filepath, index=False)
-            logger.info(f"Trades exported to {filepath}")
+            _get_logger().info(f"Trades exported to {filepath}")
             return True
 
         except Exception as e:
-            logger.error(f"Error exporting trades to CSV: {e}")
+            _get_logger().error(f"Error exporting trades to CSV: {e}")
             return False

@@ -4,7 +4,6 @@ Validates configuration, data availability, MT5 connection, signal generation,
 and trade execution to identify blockers preventing trades from executing.
 """
 
-import logging
 from typing import Dict, List, Optional, Tuple
 
 from src.core.adaptive_trader import AdaptiveTrader
@@ -28,7 +27,8 @@ class LiveTradingDiagnostic:
         self.config = config
         self.db = db
         self.mt5_conn = mt5_conn
-        self.logger = logging.getLogger(__name__)
+        from src.utils.logging_factory import LoggingFactory
+        self.logger = LoggingFactory.get_logger(__name__)
         self.issues = []
         self.warnings = []
         self.info = []
