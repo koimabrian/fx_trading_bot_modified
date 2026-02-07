@@ -371,6 +371,10 @@ class TradeSyncer:
             status = status_map.get(order.state, "unknown")
             
             # Insert or update order
+            # Note: For orders, order.ticket is the unique order ID, so we store it
+            # in both order_id and ticket columns. We use ticket for conflict resolution
+            # since it's guaranteed to be unique for orders (unlike deals where multiple
+            # deals can share the same order_id).
             upsert_query = """
                 INSERT INTO live_trades (
                     symbol_id, timeframe, strategy_name, trade_type,
