@@ -5,7 +5,6 @@ data validation and caching interfaces for strategy backtesting.
 Uses LRU cache to avoid redundant fetches.
 """
 
-import logging
 import sqlite3
 from functools import lru_cache
 from typing import Optional
@@ -661,15 +660,5 @@ class DataFetcher:
         Returns:
             MT5 timeframe constant
         """
-        timeframe_map = {
-            1: mt5.TIMEFRAME_M1,
-            5: mt5.TIMEFRAME_M5,
-            15: mt5.TIMEFRAME_M15,
-            30: mt5.TIMEFRAME_M30,
-            60: mt5.TIMEFRAME_H1,
-            240: mt5.TIMEFRAME_H4,
-            1440: mt5.TIMEFRAME_D1,
-            10080: mt5.TIMEFRAME_W1,
-            43200: mt5.TIMEFRAME_MN1,
-        }
-        return timeframe_map.get(timeframe_minutes, mt5.TIMEFRAME_M15)
+        from src.utils.timeframe_utils import minutes_to_mt5_timeframe
+        return minutes_to_mt5_timeframe(timeframe_minutes)

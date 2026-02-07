@@ -6,7 +6,6 @@ filtering, and comprehensive parameter archiving.
 """
 
 import datetime
-import logging
 import os
 import sqlite3
 import subprocess

@@ -144,15 +144,10 @@ class DataValidator:
             )
 
             for tf in timeframes_to_sync:
-                tf_str = f"M{tf}" if tf < 60 else f"H{tf//60}"
-
-                # Map numeric timeframe to MT5 constant correctly
-                tf_map = {
-                    15: mt5.TIMEFRAME_M15,
-                    60: mt5.TIMEFRAME_H1,
-                    240: mt5.TIMEFRAME_H4,
-                }
-                mt5_tf = tf_map.get(tf, mt5.TIMEFRAME_M15)
+                from src.utils.timeframe_utils import format_timeframe, minutes_to_mt5_timeframe
+                
+                tf_str = format_timeframe(tf)
+                mt5_tf = minutes_to_mt5_timeframe(tf)
 
                 data_fetcher = DataFetcher(self.mt5_conn, self.db, self.config)
                 # Call sync_data without table parameter (uses unified market_data by default)

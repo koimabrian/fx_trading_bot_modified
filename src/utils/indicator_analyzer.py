@@ -5,7 +5,6 @@ Collects technical indicators (MACD, RSI, SMA, EMA) and signal metrics
 for live display on the dashboard.
 """
 
-import logging
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -13,8 +12,6 @@ import pandas as pd
 
 from src.core.data_fetcher import DataFetcher
 from src.database.db_manager import DatabaseManager
-
-logger = logging.getLogger(__name__)
 
 
 class IndicatorAnalyzer:
@@ -32,7 +29,8 @@ class IndicatorAnalyzer:
         self.mt5_conn = mt5_conn
         self.config = config or {}
         self.data_fetcher = DataFetcher(mt5_conn, db, self.config)
-        self.logger = logging.getLogger(__name__)
+        from src.utils.logging_factory import LoggingFactory
+        self.logger = LoggingFactory.get_logger(__name__)
 
     def calculate_rsi(self, prices: np.ndarray, period: int = 14) -> Tuple[float, Dict]:
         """Calculate RSI indicator and signal.

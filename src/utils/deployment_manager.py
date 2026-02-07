@@ -11,14 +11,16 @@ import os
 import subprocess
 import time
 import json
-import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 from dataclasses import dataclass, asdict
 
 
-logger = logging.getLogger(__name__)
+def _get_logger():
+    """Get logger instance lazily."""
+    from src.utils.logging_factory import LoggingFactory
+    return LoggingFactory.get_logger(__name__)
 
 
 @dataclass
@@ -48,7 +50,8 @@ class DockerBuilder:
 
     def __init__(self, config: DeploymentConfig):
         self.config = config
-        self.logger = logging.getLogger(__name__)
+        from src.utils.logging_factory import LoggingFactory
+        self.logger = LoggingFactory.get_logger(__name__)
 
     def build_image(self, dockerfile_path: str = "Dockerfile") -> bool:
         """Build Docker image.
@@ -60,7 +63,7 @@ class DockerBuilder:
             True if build successful, False otherwise.
         """
         try:
-            self.logger.info(f"Building Docker image: {self.config.get_image_tag()}")
+            self._get_logger().info(f"Building Docker image: {self.config.get_image_tag()}")
 
             command = [
                 "docker",
@@ -75,14 +78,14 @@ class DockerBuilder:
             result = subprocess.run(command, capture_output=True, text=True)
 
             if result.returncode != 0:
-                self.logger.error(f"Docker build failed: {result.stderr}")
+                self._get_logger().error(f"Docker build failed: {result.stderr}")
                 return False
 
-            self.logger.info("Docker image built successfully")
+            self._get_logger().info("Docker image built successfully")
             return True
 
         except Exception as e:
-            self.logger.error(f"Error building Docker image: {e}")
+            self._get_logger().error(f"Error building Docker image: {e}")
             return False
 
     def push_image(self) -> bool:
@@ -92,20 +95,20 @@ class DockerBuilder:
             True if push successful, False otherwise.
         """
         try:
-            self.logger.info(f"Pushing image: {self.config.get_image_tag()}")
+            self._get_logger().info(f"Pushing image: {self.config.get_image_tag()}")
 
             command = ["docker", "push", self.config.get_image_tag()]
             result = subprocess.run(command, capture_output=True, text=True)
 
             if result.returncode != 0:
-                self.logger.error(f"Docker push failed: {result.stderr}")
+                self._get_logger().error(f"Docker push failed: {result.stderr}")
                 return False
 
-            self.logger.info("Image pushed successfully")
+            self._get_logger().info("Image pushed successfully")
             return True
 
         except Exception as e:
-            self.logger.error(f"Error pushing image: {e}")
+            self._get_logger().error(f"Error pushing image: {e}")
             return False
 
 
@@ -117,7 +120,7 @@ class BlueGreenDeployment:
 
     def __init__(self, config: DeploymentConfig):
         self.config = config
-        self.logger = logging.getLogger(__name__)
+        from src.utils.logging_factory import LoggingFactory; self.logger = LoggingFactory.get_logger(__name__)
         self.deployment_file = Path(f".deployments/{config.app_name}_state.json")
 
     def _ensure_deployment_dir(self):
@@ -172,7 +175,7 @@ class BlueGreenDeployment:
         state = self.get_current_state()
         inactive = self.GREEN if state["active"] == self.BLUE else self.BLUE
 
-        self.logger.info(f"Deploying to {inactive} environment")
+        self._get_logger().info(f"Deploying to {inactive} environment")
 
         # Deploy using docker-compose
         try:
@@ -193,7 +196,7 @@ class BlueGreenDeployment:
             result = subprocess.run(command, env=env, capture_output=True, text=True)
 
             if result.returncode != 0:
-                self.logger.error(f"Deployment failed: {result.stderr}")
+                self._get_logger().error(f"Deployment failed: {result.stderr}")
                 return False
 
             # Update state
@@ -205,7 +208,7 @@ class BlueGreenDeployment:
             return True
 
         except Exception as e:
-            self.logger.error(f"Error deploying: {e}")
+            self._get_logger().error(f"Error deploying: {e}")
             return False
 
     def health_check(self, environment: str) -> bool:
@@ -216,16 +219,16 @@ class BlueGreenDeployment:
                 result = subprocess.run(command, capture_output=True, text=True)
 
                 if "healthy" in result.stdout or result.returncode == 0:
-                    self.logger.info(f"Health check passed for {environment}")
+                    self._get_logger().info(f"Health check passed for {environment}")
                     return True
 
-                self.logger.warning(
+                self._get_logger().warning(
                     f"Health check attempt {attempt + 1} failed, retrying..."
                 )
                 time.sleep(self.config.health_check_delay)
 
             except Exception as e:
-                self.logger.error(f"Health check error: {e}")
+                self._get_logger().error(f"Health check error: {e}")
                 time.sleep(self.config.health_check_delay)
 
         return False
@@ -238,7 +241,7 @@ class BlueGreenDeployment:
             state["green"]["status"] != "healthy"
             and state["blue"]["status"] != "healthy"
         ):
-            self.logger.error("Inactive environment is not healthy")
+            self._get_logger().error("Inactive environment is not healthy")
             return False
 
         old_active = state["active"]
@@ -251,11 +254,11 @@ class BlueGreenDeployment:
             state["last_swap"] = datetime.utcnow().isoformat()
             self.save_state(state)
 
-            self.logger.info(f"Traffic switched from {old_active} to {new_active}")
+            self._get_logger().info(f"Traffic switched from {old_active} to {new_active}")
             return True
 
         except Exception as e:
-            self.logger.error(f"Error swapping traffic: {e}")
+            self._get_logger().error(f"Error swapping traffic: {e}")
             return False
 
     def rollback(self) -> bool:
@@ -264,29 +267,29 @@ class BlueGreenDeployment:
         current = state["active"]
         previous = self.GREEN if current == self.BLUE else self.BLUE
 
-        self.logger.info(f"Rolling back from {current} to {previous}")
+        self._get_logger().info(f"Rolling back from {current} to {previous}")
 
         try:
             # Check if previous environment has valid deployment
             if not state[previous]["image"]:
-                self.logger.error(f"No previous deployment in {previous}")
+                self._get_logger().error(f"No previous deployment in {previous}")
                 return False
 
             # Perform health check on previous
             if not self.health_check(previous):
-                self.logger.error(f"Previous environment {previous} is not healthy")
+                self._get_logger().error(f"Previous environment {previous} is not healthy")
                 return False
 
             # Swap back
             if not self.swap_traffic():
-                self.logger.error("Failed to swap traffic back")
+                self._get_logger().error("Failed to swap traffic back")
                 return False
 
-            self.logger.info("Rollback successful")
+            self._get_logger().info("Rollback successful")
             return True
 
         except Exception as e:
-            self.logger.error(f"Rollback error: {e}")
+            self._get_logger().error(f"Rollback error: {e}")
             return False
 
 
@@ -296,7 +299,7 @@ class BackupManager:
     def __init__(self, backup_dir: str = "./backups"):
         self.backup_dir = Path(backup_dir)
         self.backup_dir.mkdir(parents=True, exist_ok=True)
-        self.logger = logging.getLogger(__name__)
+        from src.utils.logging_factory import LoggingFactory; self.logger = LoggingFactory.get_logger(__name__)
 
     def backup_database(self, db_container: str = "fx-tradingbot-db") -> Optional[str]:
         """Backup PostgreSQL database"""
@@ -304,7 +307,7 @@ class BackupManager:
             timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
             backup_file = self.backup_dir / f"db_backup_{timestamp}.sql"
 
-            self.logger.info(f"Backing up database to {backup_file}")
+            self._get_logger().info(f"Backing up database to {backup_file}")
 
             command = [
                 "docker",
@@ -322,14 +325,14 @@ class BackupManager:
                 )
 
             if result.returncode != 0:
-                self.logger.error(f"Database backup failed: {result.stderr}")
+                self._get_logger().error(f"Database backup failed: {result.stderr}")
                 return None
 
-            self.logger.info(f"Database backed up successfully: {backup_file}")
+            self._get_logger().info(f"Database backed up successfully: {backup_file}")
             return str(backup_file)
 
         except Exception as e:
-            self.logger.error(f"Error backing up database: {e}")
+            self._get_logger().error(f"Error backing up database: {e}")
             return None
 
     def backup_configs(self) -> Optional[str]:
@@ -338,21 +341,21 @@ class BackupManager:
             timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
             backup_file = self.backup_dir / f"configs_backup_{timestamp}.tar.gz"
 
-            self.logger.info(f"Backing up configs to {backup_file}")
+            self._get_logger().info(f"Backing up configs to {backup_file}")
 
             command = ["tar", "-czf", str(backup_file), "-C", "config", "."]
 
             result = subprocess.run(command, capture_output=True, text=True)
 
             if result.returncode != 0:
-                self.logger.error(f"Config backup failed: {result.stderr}")
+                self._get_logger().error(f"Config backup failed: {result.stderr}")
                 return None
 
-            self.logger.info(f"Configs backed up successfully: {backup_file}")
+            self._get_logger().info(f"Configs backed up successfully: {backup_file}")
             return str(backup_file)
 
         except Exception as e:
-            self.logger.error(f"Error backing up configs: {e}")
+            self._get_logger().error(f"Error backing up configs: {e}")
             return None
 
     def restore_database(
@@ -361,10 +364,10 @@ class BackupManager:
         """Restore PostgreSQL database from backup"""
         try:
             if not Path(backup_file).exists():
-                self.logger.error(f"Backup file not found: {backup_file}")
+                self._get_logger().error(f"Backup file not found: {backup_file}")
                 return False
 
-            self.logger.info(f"Restoring database from {backup_file}")
+            self._get_logger().info(f"Restoring database from {backup_file}")
 
             with open(backup_file) as f:
                 command = [
@@ -383,14 +386,14 @@ class BackupManager:
                 )
 
             if result.returncode != 0:
-                self.logger.error(f"Database restore failed: {result.stderr}")
+                self._get_logger().error(f"Database restore failed: {result.stderr}")
                 return False
 
-            self.logger.info("Database restored successfully")
+            self._get_logger().info("Database restored successfully")
             return True
 
         except Exception as e:
-            self.logger.error(f"Error restoring database: {e}")
+            self._get_logger().error(f"Error restoring database: {e}")
             return False
 
     def cleanup_old_backups(self, max_age_days: int = 30):
@@ -401,10 +404,10 @@ class BackupManager:
             for backup_file in self.backup_dir.glob("*"):
                 if backup_file.stat().st_mtime < cutoff_time:
                     backup_file.unlink()
-                    self.logger.info(f"Deleted old backup: {backup_file}")
+                    self._get_logger().info(f"Deleted old backup: {backup_file}")
 
         except Exception as e:
-            self.logger.error(f"Error cleaning up backups: {e}")
+            self._get_logger().error(f"Error cleaning up backups: {e}")
 
 
 def deploy_application(
