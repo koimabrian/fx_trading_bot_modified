@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 from src.strategies.factory import StrategyFactory
+from src.utils.config_manager import ConfigManager
 from src.utils.logging_factory import LoggingFactory
 
 
@@ -106,8 +107,6 @@ class StrategyManager:
             Exception: If configuration file cannot be loaded.
         """
         try:
-            from src.utils.config_manager import ConfigManager
-
             config = ConfigManager.get_config()
             self.config = config  # Store config for generate_signals
             for strategy_config in config.get("strategies", []):

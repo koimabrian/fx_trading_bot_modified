@@ -6,11 +6,14 @@ and trade execution to identify blockers preventing trades from executing.
 
 from typing import Dict, List, Optional, Tuple
 
+import MetaTrader5 as mt5
+
 from src.core.adaptive_trader import AdaptiveTrader
 from src.database.db_manager import DatabaseManager
 from src.mt5_connector import MT5Connector
 from src.strategy_manager import StrategyManager
 from src.utils.backtesting_utils import volatility_rank_pairs
+from src.utils.logging_factory import LoggingFactory
 
 
 class LiveTradingDiagnostic:
@@ -27,7 +30,6 @@ class LiveTradingDiagnostic:
         self.config = config
         self.db = db
         self.mt5_conn = mt5_conn
-        from src.utils.logging_factory import LoggingFactory
         self.logger = LoggingFactory.get_logger(__name__)
         self.issues = []
         self.warnings = []
@@ -75,8 +77,6 @@ class LiveTradingDiagnostic:
         self.logger.info("\n[1/9] Checking MT5 Connection...")
         try:
             # Try to get symbol list - this verifies connection is working
-            import MetaTrader5 as mt5
-
             if mt5.symbols_total() > 0:
                 self.info.append("MT5 Connected - Ready to trade")
             else:

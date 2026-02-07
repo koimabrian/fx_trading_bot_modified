@@ -9,6 +9,8 @@ from typing import Dict
 
 import yaml
 
+from src.utils.logging_factory import LoggingFactory
+
 
 class ConfigError(Exception):
     """Custom exception for configuration errors."""
@@ -71,7 +73,6 @@ class ConfigManager:
                     f"Configuration file is empty or invalid: {cls._config_path}"
                 )
 
-            from src.utils.logging_factory import LoggingFactory
             logger = LoggingFactory.get_logger(__name__)
             logger.debug(f"Configuration loaded from {cls._config_path}")
             return config
@@ -95,7 +96,6 @@ class ConfigManager:
             Configuration dictionary
         """
         cls._config = None
-        from src.utils.logging_factory import LoggingFactory
         logger = LoggingFactory.get_logger(__name__)
         logger.info("Configuration cache cleared, reloading from file")
         return cls.get_config()

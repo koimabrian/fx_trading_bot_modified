@@ -12,6 +12,7 @@ import pandas as pd
 
 from src.core.data_fetcher import DataFetcher
 from src.database.db_manager import DatabaseManager
+from src.utils.logging_factory import LoggingFactory
 
 
 class IndicatorAnalyzer:
@@ -29,7 +30,6 @@ class IndicatorAnalyzer:
         self.mt5_conn = mt5_conn
         self.config = config or {}
         self.data_fetcher = DataFetcher(mt5_conn, db, self.config)
-        from src.utils.logging_factory import LoggingFactory
         self.logger = LoggingFactory.get_logger(__name__)
 
     def calculate_rsi(self, prices: np.ndarray, period: int = 14) -> Tuple[float, Dict]:
