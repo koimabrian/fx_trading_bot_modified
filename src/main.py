@@ -307,9 +307,8 @@ def _mode_live(config: dict, args, logger):
             # Clean up trades table on live start
             logger.info("Cleaning up trades table...")
             try:
-                cursor = db.conn.cursor()
-                cursor.execute("DELETE FROM trades")
-                db.conn.commit()
+                query = "DELETE FROM trades"
+                db.execute_query(query)
                 logger.info(
                     "Trades table cleared - ready for fresh live trading session"
                 )
@@ -346,11 +345,9 @@ def _mode_live(config: dict, args, logger):
             else:
                 # Try database first, then fallback to config
                 try:
-                    cursor = db.conn.cursor()
-                    cursor.execute(
-                        "SELECT DISTINCT symbol FROM tradable_pairs ORDER BY symbol"
-                    )
-                    db_pairs = [row[0] for row in cursor.fetchall()]
+                    query = "SELECT DISTINCT symbol FROM tradable_pairs ORDER BY symbol"
+                    rows = db.execute_query(query).fetchall()
+                    db_pairs = [row[0] for row in rows]
                     if db_pairs:
                         pairs_to_trade = db_pairs
                         logger.info(

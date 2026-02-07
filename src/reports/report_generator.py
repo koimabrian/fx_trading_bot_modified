@@ -55,8 +55,6 @@ class ReportGenerator:
             None if no data found
         """
         try:
-            cursor = self.db.conn.cursor()
-
             # Query backtest results for this strategy/symbol/timeframe
             query = """
                 SELECT 
@@ -83,8 +81,7 @@ class ReportGenerator:
                 LIMIT 1
             """
 
-            cursor.execute(query, (strategy, symbol, timeframe))
-            result = cursor.fetchone()
+            result = self.db.execute_query(query, (strategy, symbol, timeframe)).fetchone()
 
             if not result:
                 self.logger.warning(
@@ -142,8 +139,6 @@ class ReportGenerator:
             None if no data found
         """
         try:
-            cursor = self.db.conn.cursor()
-
             # Query all symbols for strategy/timeframe, ranked by Sharpe
             query = """
                 SELECT 
@@ -164,8 +159,7 @@ class ReportGenerator:
                 ORDER BY bb.sharpe_ratio DESC
             """
 
-            cursor.execute(query, (strategy, timeframe))
-            results = cursor.fetchall()
+            results = self.db.execute_query(query, (strategy, timeframe)).fetchall()
 
             if not results:
                 self.logger.warning(f"No comparison data for {strategy}/{timeframe}min")
@@ -215,8 +209,6 @@ class ReportGenerator:
             None if no data found
         """
         try:
-            cursor = self.db.conn.cursor()
-
             # Query ATR values from backtest results
             # ATR stored as JSON in metrics, extract and rank
             query = """
@@ -228,8 +220,7 @@ class ReportGenerator:
                 ORDER BY bb.created_at DESC
             """
 
-            cursor.execute(query, (timeframe,))
-            results = cursor.fetchall()
+            results = self.db.execute_query(query, (timeframe,)).fetchall()
 
             if not results:
                 self.logger.warning(f"No volatility data for {timeframe}min")
@@ -370,8 +361,6 @@ class ReportGenerator:
             - symbols_tested: Count of unique symbols
         """
         try:
-            cursor = self.db.conn.cursor()
-
             # Overall statistics
             query = """
                 SELECT 
@@ -383,8 +372,7 @@ class ReportGenerator:
                 FROM backtest_backtests
             """
 
-            cursor.execute(query)
-            stats = cursor.fetchone()
+            stats = self.db.execute_query(query).fetchone()
 
             # Best strategy
             query_best = """
@@ -398,8 +386,7 @@ class ReportGenerator:
                 LIMIT 1
             """
 
-            cursor.execute(query_best)
-            best = cursor.fetchone()
+            best = self.db.execute_query(query_best).fetchone()
 
             return {
                 "total_backtests": stats[0] if stats else 0,
