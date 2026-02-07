@@ -858,6 +858,68 @@ class DatabaseMigrations:
         except sqlite3.Error as e:
             self.logger.warning("Could not migrate live_trades: %s", e)
 
+    def _add_mt5_sync_fields_to_live_trades(self, cursor) -> None:
+        """Add MT5 synchronization fields to live_trades table.
+
+        Adds the following columns if they don't exist:
+        - order_id: MT5 order identifier
+        - deal_id: MT5 deal ticket
+        - ticket: MT5 position ticket
+        - magic: Magic number for trade identification
+        - swap: Swap/rollover charges
+        - commission: Commission charged
+        - comment: Trade comment/note
+        - external: Whether trade was placed externally
+        - mt5_synced_at: Last MT5 sync timestamp
+
+        Args:
+            cursor: SQLite cursor object.
+
+        Returns:
+            None.
+        """
+        try:
+            cursor.execute("PRAGMA table_info(live_trades)")
+            columns = [col[1] for col in cursor.fetchall()]
+
+            if "mt5_synced_at" in columns:
+                self.logger.info("MT5 sync fields already exist in live_trades table")
+                self._add_unique_constraints_to_live_trades(cursor)
+                return
+
+            self.logger.info("Adding MT5 sync fields to live_trades table...")
+
+            # Define MT5 fields to add (name, type, default)
+            mt5_fields = [
+                ("order_id", "INTEGER", None),
+                ("deal_id", "INTEGER", None),
+                ("ticket", "INTEGER", None),
+                ("magic", "INTEGER", None),
+                ("swap", "REAL", "0"),
+                ("commission", "REAL", "0"),
+                ("comment", "TEXT", None),
+                ("external", "BOOLEAN", "0"),
+                ("mt5_synced_at", "TIMESTAMP", None),
+            ]
+
+            for col_name, col_type, default_val in mt5_fields:
+                if col_name not in columns:
+                    default_clause = f"DEFAULT {default_val}" if default_val else ""
+                    try:
+                        cursor.execute(f"ALTER TABLE live_trades ADD COLUMN {col_name} {col_type} {default_clause}")
+                        self.logger.info(f"Added column {col_name} to live_trades table")
+                    except sqlite3.Error as e:
+                        self.logger.debug(f"Column {col_name} may already exist: {e}")
+
+            # Add unique constraints after columns are created
+            self._add_unique_constraints_to_live_trades(cursor)
+
+            self.conn.commit()
+            self.logger.info("MT5 sync fields added successfully")
+
+        except sqlite3.Error as e:
+            self.logger.warning("Could not add MT5 sync fields to live_trades: %s", e)
+
     def _populate_backtest_strategies(self, cursor) -> None:
         """Populate backtest_strategies table from backtest_results.
 
