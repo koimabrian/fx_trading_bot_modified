@@ -718,26 +718,17 @@ class DashboardServer:
                                 }
                         signals.append(signal)
 
-                # Get open/active positions from database
-                positions_query = """
-                    SELECT tp.symbol, t.trade_type as side, t.open_price as entry_price,
-                           t.open_price as current_price,
-                           COALESCE(t.profit, 0) as pnl,
-                           t.volume
-                    FROM trades t
-                    JOIN tradable_pairs tp ON t.symbol_id = tp.id
-                    WHERE t.status IN ('executed', 'open')
-                    ORDER BY t.open_time DESC
-                """
-                positions_result = db.execute_query(positions_query).fetchall()
-                positions = (
-                    [dict(row) for row in positions_result] if positions_result else []
-                )
-
-                # Also get live positions from MT5
+                # Get live positions from MT5 (source of truth for active trades)
+                # Note: DB 'trades' table is for historical record, MT5 has real-time positions
                 mt5_positions_list = []
+                account_balance = 0.0
                 try:
                     if mt5.initialize():
+                        # Get account balance
+                        account_info = mt5.account_info()
+                        if account_info:
+                            account_balance = account_info.balance
+
                         mt5_positions = mt5.positions_get()
                         if mt5_positions:
                             for pos in mt5_positions:
@@ -749,11 +740,13 @@ class DashboardServer:
                                     "pnl": pos.profit,
                                     "volume": pos.volume,
                                 }
-                                positions.append(mt5_pos)
                                 mt5_positions_list.append(mt5_pos)
                         mt5.shutdown()
                 except (RuntimeError, OSError, AttributeError) as e:
                     self.logger.debug("Could not fetch MT5 positions: %s", e)
+
+                # Use MT5 positions for live display (not DB positions to avoid duplication)
+                positions = mt5_positions_list
 
                 # Get recent executed trades (last 5)
                 trades_query = """
@@ -829,6 +822,7 @@ class DashboardServer:
                         total_trades = 0
 
                 stats = {
+                    "account_balance": self._safe_round(account_balance, 2),
                     "net_profit": self._safe_round(total_profit, 2),
                     "win_rate": self._safe_round(win_rate, 2),
                     "total_trades": total_trades,
@@ -836,13 +830,14 @@ class DashboardServer:
                     "net_profit_change": 0.0,
                 }
 
+                # Return with field names matching frontend expectations
                 return jsonify(
                     {
                         "status": "success",
-                        "statistics": stats,
-                        "recent_signals": signals,
-                        "open_positions": positions,
-                        "recent_trades": recent_trades,
+                        "stats": stats,
+                        "signals": signals,
+                        "positions": positions,
+                        "trades": recent_trades,
                         "equity_curve": {"timestamps": [], "values": []},
                         "timestamp": time.time(),
                     }
@@ -855,15 +850,16 @@ class DashboardServer:
                     {
                         "status": "error",
                         "message": str(e),
-                        "statistics": {
+                        "stats": {
+                            "account_balance": 0,
                             "net_profit": 0,
                             "win_rate": 0,
                             "total_trades": 0,
                             "open_positions": 0,
                         },
-                        "recent_signals": [],
-                        "open_positions": [],
-                        "recent_trades": [],
+                        "signals": [],
+                        "positions": [],
+                        "trades": [],
                         "equity_curve": {"timestamps": [], "values": []},
                     }
                 ),

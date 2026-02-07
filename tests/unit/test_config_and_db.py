@@ -1,6 +1,7 @@
 """Unit tests for database and configuration components."""
 
 import pytest
+from unittest.mock import patch
 
 from src.utils.config_manager import ConfigManager
 
