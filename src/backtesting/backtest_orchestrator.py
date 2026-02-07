@@ -169,7 +169,13 @@ class BacktestOrchestrator:
         return self.trade_logger.export_to_csv(filepath)
 
     def print_summary(self) -> None:
-        """Print backtest summary to logger."""
+        """Print backtest summary to logger.
+
+        Logs all metrics, trade counts, and win rates in a formatted table.
+
+        Returns:
+            None.
+        """
         metrics = self.calculate_metrics()
         summary = self.trade_logger.get_summary()
 

@@ -82,7 +82,11 @@ class DataValidator:
                     )
 
     def _check_tables_exist(self):
-        """Check if market_data and backtest_market_data tables exist"""
+        """Check if market_data and backtest_market_data tables exist.
+
+        Returns:
+            True if tables exist, False otherwise.
+        """
         try:
             cursor = self.db.conn.cursor()
             cursor.execute(
@@ -99,12 +103,12 @@ class DataValidator:
         """Get row count for a symbol/timeframe in specified table.
 
         Args:
-            symbol: Trading symbol
-            timeframe: Timeframe string (e.g., 'M15', 'H1')
-            table: Table name to query (default: market_data)
+            symbol: Trading symbol.
+            timeframe: Timeframe string (e.g., 'M15', 'H1').
+            table: Table name to query (default: market_data).
 
         Returns:
-            Integer row count
+            Integer row count for the specified symbol and timeframe.
         """
         try:
             # Query market_data using direct symbol column (new schema)

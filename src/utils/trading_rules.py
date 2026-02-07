@@ -99,47 +99,89 @@ class TradingRules:
 
     @staticmethod
     def get_symbol_category(symbol):
-        """Get category of a symbol (crypto, forex, stocks, commodities, indices)
+        """Get category of a symbol (crypto, forex, stocks, commodities, indices).
+
+        Args:
+            symbol: Trading symbol.
 
         Returns:
-            String category or 'unknown' if not found
+            String category or 'unknown' if not found.
         """
         TradingRules._load_categories_from_database()
         return TradingRules._SYMBOLS_TO_CATEGORY.get(symbol.upper(), "unknown")
 
     @staticmethod
     def is_crypto(symbol):
-        """Check if symbol is cryptocurrency (24/7 trading)"""
+        """Check if symbol is cryptocurrency (24/7 trading).
+
+        Args:
+            symbol: Trading symbol.
+
+        Returns:
+            True if symbol is cryptocurrency, False otherwise.
+        """
         TradingRules._load_categories_from_database()
         return symbol.upper() in TradingRules._CRYPTO_SYMBOLS
 
     @staticmethod
     def is_forex(symbol):
-        """Check if symbol is forex (closed weekends)"""
+        """Check if symbol is forex (closed weekends).
+
+        Args:
+            symbol: Trading symbol.
+
+        Returns:
+            True if symbol is forex, False otherwise.
+        """
         TradingRules._load_categories_from_database()
         return symbol.upper() in TradingRules._FOREX_SYMBOLS
 
     @staticmethod
     def is_stock(symbol):
-        """Check if symbol is stock (closed weekends)"""
+        """Check if symbol is stock (closed weekends).
+
+        Args:
+            symbol: Trading symbol.
+
+        Returns:
+            True if symbol is stock, False otherwise.
+        """
         TradingRules._load_categories_from_database()
         return symbol.upper() in TradingRules._STOCKS_SYMBOLS
 
     @staticmethod
     def is_commodity(symbol):
-        """Check if symbol is commodity (closed weekends)"""
+        """Check if symbol is commodity (closed weekends).
+
+        Args:
+            symbol: Trading symbol.
+
+        Returns:
+            True if symbol is commodity, False otherwise.
+        """
         TradingRules._load_categories_from_database()
         return symbol.upper() in TradingRules._COMMODITIES_SYMBOLS
 
     @staticmethod
     def is_index(symbol):
-        """Check if symbol is index (closed weekends)"""
+        """Check if symbol is index (closed weekends).
+
+        Args:
+            symbol: Trading symbol.
+
+        Returns:
+            True if symbol is index, False otherwise.
+        """
         TradingRules._load_categories_from_database()
         return symbol.upper() in TradingRules._INDICES_SYMBOLS
 
     @staticmethod
     def is_weekend():
-        """Check if current time is weekend (Friday 5 PM to Sunday 5 PM UTC)"""
+        """Check if current time is weekend (Friday 5 PM to Sunday 5 PM UTC).
+
+        Returns:
+            True if weekend, False otherwise.
+        """
         # Get current time in UTC
         utc_now = datetime.now(pytz.UTC).replace(tzinfo=None)
         weekday = utc_now.weekday()  # Monday=0, Sunday=6
@@ -149,14 +191,17 @@ class TradingRules:
 
     @staticmethod
     def can_trade(symbol):
-        """Check if trading is allowed for symbol at current time
+        """Check if trading is allowed for symbol at current time.
 
         Rules:
-        - Crypto: Always tradeable (24/7)
-        - Forex/Stocks/Commodities/Indices: Blocked Friday 5 PM UTC → Sunday 5 PM UTC
+        - Crypto: Always tradeable (24/7).
+        - Forex/Stocks/Commodities/Indices: Blocked Friday 5 PM UTC -> Sunday 5 PM UTC.
+
+        Args:
+            symbol: Trading symbol.
 
         Returns:
-            Boolean indicating if trading is allowed
+            Boolean indicating if trading is allowed.
         """
         if TradingRules.is_crypto(symbol):
             # Crypto trades 24/7, always allowed
@@ -175,7 +220,14 @@ class TradingRules:
         return True
 
     def log_trading_status(self, symbol):
-        """Log current trading status for a symbol"""
+        """Log current trading status for a symbol.
+
+        Args:
+            symbol: Trading symbol.
+
+        Returns:
+            None.
+        """
         can_trade = self.can_trade(symbol)
         is_weekend = self.is_weekend()
         symbol_category = self.get_symbol_category(symbol)

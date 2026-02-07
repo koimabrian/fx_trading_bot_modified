@@ -1,26 +1,112 @@
-always:
-    all newly created and exisitng .md files shoulbe places in docs excluding readme.md only
-    all test files should be created and updated at the right location and Clear, unified pattern throughout
-    check Code Quality Standards:
-        - Modularity - Each file has single responsibility
-        - DRY - No code duplication across files
-        - Reusability - Functions can be reused
-        - Testability - functions can be unit tested, and no missing tests
-        - Maintainability - Easy to update one component, Clear, unified pattern throughout
-        - Performance - Files can be minified and cached
-        
-        - Proper imports
-        - Error handling
-        - Clear documentation
-        - Functions: run_command(), main()
-        - Result tracking
-        - Proper docstrings
-        - Function naming (snake_case)
-        - Import organization
-        - Code structure
-        - File organization (root cluttering)
-        - Duplicate elimination
-        - Deprecated cleanup /files are deprecated (should be archived)
-    have one standard dashboard_unified ui template and should be one single file in templates folder
-    files follow best practices and should be kept
-    files are duplicates (consolidation needed)
+# COMPREHENSIVE CODE QUALITY & ARCHITECTURE AUDIT
+
+## AUDIT SCOPE
+Audit the following directory: `src/{folder_name}`
+
+---
+
+## PART 1: DOCSTRING AUDIT
+For each .py file:
+1. Check module-level docstrings exist and describe purpose
+2. Check all classes have docstrings with description
+3. Check all public methods have Google-style docstrings:
+   - Description (ends with period)
+   - Args section (if parameters exist)
+   - Returns section (if return value exists)
+   - Raises section (if exceptions are raised)
+4. Fix any missing or incomplete docstrings
+5. Verify syntax with: `python -m py_compile <file>`
+
+---
+
+## PART 2: CODE QUALITY STANDARDS
+Check and fix:
+- [ ] **Imports**: Organized (stdlib → third-party → local), no unused imports
+- [ ] **Naming**: snake_case for functions/variables, PascalCase for classes
+- [ ] **Error Handling**: Specific exceptions, proper logging, no bare `except:`
+- [ ] **DRY**: No code duplication across files
+- [ ] **Single Responsibility**: Each file/class has one clear purpose
+- [ ] **Type Hints**: Function parameters and return types annotated
+
+---
+
+## PART 3: ARCHITECTURE AUDIT
+Analyze and report:
+1. **Dependency Flow**: Are imports one-directional? Any circular dependencies?
+2. **Layer Separation**: UI → Core → Database layers properly isolated?
+3. **Integration Points**: How do components communicate?
+4. **Missing Integrations**: What should be connected but isn't?
+5. **Singleton Usage**: Correct implementation (ConfigManager, MT5Connector)?
+
+---
+
+## PART 4: FILE ORGANIZATION
+Check:
+- [ ] No root directory clutter (move to appropriate folders)
+- [ ] All .md files in `docs/` (except README.md)
+- [ ] Test files in `tests/{unit|integration|e2e}/`
+- [ ] Templates in single `templates/` folder
+- [ ] Deprecated files archived or removed
+
+---
+
+## PART 5: TEST COVERAGE
+For each file audited:
+1. Identify corresponding test file in `tests/unit/`
+2. Check test coverage for all public methods
+3. Add missing test cases if needed
+4. Run tests: `python run_tests.py`
+5. Expected: 729 tests passing, 5/6 suites PASS
+
+---
+
+## DELIVERABLES
+After audit:
+1. List all files modified with change count
+2. Summarize integration gaps found
+3. Confirm all tests pass
+4. Report any architectural concerns
+
+---
+
+## VERIFICATION COMMANDS
+```bash
+# Compile check
+python -m py_compile src/{folder}/*.py
+
+# Run tests
+python run_tests.py
+
+# Pylint check (errors only)
+pylint src/{folder} --disable=all --enable=E,F
+```
+
+---
+
+## QUICK AUDIT VARIANTS
+
+### Docstring-Only:
+```
+Audit docstrings in src/{folder} .py files:
+- Fix missing Args, Returns, Raises sections
+- Add periods at end of sentences
+- Verify compile and run tests
+```
+
+### Architecture-Only:
+```
+Perform architecture audit of src/:
+- Map import dependencies between modules
+- Identify circular dependencies
+- Check layer isolation (UI → Core → Data → DB)
+- Report integration gaps
+```
+
+### Test Coverage:
+```
+Audit test coverage for src/{folder}:
+- List all public methods
+- Check tests/unit/test_{module}.py exists
+- Add missing test cases
+- Run full test suite
+```

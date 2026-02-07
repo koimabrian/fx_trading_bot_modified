@@ -10,7 +10,21 @@ class StrategyFactory:
 
     @staticmethod
     def create_strategy(strategy_name, params, db, mode="live", config=None):
-        """Create a strategy instance based on name and mode."""
+        """Create a strategy instance based on name and mode.
+
+        Args:
+            strategy_name: Name of strategy (rsi, macd, sma, ema).
+            params: Strategy parameters dictionary.
+            db: Database manager instance.
+            mode: Operating mode ('live' or 'backtest').
+            config: Optional configuration dictionary.
+
+        Returns:
+            Strategy instance configured for the specified mode.
+
+        Raises:
+            ValueError: If strategy_name is not recognized.
+        """
         strategy_map = {
             "rsi": RSIStrategy,
             "macd": MACDStrategy,

@@ -155,11 +155,19 @@ class DashboardServer:
         return db
 
     def index(self):
-        """Serve the main dashboard HTML (unified live + backtest analysis)."""
+        """Serve the main dashboard HTML page.
+
+        Returns:
+            Rendered dashboard_unified.html template.
+        """
         return render_template("dashboard_unified.html")
 
     def api_symbols(self):
-        """Get available symbols from database."""
+        """Get available symbols from database.
+
+        Returns:
+            JSON response with list of symbols and status.
+        """
         try:
             with self._get_db() as db:
                 symbols_result = db.execute_query(
@@ -172,7 +180,11 @@ class DashboardServer:
             return jsonify({"symbols": [], "status": "error", "message": str(e)}), 500
 
     def api_timeframes(self):
-        """Get available timeframes from database."""
+        """Get available timeframes from database.
+
+        Returns:
+            JSON response with list of timeframes and status.
+        """
         try:
             with self._get_db() as db:
                 timeframes_result = db.execute_query(
@@ -188,7 +200,11 @@ class DashboardServer:
             )
 
     def api_categories(self):
-        """Get available symbol categories from database with symbol counts."""
+        """Get available symbol categories from database with symbol counts.
+
+        Returns:
+            JSON response with category list, counts, and status.
+        """
         try:
             with self._get_db() as db:
                 # Query categories with symbol counts

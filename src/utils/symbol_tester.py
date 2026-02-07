@@ -92,10 +92,10 @@ class SymbolTesterBase(ABC):
         self.results: Dict[str, SymbolTestResult] = {}
 
     def load_config(self) -> bool:
-        """Load configuration from YAML file
+        """Load configuration from YAML file.
 
         Returns:
-            True if successful, False otherwise
+            True if successful, False otherwise.
         """
         try:
             self.config = ConfigManager.get_config()
@@ -106,10 +106,10 @@ class SymbolTesterBase(ABC):
             return False
 
     def initialize(self) -> bool:
-        """Initialize MT5 connection
+        """Initialize MT5 connection.
 
         Returns:
-            True if successful, False otherwise
+            True if successful, False otherwise.
         """
         if not self.load_config():
             return False
@@ -131,13 +131,13 @@ class SymbolTesterBase(ABC):
             return False
 
     def get_symbol_info(self, symbol: str) -> Tuple[bool, float, str]:
-        """Get symbol information and validate trading capability
+        """Get symbol information and validate trading capability.
 
         Args:
-            symbol: Trading symbol to check
+            symbol: Trading symbol to check.
 
         Returns:
-            Tuple of (has_volume: bool, volume_max: float, error_msg: str or None)
+            Tuple of (has_volume: bool, volume_max: float, error_msg: str or None).
         """
         try:
             info = mt5.symbol_info(symbol)
@@ -155,14 +155,14 @@ class SymbolTesterBase(ABC):
             return False, 0, f"Exception: {str(e)}"
 
     def attempt_trade(self, symbol: str, category: str) -> SymbolTestResult:
-        """Attempt to place a trade on a symbol
+        """Attempt to place a trade on a symbol.
 
         Args:
-            symbol: Trading symbol
-            category: Asset category (crypto, forex, etc)
+            symbol: Trading symbol.
+            category: Asset category (crypto, forex, etc).
 
         Returns:
-            SymbolTestResult with outcome
+            SymbolTestResult with outcome.
         """
         self.logger.info(f"[Testing {category}] {symbol}...")
 
@@ -218,10 +218,10 @@ class SymbolTesterBase(ABC):
         return result
 
     def get_account_status(self) -> Dict:
-        """Get current account information
+        """Get current account information.
 
         Returns:
-            Dictionary with account details
+            Dictionary with account details.
         """
         try:
             account = mt5.account_info()
@@ -236,27 +236,34 @@ class SymbolTesterBase(ABC):
             return {}
 
     def log_account_status(self) -> None:
-        """Log current account status"""
+        """Log current account status.
+
+        Returns:
+            None.
+        """
         account = mt5.account_info()
         for line in SymbolStatusFormatter.format_account_status(account):
             self.logger.info(line)
 
     @abstractmethod
     def run_tests(self) -> TestSummary:
-        """Run the test suite
+        """Run the test suite.
 
         Must be implemented by subclasses.
 
         Returns:
-            TestSummary with results
+            TestSummary with results.
         """
         pass
 
     def print_summary(self, summary: TestSummary) -> None:
-        """Print test summary
+        """Print test summary.
 
         Args:
-            summary: TestSummary object with results
+            summary: TestSummary object with results.
+
+        Returns:
+            None.
         """
         self.logger.info("=" * 60)
         self.logger.info("TEST SUMMARY")
@@ -279,7 +286,11 @@ class SymbolTesterBase(ABC):
             self.logger.info(line)
 
     def cleanup(self) -> None:
-        """Clean up resources"""
+        """Clean up resources.
+
+        Returns:
+            None.
+        """
         try:
             if self.db:
                 self.db.close()
@@ -291,10 +302,10 @@ class SymbolTesterBase(ABC):
             self.logger.error(f"Cleanup error: {str(e)}")
 
     def run_and_cleanup(self) -> TestSummary:
-        """Run tests with automatic cleanup
+        """Run tests with automatic cleanup.
 
         Returns:
-            TestSummary with results
+            TestSummary with results.
         """
         try:
             return self.run_tests()

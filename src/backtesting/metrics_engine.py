@@ -10,10 +10,15 @@ from src.utils.logging_factory import LoggingFactory
 
 
 class MetricsEngine:
-    """Calculate 15 comprehensive backtesting metrics."""
+    """Calculate 15 comprehensive backtesting metrics.
+
+    Provides methods to compute core metrics (Sharpe, drawdown, profit factor),
+    trade statistics (win rate, P/L ratio), and bonus metrics (Sortino, Calmar).
+    Uses empyrical library for accurate financial calculations.
+    """
 
     def __init__(self):
-        """Initialize metrics engine."""
+        """Initialize metrics engine with logger."""
         self.logger = LoggingFactory.get_logger(__name__)
 
     def calculate_all_metrics(

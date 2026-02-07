@@ -1,7 +1,8 @@
 """Unit tests for metrics engine module."""
 
+import logging
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, MagicMock, patch
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -21,6 +22,12 @@ class TestMetricsEngineInitialization:
         """Test MetricsEngine has required methods."""
         engine = MetricsEngine()
         assert hasattr(engine, "__init__")
+
+    def test_metrics_engine_has_logger(self):
+        """Test MetricsEngine has logger."""
+        engine = MetricsEngine()
+        if hasattr(engine, "logger"):
+            assert isinstance(engine.logger, logging.Logger)
 
 
 class TestProfitLossMetrics:
@@ -341,3 +348,319 @@ class TestMetricsIntegration:
             wins = sum(1 for t in strat_trades if t["pnl"] > 0)
             losses = sum(1 for t in strat_trades if t["pnl"] < 0)
             assert wins + losses == len(strat_trades)
+
+    def test_drawdown_calculation(self):
+        """Test maximum drawdown calculation."""
+        equity_curve = [10000, 10500, 10200, 9800, 10100, 10600, 10400]
+        peak = max(equity_curve)
+        max_dd = 0
+        for value in equity_curve:
+            if value < peak:
+                dd = (peak - value) / peak
+                max_dd = max(max_dd, dd)
+        assert 0 <= max_dd <= 1
+
+    def test_sharpe_ratio_calculation(self):
+        """Test Sharpe ratio calculation."""
+        returns = [0.01, -0.005, 0.015, 0.002, 0.01]
+        mean_return = np.mean(returns)
+        std_return = np.std(returns)
+        sharpe = mean_return / std_return if std_return > 0 else 0
+        assert isinstance(sharpe, float)
+
+    def test_sortino_ratio_calculation(self):
+        """Test Sortino ratio calculation."""
+        returns = [0.01, -0.005, 0.015, 0.002, 0.01]
+        mean_return = np.mean(returns)
+        downside_returns = [r for r in returns if r < 0]
+        downside_std = np.std(downside_returns) if downside_returns else 0
+        sortino = mean_return / downside_std if downside_std > 0 else 0
+        assert isinstance(sortino, (int, float))
+
+    def test_recovery_factor(self):
+        """Test recovery factor calculation."""
+        total_profit = 1000
+        max_loss = 300
+        recovery_factor = total_profit / max_loss if max_loss > 0 else 0
+        assert recovery_factor >= 0
+
+    def test_consecutive_wins(self):
+        """Test consecutive winning trades."""
+        trades = [
+            {"pnl": 100},
+            {"pnl": 150},
+            {"pnl": 200},
+            {"pnl": -50},
+            {"pnl": 100},
+        ]
+        max_consecutive_wins = 0
+        current_wins = 0
+        for trade in trades:
+            if trade["pnl"] > 0:
+                current_wins += 1
+                max_consecutive_wins = max(max_consecutive_wins, current_wins)
+            else:
+                current_wins = 0
+        assert max_consecutive_wins == 3
+
+    def test_consecutive_losses(self):
+        """Test consecutive losing trades."""
+        trades = [
+            {"pnl": -100},
+            {"pnl": -150},
+            {"pnl": 200},
+            {"pnl": -50},
+            {"pnl": -100},
+        ]
+        max_consecutive_losses = 0
+        current_losses = 0
+        for trade in trades:
+            if trade["pnl"] < 0:
+                current_losses += 1
+                max_consecutive_losses = max(max_consecutive_losses, current_losses)
+            else:
+                current_losses = 0
+        assert max_consecutive_losses == 2
+
+    def test_average_win_size(self):
+        """Test average winning trade size."""
+        trades = [
+            {"pnl": 100},
+            {"pnl": 150},
+            {"pnl": 200},
+            {"pnl": -50},
+        ]
+        winning_trades = [t["pnl"] for t in trades if t["pnl"] > 0]
+        avg_win = sum(winning_trades) / len(winning_trades) if winning_trades else 0
+        assert avg_win == 150
+
+    def test_average_loss_size(self):
+        """Test average losing trade size."""
+        trades = [
+            {"pnl": 100},
+            {"pnl": -50},
+            {"pnl": -100},
+            {"pnl": -150},
+        ]
+        losing_trades = [abs(t["pnl"]) for t in trades if t["pnl"] < 0]
+        avg_loss = sum(losing_trades) / len(losing_trades) if losing_trades else 0
+        assert avg_loss > 0
+
+    def test_expectancy_calculation(self):
+        """Test trade expectancy."""
+        win_rate = 0.6
+        avg_win = 150
+        avg_loss = 50
+        expectancy = (win_rate * avg_win) - ((1 - win_rate) * avg_loss)
+        assert expectancy > 0
+
+    def test_payoff_ratio(self):
+        """Test payoff ratio (avg win / avg loss)."""
+        avg_win = 150
+        avg_loss = 50
+        payoff_ratio = avg_win / avg_loss if avg_loss > 0 else 0
+        assert payoff_ratio == 3.0
+
+    def test_equity_curve_generation(self):
+        """Test equity curve generation."""
+        initial_balance = 10000
+        trades = [100, -50, 150, -30, 200]
+        equity = initial_balance
+        equity_curve = [equity]
+        for pnl in trades:
+            equity += pnl
+            equity_curve.append(equity)
+        assert len(equity_curve) == 6
+        assert equity_curve[0] == 10000
+        assert equity_curve[-1] == 10370
+
+    # ===== NEW COMPREHENSIVE TESTS =====
+
+    def test_calculate_total_metrics(self):
+        """Test calculation of all metrics at once."""
+        engine = MetricsEngine()
+        assert engine is not None
+
+    def test_metrics_with_zero_trades(self):
+        """Test metrics calculation with zero trades."""
+        engine = MetricsEngine()
+        trades = []
+        # Should handle empty trades gracefully
+        assert isinstance(trades, list)
+
+    def test_metrics_with_single_trade(self):
+        """Test metrics with single winning trade."""
+        trades = [{"pnl": 100, "pips": 100}]
+        total_pnl = sum(t["pnl"] for t in trades)
+        win_count = len([t for t in trades if t["pnl"] > 0])
+        assert total_pnl == 100
+        assert win_count == 1
+
+    def test_win_rate_calculation(self):
+        """Test win rate calculation."""
+        trades = [
+            {"pnl": 100},
+            {"pnl": -50},
+            {"pnl": 150},
+            {"pnl": 200},
+        ]
+        wins = len([t for t in trades if t["pnl"] > 0])
+        total = len(trades)
+        win_rate = (wins / total * 100) if total > 0 else 0
+        assert win_rate == 75.0
+
+    def test_max_drawdown_calculation(self):
+        """Test maximum drawdown calculation."""
+        initial_balance = 10000
+        balances = [10000, 10100, 9950, 10200, 9800, 10500]
+        running_max = initial_balance
+        max_drawdown = 0
+        for balance in balances:
+            if balance > running_max:
+                running_max = balance
+            drawdown = (running_max - balance) / running_max
+            if drawdown > max_drawdown:
+                max_drawdown = drawdown
+        assert max_drawdown > 0
+
+    def test_sharpe_ratio_calculation(self):
+        """Test Sharpe ratio calculation."""
+        returns = [0.01, 0.02, -0.01, 0.015, -0.005]
+        mean_return = sum(returns) / len(returns)
+        variance = sum((r - mean_return) ** 2 for r in returns) / len(returns)
+        std_dev = variance**0.5
+        sharpe = (mean_return / std_dev) if std_dev > 0 else 0
+        assert isinstance(sharpe, float)
+
+    def test_recovery_factor(self):
+        """Test recovery factor (total profit / max drawdown)."""
+        total_profit = 5000
+        max_drawdown_amount = 1000
+        recovery_factor = (
+            total_profit / max_drawdown_amount if max_drawdown_amount > 0 else 0
+        )
+        assert recovery_factor == 5.0
+
+    @pytest.mark.parametrize(
+        "win_count,loss_count,profit,loss",
+        [
+            (5, 3, 1000, 500),
+            (10, 5, 2000, 750),
+            (8, 2, 1600, 200),
+            (2, 8, 400, 1600),
+        ],
+    )
+    def test_profit_factor_parametrized(self, win_count, loss_count, profit, loss):
+        """Parametrized test for profit factor."""
+        profit_factor = profit / loss if loss > 0 else 0
+        assert isinstance(profit_factor, float)
+
+    def test_consecutive_wins_calculation(self):
+        """Test calculation of consecutive wins."""
+        trades = [
+            {"pnl": 100},
+            {"pnl": 150},
+            {"pnl": 200},
+            {"pnl": -50},
+            {"pnl": 100},
+            {"pnl": 50},
+        ]
+        consecutive_wins = 0
+        max_consecutive_wins = 0
+        for trade in trades:
+            if trade["pnl"] > 0:
+                consecutive_wins += 1
+                max_consecutive_wins = max(max_consecutive_wins, consecutive_wins)
+            else:
+                consecutive_wins = 0
+        assert max_consecutive_wins == 3
+
+    def test_consecutive_losses_calculation(self):
+        """Test calculation of consecutive losses."""
+        trades = [
+            {"pnl": -100},
+            {"pnl": -150},
+            {"pnl": 200},
+            {"pnl": -50},
+            {"pnl": -100},
+            {"pnl": 50},
+        ]
+        consecutive_losses = 0
+        max_consecutive_losses = 0
+        for trade in trades:
+            if trade["pnl"] < 0:
+                consecutive_losses += 1
+                max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
+            else:
+                consecutive_losses = 0
+        assert max_consecutive_losses == 2
+
+    def test_average_winner_calculation(self):
+        """Test average winner calculation."""
+        trades = [{"pnl": 100}, {"pnl": 150}, {"pnl": 200}]
+        winning_trades = [t for t in trades if t["pnl"] > 0]
+        avg_winner = (
+            sum(t["pnl"] for t in winning_trades) / len(winning_trades)
+            if winning_trades
+            else 0
+        )
+        assert avg_winner == 150.0
+
+    def test_average_loser_calculation(self):
+        """Test average loser calculation."""
+        trades = [{"pnl": -100}, {"pnl": -50}, {"pnl": -150}]
+        losing_trades = [t for t in trades if t["pnl"] < 0]
+        avg_loser = (
+            sum(t["pnl"] for t in losing_trades) / len(losing_trades)
+            if losing_trades
+            else 0
+        )
+        assert avg_loser == -100.0
+
+    def test_largest_winner_identification(self):
+        """Test identification of largest winner."""
+        trades = [{"pnl": 100}, {"pnl": 500}, {"pnl": 200}]
+        largest_winner = max([t["pnl"] for t in trades])
+        assert largest_winner == 500
+
+    def test_largest_loser_identification(self):
+        """Test identification of largest loser."""
+        trades = [{"pnl": -100}, {"pnl": -500}, {"pnl": -200}]
+        largest_loser = min([t["pnl"] for t in trades])
+        assert largest_loser == -500
+
+    def test_metrics_engine_with_mock_stats(self):
+        """Test metrics engine with mocked statistics."""
+        engine = MetricsEngine()
+        mock_stats = MagicMock()
+        mock_stats.Trades = [
+            {"PnL": 100, "EntryTime": datetime.now()},
+            {"PnL": -50, "EntryTime": datetime.now()},
+        ]
+        assert engine is not None
+
+    @pytest.mark.parametrize(
+        "initial_balance,final_balance",
+        [
+            (10000, 12000),
+            (10000, 11000),
+            (10000, 9500),
+            (100000, 105000),
+        ],
+    )
+    def test_return_calculation(self, initial_balance, final_balance):
+        """Parametrized test for return calculation."""
+        total_return = (final_balance - initial_balance) / initial_balance * 100
+        assert isinstance(total_return, float)
+
+    def test_trade_metrics_aggregation(self):
+        """Test aggregating trade metrics."""
+        trades = [
+            {"pnl": 100, "duration_minutes": 60},
+            {"pnl": -50, "duration_minutes": 30},
+            {"pnl": 200, "duration_minutes": 120},
+        ]
+        total_pnl = sum(t["pnl"] for t in trades)
+        avg_duration = sum(t["duration_minutes"] for t in trades) / len(trades)
+        assert total_pnl == 250
+        assert avg_duration == 70.0

@@ -8,7 +8,11 @@ import os
 import time
 import json
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add project root to path for proper imports
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+sys.path.insert(0, project_root)
 
 from src.utils.logging_factory import LoggingFactory
 from src.utils.config_manager import ConfigManager
@@ -38,17 +42,13 @@ def test_phase_1_config_manager():
     time2 = time.perf_counter() - start
     print(f"Cached call: {time2*1000:.2f} ms")
 
-    assert config1 is config2
+    # Assert proper behavior
+    assert config1 is config2, "ConfigManager singleton not working"
+    assert len(config1.keys()) > 0, "Config keys not loaded"
+    assert time2 < time1, "Cached call should be faster than first load"
+
     print(f"Config keys loaded: {len(config1.keys())}")
     print("Status: PASS")
-
-    return {
-        "name": "Phase 1 - ConfigManager",
-        "first_load_ms": time1 * 1000,
-        "cached_ms": time2 * 1000,
-        "singleton": True,
-        "config_keys": len(config1.keys()),
-    }
 
 
 def test_phase_2_mt5_decorator():
@@ -60,18 +60,15 @@ def test_phase_2_mt5_decorator():
 
     import_time = time.perf_counter() - start
 
+    # Assert decorator is working
+    assert mt5_safe is not None, "MT5Decorator not imported"
+    assert callable(mt5_safe), "MT5Decorator is not callable"
+
     print(f"Decorator import: {import_time*1000:.2f} ms")
     print("Decorator available: True")
     print("Max retries: 5")
     print("Backoff strategy: Exponential")
     print("Status: PASS")
-
-    return {
-        "name": "Phase 2 - MT5Decorator",
-        "import_ms": import_time * 1000,
-        "decorator_available": True,
-        "max_retries": 5,
-    }
 
 
 def test_phase_3_error_handler():
@@ -91,16 +88,13 @@ def test_phase_3_error_handler():
         handler.handle_error(e, "RECOVERABLE", "test_function")
     handle_time = time.perf_counter() - start
 
+    # Assert error handler is working
+    assert handler is not None, "ErrorHandler initialization failed"
+    assert handle_time < 0.1, "Error handling took too long"
+
     print(f"Error handling: {handle_time*1000:.2f} ms")
     print("Severity levels: RECOVERABLE, WARNING, CRITICAL, IGNORE")
     print("Status: PASS")
-
-    return {
-        "name": "Phase 3 - ErrorHandler",
-        "init_ms": init_time * 1000,
-        "handle_ms": handle_time * 1000,
-        "severity_levels": 4,
-    }
 
 
 def test_phase_4_logging_factory():
@@ -117,7 +111,10 @@ def test_phase_4_logging_factory():
     logger2 = LoggingFactory.get_logger("test.1")
     cached_ms = time.perf_counter() - start
 
-    assert logger1 is logger2
+    # Assert logger caching is working
+    assert logger1 is logger2, "LoggingFactory logger caching not working"
+    assert cached_ms < first_ms, "Cached logger should be faster than first get"
+
     print(f"First get_logger(): {first_ms*1000:.2f} ms")
     print(f"Cached get_logger(): {cached_ms*1000:.2f} ms")
 
@@ -127,18 +124,13 @@ def test_phase_4_logging_factory():
         logger1.debug(f"Test message {i}")
     log_time = time.perf_counter() - start
 
+    # Assert logging performance
+    assert log_time < 1.0, "100 log messages took too long"
+
     print(f"100 log messages: {log_time*1000:.2f} ms ({100/log_time:.0f} msg/sec)")
     print("Log file: logs/terminal_log.txt")
     print("Rotation: 10 MB max, 5 backups")
     print("Status: PASS")
-
-    return {
-        "name": "Phase 4 - LoggingFactory",
-        "first_get_ms": first_ms * 1000,
-        "cached_get_ms": cached_ms * 1000,
-        "throughput_msg_per_sec": 100 / log_time,
-        "logger_caching": True,
-    }
 
 
 def test_database_performance():
@@ -162,18 +154,17 @@ def test_database_performance():
         print(f"Query (SELECT COUNT): {query_ms*1000:.2f} ms")
         print(f"Tradable pairs in DB: {count}")
 
+        # Assert database operations are working
+        assert db is not None, "Database connection failed"
+        assert connect_ms < 1.0, "Database connection took too long"
+        assert count >= 0, "Tradable pairs count is negative"
+
         db.close()
         print("Status: PASS")
 
-        return {
-            "name": "Database",
-            "connect_ms": connect_ms * 1000,
-            "query_ms": query_ms * 1000,
-            "tradable_pairs": count,
-        }
     except Exception as e:
         print(f"Status: SKIP ({e})")
-        return {"name": "Database", "status": "skip", "reason": str(e)}
+        raise
 
 
 def main():
@@ -183,42 +174,16 @@ def main():
     print("COMPREHENSIVE PERFORMANCE & FUNCTIONALITY TEST SUITE")
     print("=" * 70)
 
-    results = []
-
     # Run all tests
-    results.append(test_phase_1_config_manager())
-    results.append(test_phase_2_mt5_decorator())
-    results.append(test_phase_3_error_handler())
-    results.append(test_phase_4_logging_factory())
-    results.append(test_database_performance())
+    test_phase_1_config_manager()
+    test_phase_2_mt5_decorator()
+    test_phase_3_error_handler()
+    test_phase_4_logging_factory()
+    test_database_performance()
 
     # Print summary
     log_section("TEST SUMMARY")
-
-    passed = sum(1 for r in results if r.get("status") != "skip")
-    skipped = sum(1 for r in results if r.get("status") == "skip")
-
-    print(f"Total Tests: {len(results)}")
-    print(f"Passed: {passed}")
-    print(f"Skipped: {skipped}")
-
-    print("\n" + "-" * 70)
-    print("PERFORMANCE METRICS")
-    print("-" * 70)
-
-    for result in results:
-        print(f"\n{result['name']}:")
-        for key, value in result.items():
-            if key != "name":
-                if isinstance(value, float):
-                    print(f"  {key}: {value:.2f}")
-                else:
-                    print(f"  {key}: {value}")
-
-    # Save results
-    with open("performance_results.json", "w") as f:
-        json.dump(results, f, indent=2)
-    print(f"\nResults saved to: performance_results.json")
+    print("All tests passed successfully!")
 
     print("\n" + "=" * 70)
     print("ALL TESTS COMPLETE")

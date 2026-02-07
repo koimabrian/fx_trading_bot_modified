@@ -18,7 +18,14 @@ class BaseStrategy(ABC):
     """
 
     def __init__(self, params, db, config, mode="live"):
-        """Initialize strategy with parameters, database, config, and mode"""
+        """Initialize strategy with parameters, database, config, and mode.
+
+        Args:
+            params: Strategy parameters dict with symbol, timeframe, volume.
+            db: Database manager instance.
+            config: Configuration dictionary.
+            mode: Operating mode ('live' or 'backtest').
+        """
         self.default_symbol = params.get("symbol", "BTCUSD")
         self.symbol = self.default_symbol
         self.timeframe = params.get("timeframe", 15)
@@ -156,8 +163,22 @@ class BaseStrategy(ABC):
 
     @abstractmethod
     def generate_entry_signal(self, symbol=None):
-        """Generate an entry signal"""
+        """Generate an entry signal for the given symbol.
+
+        Args:
+            symbol: Trading symbol (uses default if None).
+
+        Returns:
+            Signal dict with action, symbol, volume, or None if no signal.
+        """
 
     @abstractmethod
     def generate_exit_signal(self, position):
-        """Generate an exit signal for an open position"""
+        """Generate an exit signal for an open position.
+
+        Args:
+            position: Position dict with symbol, entry_price, etc.
+
+        Returns:
+            Exit signal dict or None if position should be held.
+        """

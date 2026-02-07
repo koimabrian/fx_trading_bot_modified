@@ -89,7 +89,7 @@ logging:
   console: true
   file: logs/bot.log
   format: '[%(asctime)s] %(levelname)s - %(name)s - %(message)s'
-  level: INFO
+  level: DEBUG
 mt5:
   login: 297864944
   password: Brian@2025
@@ -99,7 +99,7 @@ risk_management:
   lot_size: 0.01                   # Default position size (base for adaptive sizing)
   lot_size_min: 0.01              # Minimum lot size (low confidence)
   lot_size_max: 0.5               # Maximum lot size (high confidence)
-  max_positions: 5                 # Maximum concurrent open positions (total)
+  max_positions: 15                 # Maximum concurrent open positions (total)
   max_positions_per_symbol: 5      # Maximum positions per single symbol
   min_signal_confidence: 0.45      # Minimum confidence threshold (0-1)
   position_sizing: adaptive        # 'fixed' or 'adaptive' (confidence-based scaling)
@@ -115,6 +115,24 @@ risk_management:
   equity_target_percent: 5.0       # Exit all positions when account equity increases by this %
   use_atr_stops: true              # Enable ATR-based dynamic stops
   atr_stop_multiplier: 2.0         # ATR multiplier for stop loss calculation
+  
+  # Category-based position limits (for position persistence & monitoring)
+  category_limits:
+    forex: 3                       # Max concurrent FOREX positions
+    crypto: 4                       # Max concurrent CRYPTO positions
+    stocks: 2                       # Max concurrent STOCKS positions
+    commodities: 2                  # Max concurrent COMMODITIES positions
+    indices: 1                      # Max concurrent INDICES positions
+  
+  # Position persistence settings
+  persist_positions: true           # Enable position persistence across restarts
+  position_recovery_timeout_min: 5  # Minutes to wait before declaring position recovery complete
+  session_id_format: datetime       # 'datetime' or 'uuid' for session tracking
+  
+  # Emergency protection
+  daily_loss_limit_pct: 5.0         # Stop all trading if daily loss exceeds this % of account
+  emergency_stop_enabled: true      # Enable emergency stop functionality
+  enable_position_recovery: true    # Enable recovering open positions from MT5 on startup
   # Tuning Notes:
   # - min_signal_confidence: Increase to 0.6-0.7 for fewer but higher-quality signals
   # - take_profit_percent: Decrease to 1.5% for tighter exits, increase to 3-4% for swing trades
@@ -186,5 +204,28 @@ timeframes:
 volatility:
   atr_period: 14
   lookback_bars: 200
-  min_threshold: 0.001
-  top_n_pairs: 10
+  min_threshold: 0.0001
+  top_n_pairs: 100
+# Trade Monitoring Configuration (Real-time monitoring of open positions)
+trade_monitoring:
+  enabled: true                          # Enable real-time trade monitoring
+  update_frequency_seconds: 5            # Check open positions every N seconds
+  check_profit_loss: true                # Monitor profit/loss continuously
+  check_stop_loss_hits: true             # Detect when stop loss is hit
+  check_take_profit_hits: true           # Detect when take profit is hit
+  
+  # Monitoring alerts
+  alert_on_drawdown_pct: 2.0            # Alert when single trade loses more than N%
+  alert_on_margin_level: 150.0          # Alert when margin level drops below N%
+  alert_on_high_spread: true            # Alert when spread widens unusually
+  
+  # Monitoring refresh rates
+  position_refresh_interval_seconds: 10  # Refresh position list from MT5
+  account_refresh_interval_seconds: 30   # Refresh account balance/equity
+  
+# Backtesting Configuration (Extended settings)
+backtesting_extended:
+  save_trades_to_db: true               # Save all backtest trades to database
+  archive_parameters: true              # Archive optimization parameters for review
+  calculate_advanced_metrics: true       # Calculate Sharpe, Sortino, Calmar ratios
+  volatility_ranking: true              # Rank strategies by volatility adjustment

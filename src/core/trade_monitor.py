@@ -20,5 +20,12 @@ class TradeMonitor:
         self.logger = LoggingFactory.get_logger(__name__)
 
     def monitor_positions(self, strategy_name: str = None):
-        """Monitor and close positions based on exit strategy"""
+        """Monitor and close positions based on exit strategy.
+
+        Args:
+            strategy_name: Optional strategy name for filtering.
+
+        Returns:
+            None. Positions are closed via MT5Connector.
+        """
         self.mt5_conn.monitor_and_close_positions(strategy_name)

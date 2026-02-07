@@ -30,7 +30,11 @@ class Trader:
         self.config = self._load_config()
 
     def _load_config(self):
-        """Load configuration from YAML file."""
+        """Load configuration from YAML file.
+
+        Returns:
+            Configuration dictionary, or empty dict if loading fails.
+        """
         try:
             from src.utils.config_manager import ConfigManager
 
@@ -94,7 +98,13 @@ class Trader:
 
     def execute_trades(self, strategy_name=None):
         """Execute trades based on signals from strategy manager.
-        Respects trading rules (e.g., no forex/commodities on weekends).
+
+        Generates signals via StrategyManager, validates trading rules
+        (market hours, position limits), and places orders via MT5.
+
+        Args:
+            strategy_name: Optional strategy name to filter signals.
+                If None, generates signals from all strategies.
         """
         try:
             # Check if position limit allows new trades

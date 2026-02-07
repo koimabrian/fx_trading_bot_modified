@@ -8,7 +8,11 @@ import os
 import time
 import json
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add project root to path for proper imports
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+sys.path.insert(0, project_root)
 
 from src.utils.logging_factory import LoggingFactory
 from src.utils.config_manager import ConfigManager
@@ -33,8 +37,6 @@ def test_data_fetcher_with_db():
     """Test DataFetcher with Database"""
     log_section("UNTESTED: DataFetcher (Market Data Fetcher)")
 
-    results = {"name": "DataFetcher", "status": "SKIP"}
-
     try:
         from src.core.data_fetcher import DataFetcher
 
@@ -42,9 +44,12 @@ def test_data_fetcher_with_db():
         db = DatabaseManager(config)
         db.connect()
 
-        # Initialize DataFetcher with db
+        # Initialize MT5Connector for DataFetcher
+        mt5_conn = MT5Connector(db)
+
+        # Initialize DataFetcher with required parameters
         start = time.perf_counter()
-        fetcher = DataFetcher(db)
+        fetcher = DataFetcher(mt5_conn, db, config)
         init_time = time.perf_counter() - start
 
         print(f"DataFetcher initialization: {init_time*1000:.2f} ms")
@@ -65,27 +70,24 @@ def test_data_fetcher_with_db():
 
         db.close()
 
-        results = {
-            "name": "DataFetcher",
-            "init_ms": init_time * 1000,
-            "public_methods": len(methods),
-            "data_methods": len(key_methods),
-            "status": "PASS",
-        }
+        # Assert initialization successful
+        assert fetcher is not None, "DataFetcher initialization failed"
+        assert (
+            init_time < 1.0
+        ), f"DataFetcher initialization took too long: {init_time}s"
+        assert len(methods) > 0, "DataFetcher has no public methods"
+        assert len(key_methods) > 0, "DataFetcher has no data methods"
+
         print("Status: PASS")
 
     except Exception as e:
         print(f"Error: {e}")
-        results["reason"] = str(e)
-
-    return results
+        raise
 
 
 def test_strategy_selector():
     """Test StrategySelector"""
     log_section("UNTESTED: StrategySelector (Strategy Ranking & Selection)")
-
-    results = {"name": "StrategySelector", "status": "SKIP"}
 
     try:
         config = ConfigManager.get_config()
@@ -113,27 +115,24 @@ def test_strategy_selector():
         ]
         print(f"Strategy selection methods: {', '.join(strategy_methods[:5])}")
 
-        results = {
-            "name": "StrategySelector",
-            "init_ms": init_time * 1000,
-            "public_methods": len(methods),
-            "selection_methods": len(strategy_methods),
-            "status": "PASS",
-        }
+        # Assert initialization successful
+        assert selector is not None, "StrategySelector initialization failed"
+        assert (
+            init_time < 1.0
+        ), f"StrategySelector initialization took too long: {init_time}s"
+        assert len(methods) > 0, "StrategySelector has no public methods"
+        assert len(strategy_methods) > 0, "StrategySelector has no selection methods"
+
         print("Status: PASS")
 
     except Exception as e:
         print(f"Error: {e}")
-        results["reason"] = str(e)
-
-    return results
+        raise
 
 
 def test_trade_manager_with_db():
     """Test TradeManager with Database"""
     log_section("UNTESTED: TradeManager (Trade Execution & Management)")
-
-    results = {"name": "TradeManager", "status": "SKIP"}
 
     try:
         from src.core.trade_manager import TradeManager
@@ -170,27 +169,24 @@ def test_trade_manager_with_db():
 
         db.close()
 
-        results = {
-            "name": "TradeManager",
-            "init_ms": init_time * 1000,
-            "public_methods": len(methods),
-            "trade_methods": len(trade_methods),
-            "status": "PASS",
-        }
+        # Assert initialization successful
+        assert manager is not None, "TradeManager initialization failed"
+        assert (
+            init_time < 1.0
+        ), f"TradeManager initialization took too long: {init_time}s"
+        assert len(methods) > 0, "TradeManager has no public methods"
+        assert len(trade_methods) > 0, "TradeManager has no trade methods"
+
         print("Status: PASS")
 
     except Exception as e:
         print(f"Error: {e}")
-        results["reason"] = str(e)
-
-    return results
+        raise
 
 
 def test_backtest_manager():
     """Test BacktestManager"""
     log_section("UNTESTED: BacktestManager (Historical Simulation)")
-
-    results = {"name": "BacktestManager", "status": "SKIP"}
 
     try:
         config = ConfigManager.get_config()
@@ -218,27 +214,24 @@ def test_backtest_manager():
         ]
         print(f"Backtest methods: {', '.join(backtest_methods[:5])}")
 
-        results = {
-            "name": "BacktestManager",
-            "init_ms": init_time * 1000,
-            "public_methods": len(methods),
-            "backtest_methods": len(backtest_methods),
-            "status": "PASS",
-        }
+        # Assert initialization successful
+        assert manager is not None, "BacktestManager initialization failed"
+        assert (
+            init_time < 1.0
+        ), f"BacktestManager initialization took too long: {init_time}s"
+        assert len(methods) > 0, "BacktestManager has no public methods"
+        assert len(backtest_methods) > 0, "BacktestManager has no backtest methods"
+
         print("Status: PASS")
 
     except Exception as e:
         print(f"Error: {e}")
-        results["reason"] = str(e)
-
-    return results
+        raise
 
 
 def test_trade_monitor():
     """Test TradeMonitor"""
     log_section("UNTESTED: TradeMonitor (Real-Time Trade Monitoring)")
-
-    results = {"name": "TradeMonitor", "status": "SKIP"}
 
     try:
         from src.core.trade_monitor import TradeMonitor
@@ -247,9 +240,12 @@ def test_trade_monitor():
         db = DatabaseManager(config)
         db.connect()
 
-        # Initialize TradeMonitor
+        # Initialize MT5Connector for TradeMonitor
+        mt5_conn = MT5Connector(db)
+
+        # Initialize TradeMonitor with required parameters
         start = time.perf_counter()
-        monitor = TradeMonitor(db)
+        monitor = TradeMonitor(mt5_conn, db)
         init_time = time.perf_counter() - start
 
         print(f"TradeMonitor initialization: {init_time*1000:.2f} ms")
@@ -272,27 +268,24 @@ def test_trade_monitor():
 
         db.close()
 
-        results = {
-            "name": "TradeMonitor",
-            "init_ms": init_time * 1000,
-            "public_methods": len(methods),
-            "monitoring_methods": len(monitoring_methods),
-            "status": "PASS",
-        }
+        # Assert initialization successful
+        assert monitor is not None, "TradeMonitor initialization failed"
+        assert (
+            init_time < 1.0
+        ), f"TradeMonitor initialization took too long: {init_time}s"
+        assert len(methods) > 0, "TradeMonitor has no public methods"
+        assert len(monitoring_methods) > 0, "TradeMonitor has no monitoring methods"
+
         print("Status: PASS")
 
     except Exception as e:
         print(f"Error: {e}")
-        results["reason"] = str(e)
-
-    return results
+        raise
 
 
 def test_metrics_engine():
     """Test MetricsEngine"""
     log_section("UNTESTED: MetricsEngine (Performance Metrics)")
-
-    results = {"name": "MetricsEngine", "status": "SKIP"}
 
     try:
         from src.backtesting.metrics_engine import MetricsEngine
@@ -320,72 +313,16 @@ def test_metrics_engine():
         ]
         print(f"Metrics methods: {', '.join(metrics_methods[:5])}")
 
-        results = {
-            "name": "MetricsEngine",
-            "init_ms": init_time * 1000,
-            "public_methods": len(methods),
-            "metrics_methods": len(metrics_methods),
-            "status": "PASS",
-        }
+        # Assert initialization successful
+        assert metrics is not None, "MetricsEngine initialization failed"
+        assert (
+            init_time < 1.0
+        ), f"MetricsEngine initialization took too long: {init_time}s"
+        assert len(methods) > 0, "MetricsEngine has no public methods"
+        assert len(metrics_methods) > 0, "MetricsEngine has no metrics methods"
+
         print("Status: PASS")
 
     except Exception as e:
         print(f"Error: {e}")
-        results["reason"] = str(e)
-
-    return results
-
-
-def main():
-    """Run all untested phase tests"""
-    print("\n")
-    print("=" * 70)
-    print("COMPREHENSIVE UNTESTED COMPONENTS TESTING")
-    print("=" * 70)
-
-    results = []
-
-    # Run all tests
-    results.append(test_data_fetcher_with_db())
-    results.append(test_strategy_selector())
-    results.append(test_trade_manager_with_db())
-    results.append(test_backtest_manager())
-    results.append(test_trade_monitor())
-    results.append(test_metrics_engine())
-
-    # Print summary
-    log_section("TEST SUMMARY - UNTESTED COMPONENTS")
-
-    passed = sum(1 for r in results if r.get("status") == "PASS")
-    skipped = sum(1 for r in results if r.get("status") == "SKIP")
-
-    print(f"Total Components: {len(results)}")
-    print(f"Passed: {passed}")
-    print(f"Skipped: {skipped}")
-
-    print("\n" + "-" * 70)
-    print("DETAILED RESULTS")
-    print("-" * 70)
-
-    for result in results:
-        status_emoji = "PASS" if result.get("status") == "PASS" else "SKIP"
-        print(f"\n{result['name']}: {status_emoji}")
-        for key, value in result.items():
-            if key not in ["name", "status"]:
-                if isinstance(value, float):
-                    print(f"  {key}: {value:.2f}")
-                else:
-                    print(f"  {key}: {value}")
-
-    # Save results
-    with open("comprehensive_untested_results.json", "w") as f:
-        json.dump(results, f, indent=2)
-    print(f"\n\nResults saved to: comprehensive_untested_results.json")
-
-    print("\n" + "=" * 70)
-    print("UNTESTED COMPONENTS TESTING COMPLETE")
-    print("=" * 70 + "\n")
-
-
-if __name__ == "__main__":
-    main()
+        raise

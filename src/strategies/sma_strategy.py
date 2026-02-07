@@ -31,6 +31,12 @@ class SMAStrategy(BaseStrategy):
 
         Trades on crossover: fast SMA crosses above/below slow SMA.
         Requires slow_period + buffer rows for accurate calculation.
+
+        Args:
+            symbol: Trading symbol to analyze. Defaults to instance symbol.
+
+        Returns:
+            Signal dictionary with action, reason, confidence, or None if no signal.
         """
         # Fetch data with required rows
         required = self.slow_period + 5
@@ -97,6 +103,13 @@ class SMAStrategy(BaseStrategy):
         """Generate exit signal based on SMA trend reversal or price targets.
 
         Uses SMA for trend confirmation and ATR for risk management.
+
+        Args:
+            symbol: Trading symbol to analyze. Defaults to instance symbol.
+            entry_price: Original entry price for calculating stop levels.
+
+        Returns:
+            Exit signal dictionary with action and reason, or None if no exit.
         """
         if entry_price is None:
             return None
@@ -149,7 +162,7 @@ class SMAStrategy(BaseStrategy):
         volume = 0.01
 
         def init(self):
-            """Initialize indicators."""
+            """Initialize SMA indicators for backtesting framework."""
             self.sma_fast = self.I(
                 lambda x: pd.Series(x).rolling(self.fast_period).mean(),
                 self.data.Close,
@@ -160,7 +173,7 @@ class SMAStrategy(BaseStrategy):
             )
 
         def next(self):
-            """Execute strategy logic on each bar."""
+            """Execute SMA crossover strategy logic on each price bar."""
             if len(self.data) < self.slow_period + 1:
                 return
 

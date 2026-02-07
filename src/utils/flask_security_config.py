@@ -120,10 +120,13 @@ def configure_flask_security(app: Flask) -> Flask:
 
 def configure_session_security(app: Flask) -> None:
     """
-    Configure Flask session security
+    Configure Flask session security.
 
     Args:
-        app: Flask application instance
+        app: Flask application instance.
+
+    Returns:
+        None.
     """
     # Session configuration
     app.config.update(
@@ -137,10 +140,13 @@ def configure_session_security(app: Flask) -> None:
 
 def configure_database_security(app: Flask) -> None:
     """
-    Configure database security settings
+    Configure database security settings.
 
     Args:
-        app: Flask application instance
+        app: Flask application instance.
+
+    Returns:
+        None.
     """
     # Use parameterized queries (handled by ORM)
     app.config.update(

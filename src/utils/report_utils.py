@@ -21,21 +21,45 @@ class ReportFormatter:
 
     @staticmethod
     def format_percentage(value: float, decimals: int = 2) -> str:
-        """Format number as percentage."""
+        """Format number as percentage.
+
+        Args:
+            value: Numeric value to format.
+            decimals: Number of decimal places.
+
+        Returns:
+            Formatted percentage string.
+        """
         if value is None:
             return "N/A"
         return f"{value * 100:.{decimals}f}%"
 
     @staticmethod
     def format_currency(value: float, decimals: int = 2) -> str:
-        """Format number as currency."""
+        """Format number as currency.
+
+        Args:
+            value: Numeric value to format.
+            decimals: Number of decimal places.
+
+        Returns:
+            Formatted currency string with dollar sign.
+        """
         if value is None:
             return "N/A"
         return f"${value:,.{decimals}f}"
 
     @staticmethod
     def format_ratio(value: float, decimals: int = 3) -> str:
-        """Format ratio (Sharpe, Sortino, etc.)."""
+        """Format ratio (Sharpe, Sortino, etc.).
+
+        Args:
+            value: Numeric ratio value.
+            decimals: Number of decimal places.
+
+        Returns:
+            Formatted ratio string.
+        """
         if value is None:
             return "N/A"
         return f"{value:.{decimals}f}"
@@ -90,14 +114,13 @@ class ReportAggregator:
 
     @staticmethod
     def aggregate_sharpe_ratios(df: pd.DataFrame) -> Dict[str, float]:
-        """
-        Aggregate Sharpe ratios from report DataFrame.
+        """Aggregate Sharpe ratios from report DataFrame.
 
         Args:
-            df: DataFrame with sharpe_ratio column
+            df: DataFrame with sharpe_ratio column.
 
         Returns:
-            Dict with mean, median, min, max, std
+            Dictionary with mean, median, min, max, and std statistics.
         """
         if "sharpe_ratio" not in df.columns:
             return {}
@@ -114,7 +137,14 @@ class ReportAggregator:
 
     @staticmethod
     def aggregate_win_rates(df: pd.DataFrame) -> Dict[str, float]:
-        """Aggregate win rates."""
+        """Aggregate win rates from report DataFrame.
+
+        Args:
+            df: DataFrame with win_rate column.
+
+        Returns:
+            Dictionary with mean, median, min, max, and std statistics.
+        """
         if "win_rate" not in df.columns:
             return {}
 
@@ -130,7 +160,14 @@ class ReportAggregator:
 
     @staticmethod
     def aggregate_returns(df: pd.DataFrame) -> Dict[str, float]:
-        """Aggregate total returns."""
+        """Aggregate total returns from report DataFrame.
+
+        Args:
+            df: DataFrame with total_return column.
+
+        Returns:
+            Dictionary with mean, median, min, max, std, and sum statistics.
+        """
         if "total_return" not in df.columns:
             return {}
 
@@ -226,42 +263,91 @@ class ReportFilter:
 
     @staticmethod
     def by_sharpe_threshold(df: pd.DataFrame, min_sharpe: float) -> pd.DataFrame:
-        """Filter strategies by minimum Sharpe ratio."""
+        """Filter strategies by minimum Sharpe ratio.
+
+        Args:
+            df: DataFrame to filter.
+            min_sharpe: Minimum Sharpe ratio threshold.
+
+        Returns:
+            Filtered DataFrame with rows meeting the threshold.
+        """
         if "sharpe_ratio" not in df.columns:
             return df
         return df[df["sharpe_ratio"] >= min_sharpe]
 
     @staticmethod
     def by_win_rate_threshold(df: pd.DataFrame, min_win_rate: float) -> pd.DataFrame:
-        """Filter strategies by minimum win rate."""
+        """Filter strategies by minimum win rate.
+
+        Args:
+            df: DataFrame to filter.
+            min_win_rate: Minimum win rate threshold.
+
+        Returns:
+            Filtered DataFrame with rows meeting the threshold.
+        """
         if "win_rate" not in df.columns:
             return df
         return df[df["win_rate"] >= min_win_rate]
 
     @staticmethod
     def by_trade_count(df: pd.DataFrame, min_trades: int) -> pd.DataFrame:
-        """Filter strategies by minimum trade count."""
+        """Filter strategies by minimum trade count.
+
+        Args:
+            df: DataFrame to filter.
+            min_trades: Minimum trade count threshold.
+
+        Returns:
+            Filtered DataFrame with rows meeting the threshold.
+        """
         if "trades_total" not in df.columns:
             return df
         return df[df["trades_total"] >= min_trades]
 
     @staticmethod
     def by_symbols(df: pd.DataFrame, symbols: List[str]) -> pd.DataFrame:
-        """Filter to specific symbols."""
+        """Filter to specific symbols.
+
+        Args:
+            df: DataFrame to filter.
+            symbols: List of symbol names to include.
+
+        Returns:
+            Filtered DataFrame containing only specified symbols.
+        """
         if "symbol" not in df.columns:
             return df
         return df[df["symbol"].isin(symbols)]
 
     @staticmethod
     def by_volatility_level(df: pd.DataFrame, level: str) -> pd.DataFrame:
-        """Filter volatility ranking by level (High, Medium, Low)."""
+        """Filter volatility ranking by level (High, Medium, Low).
+
+        Args:
+            df: DataFrame to filter.
+            level: Volatility level to filter by.
+
+        Returns:
+            Filtered DataFrame with matching volatility level.
+        """
         if "volatility_level" not in df.columns:
             return df
         return df[df["volatility_level"] == level]
 
     @staticmethod
     def top_n_by_metric(df: pd.DataFrame, metric: str, n: int = 10) -> pd.DataFrame:
-        """Get top N entries by metric."""
+        """Get top N entries by metric.
+
+        Args:
+            df: DataFrame to filter.
+            metric: Column name to sort by.
+            n: Number of top entries to return.
+
+        Returns:
+            DataFrame with top N entries by the specified metric.
+        """
         if metric not in df.columns:
             return df
         return df.nlargest(n, metric)

@@ -30,14 +30,25 @@ class MT5Connector:
     _initialized = False
 
     def __new__(cls, db):
-        """Singleton pattern: return existing instance or create new one."""
+        """Singleton pattern: return existing instance or create new one.
+
+        Args:
+            db: Database manager instance.
+
+        Returns:
+            The singleton MT5Connector instance.
+        """
         if cls._instance is None:
             cls._instance = super(MT5Connector, cls).__new__(cls)
             cls._instance._init_instance(db)
         return cls._instance
 
     def _init_instance(self, db):
-        """Initialize instance once (called only on first creation)."""
+        """Initialize instance once (called only on first creation).
+
+        Args:
+            db: Database manager instance for storing trade data.
+        """
         self.db = db
         self.logger = LoggingFactory.get_logger(__name__)
         # Load credentials from config.yaml or environment variables
@@ -51,10 +62,14 @@ class MT5Connector:
         self.logger.debug("MT5Connector singleton created")
 
     def initialize(self):
-        """Initialize MT5 connection with config.
+        """Initialize MT5 connection with credentials from config.
 
         Checks if already initialized to prevent duplicate init calls.
-        Returns True if already initialized or successfully initializes.
+        Loads credentials from config.yaml or environment variables.
+
+        Returns:
+            True if successfully initialized or already connected,
+            False if credentials are missing or connection fails.
         """
         # Check if already initialized
         if MT5Connector._initialized:
@@ -112,9 +127,12 @@ class MT5Connector:
         Uses mt5.copy_rates_range for more reliable fetching instead of copy_rates_from_pos.
 
         Args:
-            symbol: Trading symbol (e.g., 'EURUSD')
-            timeframe: MT5 timeframe constant (e.g., mt5.TIMEFRAME_M15)
-            count: Number of candles to fetch
+            symbol: Trading symbol (e.g., 'EURUSD').
+            timeframe: MT5 timeframe constant (e.g., mt5.TIMEFRAME_M15).
+            count: Number of candles to fetch.
+
+        Returns:
+            DataFrame with OHLCV data, or None on error.
         """
         try:
             # Handle None timeframe by using a safe default
@@ -186,7 +204,11 @@ class MT5Connector:
             return None
 
     def get_open_positions_count(self):
-        """Get the number of open positions"""
+        """Get the number of open positions.
+
+        Returns:
+            Integer count of open positions, or 0 on error.
+        """
         try:
             positions = mt5.positions_get()
             if positions is None:
@@ -201,12 +223,12 @@ class MT5Connector:
         """Validate and adjust volume to meet symbol requirements.
 
         Args:
-            symbol: Trading symbol
-            volume: Requested volume
-            symbol_info: MT5 symbol info object
+            symbol: Trading symbol.
+            volume: Requested volume.
+            symbol_info: MT5 symbol info object.
 
         Returns:
-            Validated volume adjusted to meet constraints
+            Validated volume adjusted to meet constraints.
         """
         min_volume = getattr(symbol_info, "volume_min", 0.01)
         max_volume = getattr(symbol_info, "volume_max", 1000.0)
@@ -273,7 +295,16 @@ class MT5Connector:
 
     @mt5_safe(max_retries=5, retry_delay=2.0)
     def place_order(self, signal, strategy_name):
-        """Implement trade order placement logic"""
+        """Place a trade order based on signal.
+
+        Args:
+            signal: Signal dictionary with 'symbol', 'action' (buy/sell),
+                and optional 'confidence' for position sizing.
+            strategy_name: Name of the strategy generating the signal.
+
+        Returns:
+            True if order placed successfully, False otherwise.
+        """
         symbol = signal["symbol"]
 
         from src.utils.config_manager import ConfigManager
@@ -363,7 +394,14 @@ class MT5Connector:
 
     @mt5_safe(max_retries=3, retry_delay=1.5)
     def monitor_and_close_positions(self, strategy_name):
-        """Monitor open positions and close based on exit strategy or profitability"""
+        """Monitor open positions and close based on exit strategy.
+
+        Checks all open positions against take-profit thresholds
+        and closes positions that meet exit criteria.
+
+        Args:
+            strategy_name: Name of the strategy for logging.
+        """
         try:
             positions = mt5.positions_get()
             if not positions:
@@ -431,7 +469,18 @@ class MT5Connector:
 
     @mt5_safe(max_retries=4, retry_delay=1.0)
     def close_position(self, position_id, symbol, position_type, volume, comment):
-        """Close an open position"""
+        """Close an open position.
+
+        Args:
+            position_id: MT5 position ticket ID.
+            symbol: Trading symbol.
+            position_type: MT5 order type (BUY or SELL).
+            volume: Position volume to close.
+            comment: Closing reason comment.
+
+        Returns:
+            True if position closed successfully, False otherwise.
+        """
         try:
             tick = mt5.symbol_info_tick(symbol)
             if tick is None:

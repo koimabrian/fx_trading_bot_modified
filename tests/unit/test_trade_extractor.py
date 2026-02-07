@@ -338,3 +338,157 @@ class TestTradeExtractionIntegration:
         assert trade["strategy"] == "RSI"
         assert trade["entry_price"] is not None
         assert trade["pnl"] == 200
+
+
+class TestTradeExtractorDataFrameHandling:
+    """Test DataFrame handling and type safety in TradeExtractor."""
+
+    def test_extract_trades_with_none_trades_list(self):
+        """Test extraction when _trades is None."""
+        stats = Mock()
+        stats._trades = None
+
+        result = TradeExtractor.extract_trades(stats)
+        assert isinstance(result, pd.DataFrame)
+        assert result.empty
+
+    def test_extract_trades_without_trades_attribute(self):
+        """Test extraction when stats object has no _trades attribute."""
+        stats = Mock(spec=[])  # Mock with no attributes
+
+        result = TradeExtractor.extract_trades(stats)
+        assert isinstance(result, pd.DataFrame)
+        assert result.empty
+
+    def test_extract_trades_with_empty_trades_list(self):
+        """Test extraction when _trades list is empty."""
+        stats = Mock()
+        stats._trades = []
+
+        result = TradeExtractor.extract_trades(stats)
+        assert isinstance(result, pd.DataFrame)
+        assert result.empty
+
+    def test_extract_trades_skips_string_entries(self):
+        """Test that string entries in _trades are skipped."""
+        trade_obj = Mock()
+        trade_obj.entry_time = datetime(2026, 1, 1, 10, 0)
+        trade_obj.exit_time = datetime(2026, 1, 1, 12, 0)
+        trade_obj.entry_price = 1.0800
+        trade_obj.exit_price = 1.0820
+        trade_obj.size = 1.0
+        trade_obj.pl = 200
+        trade_obj.plpct = 0.185
+
+        stats = Mock()
+        stats._trades = [
+            "invalid_string_entry",  # Should be skipped
+            trade_obj,
+            "another_string",  # Should be skipped
+        ]
+
+        result = TradeExtractor.extract_trades(stats)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1  # Only valid trade object extracted
+        assert result.iloc[0]["pnl"] == 200
+
+    def test_extract_trades_skips_incomplete_objects(self):
+        """Test that incomplete trade objects are skipped."""
+        complete_trade = Mock()
+        complete_trade.entry_time = datetime(2026, 1, 1, 10, 0)
+        complete_trade.exit_time = datetime(2026, 1, 1, 12, 0)
+        complete_trade.entry_price = 1.0800
+        complete_trade.exit_price = 1.0820
+        complete_trade.size = 1.0
+        complete_trade.pl = 200
+        complete_trade.plpct = 0.185
+
+        incomplete_trade = Mock(spec=["entry_time"])  # Missing exit_time
+        incomplete_trade.entry_time = datetime(2026, 1, 1, 10, 0)
+
+        stats = Mock()
+        stats._trades = [incomplete_trade, complete_trade]
+
+        result = TradeExtractor.extract_trades(stats)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1  # Only complete trade extracted
+
+    def test_calculate_trade_statistics_with_empty_dataframe(self):
+        """Test that calculate_trade_statistics handles empty DataFrames."""
+        empty_df = pd.DataFrame()
+
+        result = TradeExtractor.calculate_trade_statistics(empty_df)
+        assert result["total_trades"] == 0
+        assert result["winning_trades"] == 0
+        assert result["losing_trades"] == 0
+        assert result["win_rate"] == 0.0
+
+    def test_calculate_trade_statistics_with_none(self):
+        """Test that calculate_trade_statistics handles None input."""
+        result = TradeExtractor.calculate_trade_statistics(None)
+        assert result["total_trades"] == 0
+        assert result["win_rate"] == 0.0
+
+    def test_calculate_trade_statistics_dataframe_empty_check(self):
+        """Test DataFrame.empty check in calculate_trade_statistics."""
+        # Create DataFrame with trades
+        trades_df = pd.DataFrame(
+            {
+                "pnl": [100, -50, 200],
+                "pnl_pct": [0.5, -0.25, 1.0],
+                "duration_hours": [2, 1, 3],
+            }
+        )
+
+        result = TradeExtractor.calculate_trade_statistics(trades_df)
+        assert result["total_trades"] == 3
+        assert result["winning_trades"] == 2
+        assert result["losing_trades"] == 1
+        assert result["win_rate"] == pytest.approx(66.67, 0.1)
+
+    def test_get_trades_by_timeframe_with_empty_dataframe(self):
+        """Test get_trades_by_timeframe with empty DataFrame."""
+        empty_df = pd.DataFrame()
+
+        result = TradeExtractor.get_trades_by_timeframe(empty_df)
+        assert result == {}
+
+    def test_get_winning_losing_breakdown_with_empty_dataframe(self):
+        """Test get_winning_losing_breakdown with empty DataFrame."""
+        empty_df = pd.DataFrame()
+
+        result = TradeExtractor.get_winning_losing_breakdown(empty_df)
+        assert result["winning"] == []
+        assert result["losing"] == []
+
+    def test_export_trades_csv_with_empty_dataframe(self):
+        """Test export_trades_csv with empty DataFrame."""
+        import tempfile
+
+        empty_df = pd.DataFrame()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=True) as f:
+            result = TradeExtractor.export_trades_csv(empty_df, f.name)
+            assert result is False
+
+    def test_calculate_streaks_with_numpy_booleans(self):
+        """Test _calculate_streaks handles numpy boolean types correctly."""
+        # Test with numpy booleans (which can cause ambiguity errors)
+        is_win_list = [
+            np.bool_(True),
+            np.bool_(True),
+            np.bool_(False),
+            np.bool_(False),
+            np.bool_(False),
+            np.bool_(True),
+        ]
+
+        result = TradeExtractor._calculate_streaks(is_win_list)
+        assert result == [2, 3, 1]  # Two wins, three losses, one win
+
+    def test_calculate_streaks_with_mixed_types(self):
+        """Test _calculate_streaks handles mixed boolean types."""
+        is_win_list = [True, True, False, np.bool_(False), np.bool_(True)]
+
+        result = TradeExtractor._calculate_streaks(is_win_list)
+        assert len(result) > 0
+        assert all(isinstance(x, int) for x in result)

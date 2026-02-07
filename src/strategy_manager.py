@@ -6,12 +6,10 @@ backtest modes with automatic signal generation across multiple
 timeframes and symbols.
 """
 
-import logging
 import time
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
-import yaml
 
 from src.strategies.factory import StrategyFactory
 from src.utils.logging_factory import LoggingFactory
@@ -69,7 +67,11 @@ class DataCache:
         self.logger.debug("Cache cleared")
 
     def get_size(self) -> int:
-        """Get number of cached items."""
+        """Get number of cached items.
+
+        Returns:
+            Number of items currently in cache.
+        """
         return len(self.cache)
 
 
@@ -94,7 +96,15 @@ class StrategyManager:
         self.load_config()
 
     def load_config(self) -> None:
-        """Load strategy configurations from YAML and store in database"""
+        """Load and instantiate strategies from YAML configuration.
+
+        Reads strategy configurations from config.yaml via ConfigManager,
+        creates strategy instances using StrategyFactory, and attaches
+        the shared data cache to each strategy.
+
+        Raises:
+            Exception: If configuration file cannot be loaded.
+        """
         try:
             from src.utils.config_manager import ConfigManager
 
@@ -121,11 +131,20 @@ class StrategyManager:
     def generate_signals(
         self, strategy_name: Optional[str] = None, symbol: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """Generate signals for all configured pairs and strategies.
+        """Generate entry signals for tradable pairs using loaded strategies.
 
-        Iterates through all pairs from config and generates entry signals
-        for each pair/strategy combination. If symbol is specified, only
-        that symbol is processed. Uses self.symbol if no symbol arg provided.
+        Queries tradable_pairs from the database and generates entry signals
+        for each symbol/strategy combination. Symbol filtering priority:
+        method argument > instance symbol > all database symbols.
+
+        Args:
+            strategy_name: Optional filter to run only strategies matching
+                this name prefix (case-insensitive).
+            symbol: Optional specific symbol to generate signals for.
+
+        Returns:
+            List of signal dictionaries from strategies that generated
+            entry signals. Empty list if no signals or on error.
         """
         try:
             signals = []

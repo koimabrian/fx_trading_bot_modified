@@ -9,7 +9,11 @@ import time
 import json
 from typing import Dict, Any
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add project root to path for proper imports
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+sys.path.insert(0, project_root)
 
 from src.utils.logging_factory import LoggingFactory
 from src.utils.config_manager import ConfigManager
@@ -35,14 +39,17 @@ def test_data_fetcher():
     """Test DataFetcher Performance"""
     log_section("UNTESTED PHASE 1: DataFetcher (Market Data)")
 
-    results = {"name": "DataFetcher", "status": "SKIP", "reason": "MT5 not available"}
-
     try:
         config = ConfigManager.get_config()
+        db = DatabaseManager(config)
+        db.connect()
 
-        # Initialize without MT5 (test just the Python code)
+        # Initialize MT5Connector for DataFetcher
+        mt5_conn = MT5Connector(db)
+
+        # Initialize DataFetcher with required parameters
         start = time.perf_counter()
-        fetcher = DataFetcher(config)
+        fetcher = DataFetcher(mt5_conn, db, config)
         init_time = time.perf_counter() - start
 
         print(f"DataFetcher initialization: {init_time*1000:.2f} ms")
@@ -51,29 +58,28 @@ def test_data_fetcher():
         methods = [m for m in dir(fetcher) if not m.startswith("_")]
         print(f"Available methods: {len(methods)}")
 
-        results = {
-            "name": "DataFetcher",
-            "init_ms": init_time * 1000,
-            "methods_available": len(methods),
-            "status": "PASS",
-        }
+        # Assert initialization successful
+        assert fetcher is not None, "DataFetcher initialization failed"
+        assert (
+            init_time < 1.0
+        ), f"DataFetcher initialization took too long: {init_time}s"
+        assert len(methods) > 0, "DataFetcher has no public methods"
+
         print("Status: PASS (initialization successful)")
 
     except Exception as e:
         print(f"Error: {e}")
-        results["reason"] = str(e)
-
-    return results
+        raise
 
 
 def test_strategy_selector():
     """Test StrategySelector Performance"""
     log_section("UNTESTED PHASE 2: StrategySelector (Strategy Ranking)")
 
-    results = {"name": "StrategySelector", "status": "SKIP"}
-
     try:
         config = ConfigManager.get_config()
+        db = DatabaseManager(config)
+        db.connect()
 
         # Initialize StrategySelector
         start = time.perf_counter()
@@ -89,35 +95,34 @@ def test_strategy_selector():
 
         print(f"Supported strategies: {', '.join(strategies)}")
 
-        # Time strategy factory
+        # Time strategy factory method access (it's a class with static methods)
         start = time.perf_counter()
-        factory = StrategyFactory(config)
+        method = StrategyFactory.create_strategy
         factory_time = time.perf_counter() - start
 
-        print(f"StrategyFactory initialization: {factory_time*1000:.2f} ms")
+        print(f"StrategyFactory method access: {factory_time*1000:.2f} ms")
 
-        results = {
-            "name": "StrategySelector",
-            "init_ms": init_time * 1000,
-            "factory_init_ms": factory_time * 1000,
-            "strategies_supported": len(strategies),
-            "status": "PASS",
-        }
+        # Assert initialization successful
+        assert selector is not None, "StrategySelector initialization failed"
+        assert method is not None, "StrategyFactory.create_strategy method not found"
+        assert (
+            init_time < 1.0
+        ), f"StrategySelector initialization took too long: {init_time}s"
+        assert (
+            factory_time < 1.0
+        ), f"StrategyFactory access took too long: {factory_time}s"
+        assert len(strategies) > 0, "No strategies supported"
+
         print("Status: PASS (initialization successful)")
 
     except Exception as e:
         print(f"Error: {e}")
-        results["reason"] = str(e)
-        results["status"] = "SKIP"
-
-    return results
+        raise
 
 
 def test_trade_manager():
     """Test TradeManager Performance"""
     log_section("UNTESTED PHASE 3: TradeManager (Trade Execution)")
-
-    results = {"name": "TradeManager", "status": "SKIP"}
 
     try:
         config = ConfigManager.get_config()
@@ -146,28 +151,24 @@ def test_trade_manager():
         ]
         print(f"Trade execution methods: {len(important)}")
 
-        results = {
-            "name": "TradeManager",
-            "init_ms": init_time * 1000,
-            "total_methods": len(methods),
-            "execution_methods": len(important),
-            "status": "PASS",
-        }
+        # Assert initialization successful
+        assert manager is not None, "TradeManager initialization failed"
+        assert (
+            init_time < 1.0
+        ), f"TradeManager initialization took too long: {init_time}s"
+        assert len(methods) > 0, "TradeManager has no public methods"
+        assert len(important) > 0, "TradeManager has no execution methods"
+
         print("Status: PASS (initialization successful)")
 
     except Exception as e:
         print(f"Error: {e}")
-        results["reason"] = str(e)
-        results["status"] = "SKIP"
-
-    return results
+        raise
 
 
 def test_backtest_manager():
     """Test BacktestManager Performance"""
     log_section("UNTESTED PHASE 4: BacktestManager (Historical Simulation)")
-
-    results = {"name": "BacktestManager", "status": "SKIP"}
 
     try:
         config = ConfigManager.get_config()
@@ -183,36 +184,40 @@ def test_backtest_manager():
         methods = [m for m in dir(manager) if not m.startswith("_")]
         print(f"Available methods: {len(methods)}")
 
-        results = {
-            "name": "BacktestManager",
-            "init_ms": init_time * 1000,
-            "total_methods": len(methods),
-            "status": "PASS",
-        }
+        # Assert initialization successful
+        assert manager is not None, "BacktestManager initialization failed"
+        assert (
+            init_time < 1.0
+        ), f"BacktestManager initialization took too long: {init_time}s"
+        assert len(methods) > 0, "BacktestManager has no public methods"
+
         print("Status: PASS (initialization successful)")
 
     except Exception as e:
         print(f"Error: {e}")
-        results["reason"] = str(e)
-        results["status"] = "SKIP"
-
-    return results
+        raise
 
 
 def test_live_trading_flow():
     """Test Live Trading Flow Performance"""
     log_section("UNTESTED PHASE 5: Live Trading Flow (End-to-End)")
 
-    results = {"name": "Live Trading Flow", "status": "SKIP"}
-
     try:
         from src.core.trader import Trader
 
         config = ConfigManager.get_config()
+        db = DatabaseManager(config)
+        db.connect()
 
-        # Initialize Trader (main orchestrator)
+        # Initialize MT5Connector for Trader
+        mt5_conn = MT5Connector(db)
+
+        # Initialize StrategySelector (needed for Trader)
+        strategy_selector = StrategySelector(config)
+
+        # Initialize Trader with required parameters
         start = time.perf_counter()
-        trader = Trader(config)
+        trader = Trader(strategy_selector, mt5_conn)
         init_time = time.perf_counter() - start
 
         print(f"Trader (Main orchestrator) initialization: {init_time*1000:.2f} ms")
@@ -229,72 +234,14 @@ def test_live_trading_flow():
         print(f"Trading/execution methods: {len(trade_methods)}")
         print(f"Trading methods: {', '.join(trade_methods[:5])}")
 
-        results = {
-            "name": "Live Trading Flow",
-            "init_ms": init_time * 1000,
-            "total_methods": len(methods),
-            "trading_methods": len(trade_methods),
-            "status": "PASS",
-        }
+        # Assert initialization successful
+        assert trader is not None, "Trader initialization failed"
+        assert init_time < 1.0, f"Trader initialization took too long: {init_time}s"
+        assert len(methods) > 0, "Trader has no public methods"
+        assert len(trade_methods) > 0, "Trader has no trading/execution methods"
+
         print("Status: PASS (initialization successful)")
 
     except Exception as e:
         print(f"Error: {e}")
-        results["reason"] = str(e)
-        results["status"] = "SKIP"
-
-    return results
-
-
-def main():
-    """Run all untested phase tests"""
-    print("\n")
-    print("=" * 70)
-    print("EXTENDED PERFORMANCE TEST SUITE - UNTESTED PHASES")
-    print("=" * 70)
-
-    results = []
-
-    # Run all tests
-    results.append(test_data_fetcher())
-    results.append(test_strategy_selector())
-    results.append(test_trade_manager())
-    results.append(test_backtest_manager())
-    results.append(test_live_trading_flow())
-
-    # Print summary
-    log_section("TEST SUMMARY - UNTESTED PHASES")
-
-    passed = sum(1 for r in results if r.get("status") == "PASS")
-    skipped = sum(1 for r in results if r.get("status") == "SKIP")
-
-    print(f"Total Components: {len(results)}")
-    print(f"Passed: {passed}")
-    print(f"Skipped: {skipped}")
-
-    print("\n" + "-" * 70)
-    print("DETAILED RESULTS")
-    print("-" * 70)
-
-    for result in results:
-        status_emoji = "PASS" if result.get("status") == "PASS" else "SKIP"
-        print(f"\n{result['name']}: {status_emoji}")
-        for key, value in result.items():
-            if key not in ["name", "status"]:
-                if isinstance(value, float):
-                    print(f"  {key}: {value:.2f}")
-                else:
-                    print(f"  {key}: {value}")
-
-    # Save results
-    with open("untested_phases_results.json", "w") as f:
-        json.dump(results, f, indent=2)
-    print(f"\n\nResults saved to: untested_phases_results.json")
-
-    print("\n" + "=" * 70)
-    print("UNTESTED PHASES TESTING COMPLETE")
-    print("=" * 70 + "\n")
-
-
-if __name__ == "__main__":
-    main()
+        raise

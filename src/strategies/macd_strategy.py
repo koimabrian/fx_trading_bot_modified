@@ -31,6 +31,12 @@ class MACDStrategy(BaseStrategy):
 
         Uses MACD histogram strength + direction for more reliable signals.
         Requires slow_period + signal_period + buffer rows for accuracy.
+
+        Args:
+            symbol: Trading symbol to analyze. Defaults to instance symbol.
+
+        Returns:
+            Signal dictionary with action, reason, confidence, or None if no signal.
         """
         # Fetch data with required rows
         required = self.slow_period + self.signal_period + 5
@@ -175,7 +181,14 @@ class MACDStrategy(BaseStrategy):
         return None
 
     def generate_exit_signal(self, position):
-        """Generate exit signal based on MACD"""
+        """Generate exit signal based on MACD crossover reversal.
+
+        Args:
+            position: Position object with symbol and type attributes.
+
+        Returns:
+            True if exit signal triggered, False otherwise.
+        """
         data = self.fetch_data(position.symbol)
         if data.empty:
             self.logger.warning("No data available for %s", position.symbol)
@@ -219,7 +232,7 @@ class MACDStrategy(BaseStrategy):
         signal = None  # type: ignore
 
         def init(self):
-            """Initialize MACD indicator for backtesting."""
+            """Initialize MACD indicator for backtesting framework."""
             macd = ta.trend.MACD(
                 pd.Series(self.data.Close),
                 window_fast=self.fast_period,
@@ -230,7 +243,7 @@ class MACDStrategy(BaseStrategy):
             self.signal = self.I(macd.macd_signal)
 
         def next(self):
-            """Generate buy/sell signals based on MACD crossovers."""
+            """Execute MACD crossover strategy logic on each price bar."""
             if self.macd[-1] > self.signal[-1] and self.macd[-2] <= self.signal[-2]:
                 self.buy(size=self.volume)
             elif self.macd[-1] < self.signal[-1] and self.macd[-2] >= self.signal[-2]:

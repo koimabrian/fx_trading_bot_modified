@@ -156,7 +156,11 @@ class EnhancedDashboard(QMainWindow):
             self.logger.error("Failed to load backtests: %s", e)
 
     def on_backtest_selected(self, index: int):
-        """Handle backtest selection."""
+        """Handle backtest selection from dropdown.
+
+        Args:
+            index: Index of selected item in the dropdown.
+        """
         if index >= 0:
             backtest_id = self.backtest_selector.itemData(index)
             self.load_backtest_data(backtest_id)
@@ -204,13 +208,13 @@ class EnhancedDashboard(QMainWindow):
             self.logger.error("Failed to load backtest data: %s", e)
 
     def refresh_data(self):
-        """Refresh dashboard data."""
+        """Refresh dashboard data by reloading backtests and current selection."""
         self.load_backtests()
         if self.current_backtest:
             self.load_backtest_data(self.current_backtest[0])
 
     def refresh_tabs(self):
-        """Refresh all tab displays."""
+        """Refresh all tab displays with current backtest data."""
         self.refresh_summary_tab()
         self.refresh_equity_tab()
         self.refresh_trades_tab()
@@ -219,12 +223,12 @@ class EnhancedDashboard(QMainWindow):
     # ========== TAB 1: SUMMARY ==========
 
     def create_summary_tab(self):
-        """Create summary tab."""
+        """Create summary tab with key performance metrics."""
         self.summary_tab = QWidget()
         self.tabs.addTab(self.summary_tab, "Summary")
 
     def refresh_summary_tab(self):
-        """Refresh summary tab."""
+        """Refresh summary tab with current backtest metrics."""
         if not self.current_backtest:
             return
 
@@ -283,7 +287,7 @@ class EnhancedDashboard(QMainWindow):
     # ========== TAB 2: EQUITY CURVE ==========
 
     def create_equity_tab(self):
-        """Create equity curve tab."""
+        """Create equity curve tab with interactive Plotly chart."""
         self.equity_tab = QWidget()
         layout = QVBoxLayout()
 
@@ -294,7 +298,7 @@ class EnhancedDashboard(QMainWindow):
         self.tabs.addTab(self.equity_tab, "Equity Curve")
 
     def refresh_equity_tab(self):
-        """Refresh equity curve tab."""
+        """Refresh equity curve chart with current trade data."""
         if not self.current_trades:
             return
 
@@ -306,7 +310,7 @@ class EnhancedDashboard(QMainWindow):
     # ========== TAB 3: TRADES ==========
 
     def create_trades_tab(self):
-        """Create trades details tab."""
+        """Create trades details tab with table view."""
         self.trades_tab = QWidget()
         layout = QVBoxLayout()
 
@@ -331,7 +335,7 @@ class EnhancedDashboard(QMainWindow):
         self.tabs.addTab(self.trades_tab, "Trades")
 
     def refresh_trades_tab(self):
-        """Refresh trades tab."""
+        """Refresh trades table with current backtest trades."""
         if not self.current_trades:
             return
 
@@ -367,7 +371,7 @@ class EnhancedDashboard(QMainWindow):
     # ========== TAB 4: METRICS ==========
 
     def create_metrics_tab(self):
-        """Create metrics analysis tab."""
+        """Create metrics analysis tab with comparison chart."""
         self.metrics_tab = QWidget()
         layout = QVBoxLayout()
 
@@ -378,7 +382,7 @@ class EnhancedDashboard(QMainWindow):
         self.tabs.addTab(self.metrics_tab, "Metrics")
 
     def refresh_metrics_tab(self):
-        """Refresh metrics tab."""
+        """Refresh metrics comparison chart with current data."""
         if not self.current_backtest:
             return
 
@@ -398,7 +402,7 @@ class EnhancedDashboard(QMainWindow):
     # ========== TAB 5: EXPORT ==========
 
     def create_export_tab(self):
-        """Create export tab."""
+        """Create export tab with CSV and JSON export options."""
         self.export_tab = QWidget()
         layout = QVBoxLayout()
 
@@ -418,7 +422,7 @@ class EnhancedDashboard(QMainWindow):
         self.tabs.addTab(self.export_tab, "Export")
 
     def export_csv(self):
-        """Export trades to CSV."""
+        """Export current backtest trades to CSV file."""
         if not self.current_trades:
             return
 
@@ -428,7 +432,7 @@ class EnhancedDashboard(QMainWindow):
         self.logger.info("Exported to %s", filename)
 
     def export_json(self):
-        """Export results to JSON."""
+        """Export current backtest results and trades to JSON file."""
         if not self.current_backtest:
             return
 

@@ -202,10 +202,18 @@ class StrategySelector:
         return round(score, 2)
 
     def clear_cache(self) -> None:
-        """Clear strategy cache."""
+        """Clear strategy cache.
+
+        Returns:
+            None.
+        """
         self.strategy_cache.clear()
         self.logger.debug("Strategy cache cleared")
 
     def get_cache_size(self) -> int:
-        """Get number of cached strategies."""
+        """Get number of cached strategies.
+
+        Returns:
+            Integer count of cached strategy entries.
+        """
         return len(self.strategy_cache)

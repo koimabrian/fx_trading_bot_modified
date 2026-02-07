@@ -21,17 +21,19 @@ class LoggingFactory:
     _loggers = {}
     _log_level = logging.INFO
     _log_dir = "logs"
-    _log_file = "trading_bot.log"
     _max_bytes = 10_000_000  # 10 MB
     _backup_count = 5
+    _current_mode = None
 
     @staticmethod
     def configure(
         level: str = "INFO",
         log_dir: str = "logs",
-        log_file: str = "trading_bot.log",
+        log_file: str = None,
+        mode: str = None,
         max_bytes: int = 10_000_000,
         backup_count: int = 5,
+        clear_on_start: bool = True,
     ) -> None:
         """Configure the logging system once at application startup.
 
@@ -40,20 +42,29 @@ class LoggingFactory:
         Args:
             level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
             log_dir: Directory for log files (will be created if doesn't exist)
-            log_file: Name of log file (without path)
+            log_file: Name of log file (without path). If None, uses mode-based name.
+            mode: Operating mode (init, sync, backtest, live, gui, test)
             max_bytes: Max size of log file before rotation (default 10MB)
             backup_count: Number of backup log files to keep (default 5)
+            clear_on_start: If True, clears the log file at startup (default True)
 
         Example:
             LoggingFactory.configure(
                 level="INFO",
                 log_dir="logs",
-                log_file="trading_bot.log"
+                mode="backtest"
             )
             logger = LoggingFactory.get_logger(__name__)
         """
         if LoggingFactory._configured:
             return
+
+        # Determine log file name based on mode
+        if log_file is None:
+            if mode:
+                log_file = f"{mode}_run.log"
+            else:
+                log_file = "trading_bot.log"
 
         # Store configuration
         LoggingFactory._log_level = getattr(logging, level.upper(), logging.INFO)
@@ -61,9 +72,18 @@ class LoggingFactory:
         LoggingFactory._log_file = log_file
         LoggingFactory._max_bytes = max_bytes
         LoggingFactory._backup_count = backup_count
+        LoggingFactory._current_mode = mode
 
         # Create log directory
         os.makedirs(log_dir, exist_ok=True)
+
+        # Clear log file if requested (fresh logs for each run)
+        log_file_path = os.path.join(log_dir, log_file)
+        if clear_on_start and os.path.exists(log_file_path):
+            try:
+                open(log_file_path, "w").close()  # Truncate file
+            except (OSError, IOError):
+                pass  # Ignore errors if file is locked
 
         # Configure root logger
         root_logger = logging.getLogger()
@@ -90,7 +110,6 @@ class LoggingFactory:
         root_logger.addHandler(console_handler)
 
         # File handler with rotation
-        log_file_path = os.path.join(log_dir, log_file)
         try:
             file_handler = RotatingFileHandler(
                 log_file_path,
@@ -109,8 +128,8 @@ class LoggingFactory:
     def get_logger(name: str) -> logging.Logger:
         """Get a logger instance with the given name.
 
-        Creates or returns a cached logger. Automatically configures logging
-        if not already configured.
+        Creates or returns a cached logger. Does NOT auto-configure logging -
+        relies on explicit configure() call from main.py before first log output.
 
         Args:
             name: Logger name (typically __name__ of the calling module)
@@ -122,17 +141,16 @@ class LoggingFactory:
             logger = LoggingFactory.get_logger(__name__)
             logger.info("Application started")
         """
-        # Auto-configure if not already done
-        if not LoggingFactory._configured:
-            LoggingFactory.configure()
-
         # Return cached logger if exists
         if name in LoggingFactory._loggers:
             return LoggingFactory._loggers[name]
 
-        # Create new logger
+        # Create new logger (will inherit from root logger once configured)
         logger = logging.getLogger(name)
-        logger.setLevel(LoggingFactory._log_level)
+
+        # Only set level if already configured
+        if LoggingFactory._configured:
+            logger.setLevel(LoggingFactory._log_level)
 
         # Cache it
         LoggingFactory._loggers[name] = logger

@@ -2,8 +2,20 @@
 Trade Extractor - Extract and analyze individual trades from backtest.py results.
 
 The backtesting.py library stores detailed trade information in the stats object
-via the private _trades attribute. This module provides utilities to safely extract,
-analyze, and store this trade data.
+via the private _trades attribute. This module provides the TradeExtractor class
+to safely extract, analyze, and store this trade data.
+
+Classes:
+    TradeExtractor: Static methods to extract and analyze trade data.
+
+Reference: https://github.com/kernc/backtesting.py
+    stats['_trades']  # Contains individual Trade objects with entry/exit data
+
+Key Fixes Applied:
+    1. DataFrame boolean ambiguity: Use .empty instead of len(df) == 0
+    2. Type checking: Skip non-trade objects (strings, incomplete objects)
+    3. NumPy boolean handling: Explicit bool() conversion in comparisons
+    4. Safe trade extraction: Validate trade attributes before processing
 """
 
 import logging
@@ -40,32 +52,98 @@ class TradeExtractor:
                 return pd.DataFrame()
 
             trades_list = stats._trades
-            if not trades_list or len(trades_list) == 0:
+            # Handle empty or None trades safely
+            if trades_list is None:
                 logger.info("No trades found in backtest results")
                 return pd.DataFrame()
 
-            # Convert trades to DataFrame
-            trades_data = []
-            for trade in trades_list:
-                try:
-                    # Extract key trade information
-                    trade_dict = {
-                        "entry_time": trade.entry_time,
-                        "exit_time": trade.exit_time,
-                        "entry_price": trade.entry_price,
-                        "exit_price": trade.exit_price,
-                        "size": trade.size,
-                        "pnl": trade.pl,  # Profit/Loss in currency
-                        "pnl_pct": trade.plpct,  # Profit/Loss in percentage
-                        "duration_hours": (
-                            trade.exit_time - trade.entry_time
-                        ).total_seconds()
-                        / 3600,
-                    }
-                    trades_data.append(trade_dict)
-                except (AttributeError, TypeError) as e:
-                    logger.warning(f"Error extracting trade data: {e}")
-                    continue
+            try:
+                trades_count = len(trades_list)
+            except TypeError:
+                logger.warning(f"Unable to get trades count from {type(trades_list)}")
+                return pd.DataFrame()
+
+            if trades_count == 0:
+                logger.info("No trades found in backtest results")
+                return pd.DataFrame()
+
+            # Handle both DataFrame and list of Trade objects
+            if isinstance(trades_list, pd.DataFrame):
+                # If already a DataFrame, use it directly (from backtesting.py)
+                logger.debug(
+                    f"trades_list is already a DataFrame with {len(trades_list)} trades"
+                )
+                if trades_list.empty:
+                    return pd.DataFrame()
+                # Rename columns to match our standard format
+                col_mapping = {
+                    "EntryTime": "entry_time",
+                    "ExitTime": "exit_time",
+                    "EntryPrice": "entry_price",
+                    "ExitPrice": "exit_price",
+                    "Size": "size",
+                    "PL": "pnl",
+                    "PLPct": "pnl_pct",
+                    "Duration": "duration_hours",
+                }
+                df_renamed = trades_list.copy()
+                # Rename only columns that exist
+                cols_to_rename = {
+                    k: v for k, v in col_mapping.items() if k in df_renamed.columns
+                }
+                df_renamed = df_renamed.rename(columns=cols_to_rename)
+                # Select only our standard columns
+                standard_cols = [
+                    "entry_time",
+                    "exit_time",
+                    "entry_price",
+                    "exit_price",
+                    "size",
+                    "pnl",
+                    "pnl_pct",
+                    "duration_hours",
+                ]
+                available_cols = [
+                    col for col in standard_cols if col in df_renamed.columns
+                ]
+                return df_renamed[available_cols] if available_cols else pd.DataFrame()
+            else:
+                # Handle list of Trade objects
+                trades_data = []
+                for trade in trades_list:
+                    try:
+                        # Skip string entries or non-trade objects
+                        if isinstance(trade, str):
+                            logger.debug(f"Skipping non-trade object (str): {trade}")
+                            continue
+
+                        # Verify trade has required attributes
+                        if not hasattr(trade, "entry_time") or not hasattr(
+                            trade, "exit_time"
+                        ):
+                            logger.debug(
+                                f"Skipping incomplete trade object: {type(trade)}"
+                            )
+                            continue
+
+                        # Extract key trade information
+                        trade_dict = {
+                            "entry_time": trade.entry_time,
+                            "exit_time": trade.exit_time,
+                            "entry_price": trade.entry_price,
+                            "exit_price": trade.exit_price,
+                            "size": trade.size,
+                            "pnl": trade.pl,  # Profit/Loss in currency
+                            "pnl_pct": trade.plpct,  # Profit/Loss in percentage
+                            "duration_hours": (
+                                trade.exit_time - trade.entry_time
+                            ).total_seconds()
+                            / 3600,
+                        }
+                        trades_data.append(trade_dict)
+                    except (AttributeError, TypeError) as e:
+                        logger.warning(f"Error extracting trade data: {e}")
+                        continue
 
             if not trades_data:
                 logger.warning("No valid trades could be extracted")
@@ -101,7 +179,7 @@ class TradeExtractor:
                 - total_pnl: Total P&L
                 - total_pnl_pct: Total return (%)
         """
-        if trades_df is None or len(trades_df) == 0:
+        if trades_df is None or trades_df.empty:
             return {
                 "total_trades": 0,
                 "winning_trades": 0,
@@ -121,8 +199,8 @@ class TradeExtractor:
             winning = trades_df[trades_df["pnl"] > 0]
             losing = trades_df[trades_df["pnl"] < 0]
 
-            total_wins = winning["pnl"].sum() if len(winning) > 0 else 0
-            total_losses = abs(losing["pnl"].sum()) if len(losing) > 0 else 0
+            total_wins = winning["pnl"].sum() if not winning.empty else 0
+            total_losses = abs(losing["pnl"].sum()) if not losing.empty else 0
 
             stats = {
                 "total_trades": len(trades_df),
@@ -131,8 +209,8 @@ class TradeExtractor:
                 "win_rate": (
                     (len(winning) / len(trades_df) * 100) if len(trades_df) > 0 else 0
                 ),
-                "avg_win": winning["pnl_pct"].mean() if len(winning) > 0 else 0,
-                "avg_loss": losing["pnl_pct"].mean() if len(losing) > 0 else 0,
+                "avg_win": winning["pnl_pct"].mean() if not winning.empty else 0,
+                "avg_loss": losing["pnl_pct"].mean() if not losing.empty else 0,
                 "largest_win": trades_df["pnl_pct"].max() if len(trades_df) > 0 else 0,
                 "largest_loss": trades_df["pnl_pct"].min() if len(trades_df) > 0 else 0,
                 "profit_factor": (total_wins / total_losses) if total_losses > 0 else 0,
@@ -163,7 +241,7 @@ class TradeExtractor:
         Returns:
             Dictionary with hour as key (0-23) and trade statistics as value
         """
-        if trades_df is None or len(trades_df) == 0:
+        if trades_df is None or trades_df.empty:
             return {}
 
         try:
@@ -200,7 +278,7 @@ class TradeExtractor:
         Returns:
             Dictionary with winning/losing trade analysis
         """
-        if trades_df is None or len(trades_df) == 0:
+        if trades_df is None or trades_df.empty:
             return {
                 "winning": [],
                 "losing": [],
@@ -240,10 +318,11 @@ class TradeExtractor:
         """Calculate consecutive win/loss streaks.
 
         Args:
-            is_win_list: List of boolean values (True for win, False for loss)
+            is_win_list: List of boolean values (True for win, False for loss).
 
         Returns:
-            List of streak lengths
+            List of streak lengths. Each element represents a consecutive
+            run of the same boolean value.
         """
         if not is_win_list:
             return []
@@ -252,7 +331,10 @@ class TradeExtractor:
         current_streak = 1
 
         for i in range(1, len(is_win_list)):
-            if is_win_list[i] == is_win_list[i - 1]:
+            # Ensure boolean comparison by converting to Python bool
+            current = bool(is_win_list[i])
+            previous = bool(is_win_list[i - 1])
+            if current == previous:
                 current_streak += 1
             else:
                 streaks.append(current_streak)
@@ -273,7 +355,7 @@ class TradeExtractor:
             True if successful, False otherwise
         """
         try:
-            if trades_df is None or len(trades_df) == 0:
+            if trades_df is None or trades_df.empty:
                 logger.warning("No trades to export")
                 return False
 

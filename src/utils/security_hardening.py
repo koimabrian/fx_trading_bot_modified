@@ -48,21 +48,42 @@ class InputValidator:
 
     @staticmethod
     def validate_email(email: str) -> bool:
-        """Validate email format"""
+        """Validate email format.
+
+        Args:
+            email: Email address to validate.
+
+        Returns:
+            True if valid email format, False otherwise.
+        """
         if not isinstance(email, str) or len(email) > 254:
             return False
         return bool(re.match(InputValidator.PATTERNS["email"], email))
 
     @staticmethod
     def validate_username(username: str) -> bool:
-        """Validate username format"""
+        """Validate username format.
+
+        Args:
+            username: Username to validate.
+
+        Returns:
+            True if valid username format, False otherwise.
+        """
         if not isinstance(username, str):
             return False
         return bool(re.match(InputValidator.PATTERNS["username"], username))
 
     @staticmethod
     def validate_symbol(symbol: str) -> bool:
-        """Validate trading symbol (e.g., EURUSD)"""
+        """Validate trading symbol (e.g., EURUSD).
+
+        Args:
+            symbol: Trading symbol to validate.
+
+        Returns:
+            True if valid symbol format, False otherwise.
+        """
         if not isinstance(symbol, str):
             return False
         return bool(re.match(InputValidator.PATTERNS["symbol"], symbol.upper()))
@@ -71,7 +92,16 @@ class InputValidator:
     def validate_numeric(
         value: Any, min_val: Optional[float] = None, max_val: Optional[float] = None
     ) -> bool:
-        """Validate numeric value with optional bounds"""
+        """Validate numeric value with optional bounds.
+
+        Args:
+            value: Value to validate.
+            min_val: Optional minimum allowed value.
+            max_val: Optional maximum allowed value.
+
+        Returns:
+            True if value is numeric and within bounds, False otherwise.
+        """
         try:
             num = float(value)
             if min_val is not None and num < min_val:
@@ -84,7 +114,15 @@ class InputValidator:
 
     @staticmethod
     def sanitize_input(value: str, max_length: int = 1000) -> str:
-        """Sanitize string input"""
+        """Sanitize string input.
+
+        Args:
+            value: String to sanitize.
+            max_length: Maximum allowed length.
+
+        Returns:
+            Sanitized string with null bytes and control characters removed.
+        """
         if not isinstance(value, str):
             return ""
 
@@ -101,7 +139,14 @@ class InputValidator:
 
     @staticmethod
     def sanitize_html(html: str) -> str:
-        """Sanitize HTML to prevent XSS"""
+        """Sanitize HTML to prevent XSS.
+
+        Args:
+            html: HTML string to sanitize.
+
+        Returns:
+            Sanitized HTML with only allowed tags and attributes.
+        """
         return bleach.clean(
             html,
             tags=InputValidator.ALLOWED_TAGS,
@@ -111,7 +156,17 @@ class InputValidator:
 
     @staticmethod
     def prevent_sql_injection(user_input: str) -> str:
-        """Basic SQL injection prevention (use parameterized queries instead)"""
+        """Basic SQL injection prevention (use parameterized queries instead).
+
+        Args:
+            user_input: User-provided input to check.
+
+        Returns:
+            Original input if safe.
+
+        Raises:
+            ValueError: If potentially dangerous SQL patterns detected.
+        """
         dangerous_patterns = [
             r"(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER)\b)",
             r"(--|#|;)",  # SQL comments and statements
@@ -133,12 +188,23 @@ class CSRFProtection:
 
     @staticmethod
     def generate_csrf_token() -> str:
-        """Generate a new CSRF token"""
+        """Generate a new CSRF token.
+
+        Returns:
+            Hex-encoded random token string.
+        """
         return secrets.token_hex(CSRFProtection.TOKEN_LENGTH)
 
     @staticmethod
     def get_csrf_token(session_obj: Dict) -> str:
-        """Get or create CSRF token in session"""
+        """Get or create CSRF token in session.
+
+        Args:
+            session_obj: Session dictionary to store token in.
+
+        Returns:
+            CSRF token string.
+        """
         if "csrf_token" not in session_obj:
             session_obj["csrf_token"] = CSRFProtection.generate_csrf_token()
             session_obj["csrf_token_time"] = datetime.utcnow().isoformat()
@@ -146,7 +212,15 @@ class CSRFProtection:
 
     @staticmethod
     def verify_csrf_token(session_obj: Dict, token: str) -> bool:
-        """Verify CSRF token"""
+        """Verify CSRF token.
+
+        Args:
+            session_obj: Session dictionary containing stored token.
+            token: Token to verify.
+
+        Returns:
+            True if token is valid and not expired, False otherwise.
+        """
         stored_token = session_obj.get("csrf_token")
         token_time = session_obj.get("csrf_token_time")
 
@@ -171,7 +245,14 @@ class CSRFProtection:
 
     @staticmethod
     def rotate_csrf_token(session_obj: Dict) -> str:
-        """Rotate CSRF token after sensitive operations"""
+        """Rotate CSRF token after sensitive operations.
+
+        Args:
+            session_obj: Session dictionary to update.
+
+        Returns:
+            New CSRF token string.
+        """
         session_obj["csrf_token"] = CSRFProtection.generate_csrf_token()
         session_obj["csrf_token_time"] = datetime.utcnow().isoformat()
         return session_obj["csrf_token"]
@@ -193,13 +274,24 @@ class RateLimiter:
         self.requests: Dict[str, List[datetime]] = {}
 
     def get_client_id(self) -> str:
-        """Get unique client identifier"""
+        """Get unique client identifier.
+
+        Returns:
+            Client identifier string based on user or IP.
+        """
         if request.remote_user:
             return f"user:{request.remote_user}"
         return f"ip:{request.remote_addr}"
 
     def is_rate_limited(self, client_id: Optional[str] = None) -> bool:
-        """Check if client is rate limited"""
+        """Check if client is rate limited.
+
+        Args:
+            client_id: Optional client identifier to check.
+
+        Returns:
+            True if client has exceeded rate limit, False otherwise.
+        """
         if client_id is None:
             client_id = self.get_client_id()
 
@@ -224,7 +316,14 @@ class RateLimiter:
         return False
 
     def get_remaining_requests(self, client_id: Optional[str] = None) -> int:
-        """Get remaining requests for client"""
+        """Get remaining requests for client.
+
+        Args:
+            client_id: Optional client identifier to check.
+
+        Returns:
+            Number of requests remaining in current window.
+        """
         if client_id is None:
             client_id = self.get_client_id()
 
@@ -250,17 +349,41 @@ class EncryptionManager:
 
     @staticmethod
     def hash_password(password: str, method: str = "pbkdf2:sha256") -> str:
-        """Hash password for storage"""
+        """Hash password for storage.
+
+        Args:
+            password: Plain text password.
+            method: Hashing method to use.
+
+        Returns:
+            Hashed password string.
+        """
         return generate_password_hash(password, method=method)
 
     @staticmethod
     def verify_password(password: str, password_hash: str) -> bool:
-        """Verify password against hash"""
+        """Verify password against hash.
+
+        Args:
+            password: Plain text password to verify.
+            password_hash: Stored password hash.
+
+        Returns:
+            True if password matches hash, False otherwise.
+        """
         return check_password_hash(password_hash, password)
 
     @staticmethod
     def hash_sensitive_data(data: str, salt: Optional[str] = None) -> str:
-        """Hash sensitive data like API keys"""
+        """Hash sensitive data like API keys.
+
+        Args:
+            data: Sensitive data to hash.
+            salt: Optional salt value.
+
+        Returns:
+            Salted hash string in format 'salt$hash'.
+        """
         if salt is None:
             salt = secrets.token_hex(16)
 
@@ -275,7 +398,15 @@ class EncryptionManager:
 
     @staticmethod
     def verify_sensitive_data(data: str, data_hash: str) -> bool:
-        """Verify sensitive data against hash"""
+        """Verify sensitive data against hash.
+
+        Args:
+            data: Data to verify.
+            data_hash: Stored hash to verify against.
+
+        Returns:
+            True if data matches hash, False otherwise.
+        """
         try:
             salt, hash_hex = data_hash.split("$")
             new_hash = EncryptionManager.hash_sensitive_data(data, salt)
@@ -299,19 +430,37 @@ class SecurityHeaders:
 
     @staticmethod
     def get_headers() -> Dict[str, str]:
-        """Get all security headers"""
+        """Get all security headers.
+
+        Returns:
+            Dictionary of security header names and values.
+        """
         return SecurityHeaders.HEADERS.copy()
 
     @staticmethod
     def add_security_headers(response):
-        """Add security headers to Flask response"""
+        """Add security headers to Flask response.
+
+        Args:
+            response: Flask response object.
+
+        Returns:
+            Response with security headers added.
+        """
         for header, value in SecurityHeaders.HEADERS.items():
             response.headers[header] = value
         return response
 
 
 def require_https(f: Callable) -> Callable:
-    """Decorator to require HTTPS"""
+    """Decorator to require HTTPS.
+
+    Args:
+        f: Function to decorate.
+
+    Returns:
+        Decorated function that aborts with 403 if not HTTPS in production.
+    """
 
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -323,7 +472,14 @@ def require_https(f: Callable) -> Callable:
 
 
 def require_csrf_token(f: Callable) -> Callable:
-    """Decorator to verify CSRF token on POST/PUT/DELETE"""
+    """Decorator to verify CSRF token on POST/PUT/DELETE.
+
+    Args:
+        f: Function to decorate.
+
+    Returns:
+        Decorated function that verifies CSRF token for mutating requests.
+    """
 
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -339,7 +495,14 @@ def require_csrf_token(f: Callable) -> Callable:
 
 
 def rate_limit(limiter: RateLimiter):
-    """Decorator for rate limiting"""
+    """Decorator for rate limiting.
+
+    Args:
+        limiter: RateLimiter instance to use.
+
+    Returns:
+        Decorator function that applies rate limiting.
+    """
 
     def decorator(f: Callable) -> Callable:
         @wraps(f)
@@ -354,7 +517,15 @@ def rate_limit(limiter: RateLimiter):
 
 
 def validate_input(param_name: str, validator: Callable):
-    """Decorator to validate request parameters"""
+    """Decorator to validate request parameters.
+
+    Args:
+        param_name: Name of parameter to validate.
+        validator: Validation function returning True if valid.
+
+    Returns:
+        Decorator function that validates the specified parameter.
+    """
 
     def decorator(f: Callable) -> Callable:
         @wraps(f)

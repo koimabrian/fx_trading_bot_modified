@@ -166,10 +166,10 @@ class SymbolStatusFormatter:
 
     @classmethod
     def format_key_findings(cls) -> List[str]:
-        """Format key findings from test
+        """Format key findings from test.
 
         Returns:
-            List of formatted key findings
+            List of formatted key findings.
         """
         lines = [
             "",
@@ -186,13 +186,13 @@ class SymbolStatusFormatter:
 
     @classmethod
     def format_positions(cls, positions=None) -> List[str]:
-        """Format open positions information
+        """Format open positions information.
 
         Args:
-            positions: MT5 positions list
+            positions: MT5 positions list.
 
         Returns:
-            List of formatted position lines
+            List of formatted position lines.
         """
         if positions is None:
             try:
@@ -215,26 +215,26 @@ class SymbolStatusFormatter:
 
     @classmethod
     def format_error(cls, symbol: str, error: str) -> str:
-        """Format error message
+        """Format error message.
 
         Args:
-            symbol: Trading symbol
-            error: Error message
+            symbol: Trading symbol.
+            error: Error message.
 
         Returns:
-            Formatted error message
+            Formatted error message.
         """
         return f"{cls.FAIL} {symbol}: ERROR - {error}"
 
     @classmethod
     def format_category_header(cls, category: str) -> str:
-        """Format category test header
+        """Format category test header.
 
         Args:
-            category: Asset category (crypto, forex, commodities, etc)
+            category: Asset category (crypto, forex, commodities, etc).
 
         Returns:
-            Formatted category header
+            Formatted category header.
         """
         return f"\n{'='*60}\nTesting {category.upper()}\n{'='*60}"
 
@@ -242,16 +242,16 @@ class SymbolStatusFormatter:
     def format_category_summary(
         cls, category: str, successful: int, zero_volume: int, failed: int
     ) -> List[str]:
-        """Format category summary
+        """Format category summary.
 
         Args:
-            category: Asset category
-            successful: Successful trades in category
-            zero_volume: Zero-volume symbols in category
-            failed: Failed trades in category
+            category: Asset category.
+            successful: Successful trades in category.
+            zero_volume: Zero-volume symbols in category.
+            failed: Failed trades in category.
 
         Returns:
-            List of formatted summary lines
+            List of formatted summary lines.
         """
         lines = [
             f"\n  {category.upper()} results:",
@@ -272,15 +272,18 @@ class SymbolStatusFormatter:
         reason: str = None,
         ticket: int = None,
     ) -> None:
-        """Log formatted symbol status
+        """Log formatted symbol status.
 
         Args:
-            logger: Logger instance
-            symbol: Trading symbol
-            order_placed: Whether order was placed
-            has_volume: Whether symbol has volume
-            reason: Optional reason/error message
-            ticket: Optional order ticket
+            logger: Logger instance.
+            symbol: Trading symbol.
+            order_placed: Whether order was placed.
+            has_volume: Whether symbol has volume.
+            reason: Optional reason/error message.
+            ticket: Optional order ticket.
+
+        Returns:
+            None.
         """
         try:
             if order_placed and ticket:
@@ -301,10 +304,13 @@ class SymbolStatusFormatter:
 
 # Platform detection for logging setup
 def setup_safe_logging(logger: logging.Logger) -> None:
-    """Setup logging with proper encoding for the platform
+    """Setup logging with proper encoding for the platform.
 
     Args:
-        logger: Logger to configure
+        logger: Logger to configure.
+
+    Returns:
+        None.
     """
     if SymbolStatusFormatter._IS_WINDOWS:
         # Windows: Use simple ASCII characters
@@ -318,12 +324,12 @@ def setup_safe_logging(logger: logging.Logger) -> None:
 
 # Quick reference
 def get_status_indicator(success: bool) -> str:
-    """Get appropriate status indicator
+    """Get appropriate status indicator.
 
     Args:
-        success: Whether operation succeeded
+        success: Whether operation succeeded.
 
     Returns:
-        Status indicator symbol
+        Status indicator symbol.
     """
     return SymbolStatusFormatter.OK if success else SymbolStatusFormatter.FAIL

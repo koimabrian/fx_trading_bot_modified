@@ -535,7 +535,14 @@ class DatabaseMigrations:
             return False
 
     def _migrate_market_data(self, cursor) -> None:
-        """Migrate market_data from symbol TEXT to symbol_id FK."""
+        """Migrate market_data from symbol TEXT to symbol_id FK.
+
+        Args:
+            cursor: SQLite cursor object.
+
+        Returns:
+            None.
+        """
         try:
             # Check if already migrated
             cursor.execute("PRAGMA table_info(market_data)")
@@ -590,7 +597,14 @@ class DatabaseMigrations:
             self.logger.warning("Could not migrate market_data: %s", e)
 
     def _migrate_backtest_market_data(self, cursor) -> None:
-        """Migrate backtest_market_data from symbol TEXT to symbol_id FK."""
+        """Migrate backtest_market_data from symbol TEXT to symbol_id FK.
+
+        Args:
+            cursor: SQLite cursor object.
+
+        Returns:
+            None.
+        """
         try:
             cursor.execute("PRAGMA table_info(backtest_market_data)")
             columns = [col[1] for col in cursor.fetchall()]
@@ -642,7 +656,14 @@ class DatabaseMigrations:
             self.logger.warning("Could not migrate backtest_market_data: %s", e)
 
     def _migrate_optimal_parameters(self, cursor) -> None:
-        """Migrate optimal_parameters from symbol TEXT to symbol_id FK."""
+        """Migrate optimal_parameters from symbol TEXT to symbol_id FK.
+
+        Args:
+            cursor: SQLite cursor object.
+
+        Returns:
+            None.
+        """
         try:
             cursor.execute("PRAGMA table_info(optimal_parameters)")
             columns = [col[1] for col in cursor.fetchall()]
@@ -690,7 +711,14 @@ class DatabaseMigrations:
             self.logger.warning("Could not migrate optimal_parameters: %s", e)
 
     def _migrate_backtest_results(self, cursor) -> None:
-        """Migrate backtest_results to backtest_backtests with JSON metrics."""
+        """Migrate backtest_results to backtest_backtests with JSON metrics.
+
+        Args:
+            cursor: SQLite cursor object.
+
+        Returns:
+            None.
+        """
         try:
             # Check if backtest_backtests already has data
             cursor.execute("SELECT COUNT(*) FROM backtest_backtests")
@@ -744,7 +772,14 @@ class DatabaseMigrations:
             self.logger.warning("Could not migrate backtest_results: %s", e)
 
     def _migrate_trades(self, cursor) -> None:
-        """Migrate trades from symbol TEXT to symbol_id FK."""
+        """Migrate trades from symbol TEXT to symbol_id FK.
+
+        Args:
+            cursor: SQLite cursor object.
+
+        Returns:
+            None.
+        """
         try:
             cursor.execute("PRAGMA table_info(trades)")
             columns = [col[1] for col in cursor.fetchall()]
@@ -799,7 +834,14 @@ class DatabaseMigrations:
             self.logger.warning("Could not migrate trades: %s", e)
 
     def _populate_backtest_strategies(self, cursor) -> None:
-        """Populate backtest_strategies table from backtest_results if not already populated."""
+        """Populate backtest_strategies table from backtest_results.
+
+        Args:
+            cursor: SQLite cursor object.
+
+        Returns:
+            None.
+        """
         try:
             cursor.execute("SELECT COUNT(*) FROM backtest_strategies")
             count = cursor.fetchone()[0]

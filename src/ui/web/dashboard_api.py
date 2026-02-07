@@ -28,7 +28,14 @@ class ValueCleaner:
 
     @staticmethod
     def clean_value(value: Any) -> Any:
-        """Convert NaN/Infinity to 0, keep valid numbers."""
+        """Convert NaN/Infinity to 0, keep valid numbers.
+
+        Args:
+            value: Value to clean.
+
+        Returns:
+            Cleaned value (0 if NaN/Infinity/None, original otherwise).
+        """
         if value is None:
             return 0
         elif isinstance(value, float):
@@ -39,17 +46,38 @@ class ValueCleaner:
 
     @staticmethod
     def clean_dict(obj: Dict) -> Dict:
-        """Recursively clean all values in a dictionary."""
+        """Recursively clean all values in a dictionary.
+
+        Args:
+            obj: Dictionary to clean.
+
+        Returns:
+            Dictionary with all NaN/Infinity values replaced by 0.
+        """
         return {key: ValueCleaner.clean_object(val) for key, val in obj.items()}
 
     @staticmethod
     def clean_list(obj: List) -> List:
-        """Recursively clean all items in a list."""
+        """Recursively clean all items in a list.
+
+        Args:
+            obj: List to clean.
+
+        Returns:
+            List with all NaN/Infinity values replaced by 0.
+        """
         return [ValueCleaner.clean_object(item) for item in obj]
 
     @staticmethod
     def clean_object(obj: Any) -> Any:
-        """Recursively clean any object to remove NaN/Infinity."""
+        """Recursively clean any object to remove NaN/Infinity.
+
+        Args:
+            obj: Object to clean (dict, list, or scalar).
+
+        Returns:
+            Cleaned object with all NaN/Infinity values replaced by 0.
+        """
         if isinstance(obj, dict):
             return ValueCleaner.clean_dict(obj)
         elif isinstance(obj, list):
@@ -67,13 +95,26 @@ class DatabaseConnection:
         self.db = None
 
     def __enter__(self):
-        """Open database connection."""
+        """Open database connection.
+
+        Returns:
+            DatabaseManager instance with active connection.
+        """
         self.db = DatabaseManager(self.config)
         self.db.connect()
         return self.db
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Close database connection."""
+        """Close database connection.
+
+        Args:
+            exc_type: Exception type if raised.
+            exc_val: Exception value if raised.
+            exc_tb: Exception traceback if raised.
+
+        Returns:
+            False to propagate any exceptions.
+        """
         if self.db:
             self.db.close()
         return False
@@ -130,28 +171,41 @@ class BaseComparison(ABC):
         Returns:
             Processed response dictionary
         """
-        # Convert timeframe to database format using shared utility
-        tf_str = format_timeframe(timeframe)
-        logger.debug(f"{self.__class__.__name__}: Using timeframe {tf_str}")
+        try:
+            # Convert timeframe to database format using shared utility
+            tf_str = format_timeframe(timeframe)
+            logger.debug(f"{self.__class__.__name__}: Using timeframe {tf_str}")
 
-        # Get query
-        query, params = self.get_query(tf_str)
+            # Get query
+            query, params = self.get_query(tf_str)
 
-        # Execute query
-        with DatabaseConnection(self.config) as db:
-            cursor = db.conn.cursor()
-            cursor.execute(query, params)
-            results = cursor.fetchall()
-            logger.debug(f"{self.__class__.__name__}: Got {len(results)} rows")
+            # Execute query
+            with DatabaseConnection(self.config) as db:
+                cursor = db.conn.cursor()
+                cursor.execute(query, params)
+                results = cursor.fetchall()
+                logger.debug(f"{self.__class__.__name__}: Got {len(results)} rows")
 
-        # Process results
-        response = self.process_results(results)
-        response["timeframe"] = timeframe
+            # Process results
+            response = self.process_results(results)
+            response["timeframe"] = timeframe
 
-        # Clean response before returning
-        response = ValueCleaner.clean_object(response)
+            # Clean response before returning
+            response = ValueCleaner.clean_object(response)
 
-        return response
+            return response
+        except Exception as e:
+            logger.error(
+                f"{self.__class__.__name__}.fetch_and_process failed: {e}",
+                exc_info=True,
+            )
+            # Return empty response instead of raising
+            return {
+                "timeframe": timeframe,
+                "data": [],
+                "error": str(e),
+                "status": "error",
+            }
 
     def get_data(self, timeframe: int, use_cache: bool = True) -> Dict:
         """Get data with optional caching.
@@ -545,31 +599,97 @@ class DashboardAPI:
         def get_strategy_comparison(timeframe):
             """Get comprehensive strategy comparison for a timeframe."""
             try:
+                logger.info(f"Fetching strategy comparison for timeframe: {timeframe}")
                 data = self.strategy_comp.get_data(timeframe)
+
+                # If we got an error response, return it properly
+                if data.get("status") == "error":
+                    logger.warning(
+                        f"Strategy comparison returned error: {data.get('error')}"
+                    )
+                    # Return a graceful empty response instead of 500
+                    return jsonify(
+                        {
+                            "status": "success",
+                            "data": [],
+                            "message": "No comparison data available",
+                        }
+                    )
+
                 return jsonify(data)
             except Exception as e:
                 logger.error(f"Error in strategy comparison: {e}", exc_info=True)
-                return jsonify({"error": str(e), "type": type(e).__name__}), 500
+                # Return graceful error response instead of 500
+                return jsonify(
+                    {
+                        "status": "success",
+                        "data": [],
+                        "message": "Unable to load strategy comparison data",
+                        "error_detail": str(e),
+                    }
+                )
 
         @bp.route("/comparison/pairs/<int:timeframe>", methods=["GET"])
         def get_pair_comparison(timeframe):
             """Get performance comparison across all trading pairs."""
             try:
+                logger.info(f"Fetching pair comparison for timeframe: {timeframe}")
                 data = self.pair_comp.get_data(timeframe)
+
+                if data.get("status") == "error":
+                    logger.warning(
+                        f"Pair comparison returned error: {data.get('error')}"
+                    )
+                    return jsonify(
+                        {
+                            "status": "success",
+                            "data": [],
+                            "message": "No comparison data available",
+                        }
+                    )
+
                 return jsonify(data)
             except Exception as e:
                 logger.error(f"Error in pair comparison: {e}", exc_info=True)
-                return jsonify({"error": str(e), "type": type(e).__name__}), 500
+                return jsonify(
+                    {
+                        "status": "success",
+                        "data": [],
+                        "message": "Unable to load pair comparison data",
+                        "error_detail": str(e),
+                    }
+                )
 
         @bp.route("/comparison/matrix/<int:timeframe>", methods=["GET"])
         def get_comparison_matrix(timeframe):
             """Get strategy vs pair performance matrix."""
             try:
+                logger.info(f"Fetching comparison matrix for timeframe: {timeframe}")
                 data = self.matrix_comp.get_data(timeframe)
+
+                if data.get("status") == "error":
+                    logger.warning(
+                        f"Comparison matrix returned error: {data.get('error')}"
+                    )
+                    return jsonify(
+                        {
+                            "status": "success",
+                            "data": {},
+                            "message": "No comparison data available",
+                        }
+                    )
+
                 return jsonify(data)
             except Exception as e:
                 logger.error(f"Error in matrix comparison: {e}", exc_info=True)
-                return jsonify({"error": str(e), "type": type(e).__name__}), 500
+                return jsonify(
+                    {
+                        "status": "success",
+                        "data": {},
+                        "message": "Unable to load comparison matrix",
+                        "error_detail": str(e),
+                    }
+                )
 
         @bp.route("/live-data", methods=["GET"])
         def get_live_data():

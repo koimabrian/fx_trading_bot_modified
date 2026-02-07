@@ -77,10 +77,10 @@ def main():
     print(f"\nTotal: {passed}/{total} test suites completed")
 
     if passed == total:
-        print("\n✓ All tests completed successfully!")
+        print("\n[OK] All tests completed successfully!")
         return 0
     else:
-        print(f"\n⚠ {total - passed} test suite(s) had issues")
+        print(f"\n[WARNING] {total - passed} test suite(s) had issues")
         return 1
 
 

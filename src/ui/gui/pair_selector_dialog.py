@@ -152,7 +152,7 @@ class PairSelectorDialog(QDialog):
         self.setLayout(layout)
 
     def on_checkbox_changed(self):
-        """Handle checkbox state changes."""
+        """Handle checkbox state changes and update category indicators."""
         # Update category checkbox state
         for category in self.categories:
             category_symbols = self.categories[category]
@@ -189,7 +189,7 @@ class PairSelectorDialog(QDialog):
                 self.checkboxes[symbol].blockSignals(False)
 
     def select_all(self):
-        """Select all pairs."""
+        """Select all trading pairs across all categories."""
         for checkbox in self.checkboxes.values():
             checkbox.blockSignals(True)
             checkbox.setChecked(True)
@@ -200,7 +200,7 @@ class PairSelectorDialog(QDialog):
             cat_checkbox.blockSignals(False)
 
     def clear_all(self):
-        """Deselect all pairs."""
+        """Deselect all trading pairs across all categories."""
         for checkbox in self.checkboxes.values():
             checkbox.blockSignals(True)
             checkbox.setChecked(False)
@@ -211,7 +211,7 @@ class PairSelectorDialog(QDialog):
             cat_checkbox.blockSignals(False)
 
     def filter_pairs(self):
-        """Filter pairs based on search input."""
+        """Filter visible pairs based on search input text."""
         search_term = self.search_input.text().upper()
         self.search_term = search_term
 
@@ -234,7 +234,7 @@ class PairSelectorDialog(QDialog):
         ]
 
     def accept(self):
-        """Override accept to validate selection."""
+        """Override accept to validate at least one pair is selected."""
         selected = self.get_selected_pairs()
         if not selected:
             QMessageBox.warning(

@@ -49,17 +49,17 @@ def main():
     - gui: Web dashboard for monitoring
     - test: Run comprehensive test suite
     """
-    # Setup logging
-    LoggingFactory.configure(level="INFO", log_dir="logs")
+    # Parse arguments first to get the mode
+    parser = setup_parser()
+    args = parser.parse_args()
+
+    # Setup logging with mode-specific log file (cleared on each run)
+    LoggingFactory.configure(level="INFO", log_dir="logs", mode=args.mode)
     logger = LoggingFactory.get_logger(__name__)
 
     logger.info("=" * 70)
     logger.info("FX Trading Bot - Adaptive Strategy Selection System")
     logger.info("=" * 70)
-
-    # Parse arguments
-    parser = setup_parser()
-    args = parser.parse_args()
 
     # Load config
     try:
@@ -91,6 +91,10 @@ def _mode_init(config: dict, logger):
     The initialization wizard is a multi-step PyQt5 dialog that guides users
     through database setup, MT5 connection, symbol discovery, and symbol
     selection. All symbol selection is done via GUI (not config).
+
+    Args:
+        config: Application configuration dictionary.
+        logger: Logger instance for output messages.
     """
     logger.info("MODE: init - Starting initialization wizard...")
     try:
@@ -111,7 +115,13 @@ def _mode_init(config: dict, logger):
 
 
 def _mode_sync(config: dict, args, logger):
-    """Execute sync mode: Synchronize market data from MT5."""
+    """Execute sync mode: Synchronize market data from MT5.
+
+    Args:
+        config: Application configuration dictionary.
+        args: Parsed command-line arguments.
+        logger: Logger instance for output messages.
+    """
     logger.info("MODE: sync - Synchronizing market data...")
     try:
         with DatabaseManager(config["database"]) as db:
@@ -151,7 +161,13 @@ def _mode_sync(config: dict, args, logger):
 
 
 def _mode_backtest(config: dict, args, logger):
-    """Execute backtest mode: Run backtests with parameter optimization."""
+    """Execute backtest mode: Run backtests with parameter optimization.
+
+    Args:
+        config: Application configuration dictionary.
+        args: Parsed command-line arguments.
+        logger: Logger instance for output messages.
+    """
     logger.info("MODE: backtest - Running backtests and optimization...")
     try:
         with DatabaseManager(config["database"]) as db:
@@ -180,7 +196,12 @@ def _mode_backtest(config: dict, args, logger):
 
 
 def _display_optimal_parameters(db, logger):
-    """Display optimal parameters from database in a formatted table."""
+    """Display optimal parameters from database in a formatted table.
+
+    Args:
+        db: Database manager instance.
+        logger: Logger instance for output messages.
+    """
     try:
         results = db.execute_query(
             "SELECT op.strategy_name, tp.symbol, op.timeframe, op.parameter_value "
@@ -238,7 +259,13 @@ def _display_optimal_parameters(db, logger):
 
 
 def _mode_live(config: dict, args, logger):
-    """Execute live mode: Real-time trading with adaptive strategy selection."""
+    """Execute live mode: Real-time trading with adaptive strategy selection.
+
+    Args:
+        config: Application configuration dictionary.
+        args: Parsed command-line arguments.
+        logger: Logger instance for output messages.
+    """
     logger.info("MODE: live - Starting live trading...")
     try:
         with DatabaseManager(config["database"]) as db:
@@ -954,7 +981,13 @@ def _mode_live(config: dict, args, logger):
 
 
 def _mode_gui(config: dict, args, logger):
-    """Execute GUI mode: Launch web dashboard."""
+    """Execute GUI mode: Launch web dashboard.
+
+    Args:
+        config: Application configuration dictionary.
+        args: Parsed command-line arguments.
+        logger: Logger instance for output messages.
+    """
     logger.info("MODE: gui - Launching web dashboard...")
     try:
         with DatabaseManager(config["database"]) as db:
@@ -977,7 +1010,11 @@ def _mode_gui(config: dict, args, logger):
 
 
 def _mode_test(logger):
-    """Execute test mode: Run comprehensive test suite."""
+    """Execute test mode: Run comprehensive test suite.
+
+    Args:
+        logger: Logger instance for output messages.
+    """
     logger.info("MODE: test - Running test suite...")
     try:
         result = subprocess.run(["pytest", "tests/", "-v"], check=False)

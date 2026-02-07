@@ -34,7 +34,12 @@ class DataFetcher:
         self.pairs = self.load_pairs()
 
     def load_pairs(self):
-        """Load trading pairs from database tradable_pairs table with all configured timeframes"""
+        """Load trading pairs from database tradable_pairs table.
+
+        Returns:
+            List of dicts with 'symbol' and 'timeframe' keys for each
+            symbol/timeframe combination, or empty list on error.
+        """
         try:
             if hasattr(self, "db") and self.db:
                 cursor = self.db.conn.cursor()
@@ -228,10 +233,18 @@ class DataFetcher:
             return pd.DataFrame()
 
     def sync_data(self, symbol=None, mt5_timeframe=None) -> None:
-        """Fetch and sync OHLCV market data for all configured pairs or specific symbol/timeframe.
-        Uses unified market_data table with composite primary key (time, symbol, timeframe).
+        """Fetch and sync OHLCV market data for all configured pairs or specific symbol.
+
+        Uses unified market_data table with composite primary key.
         Automatically handles duplicates via INSERT OR IGNORE.
-        """
+
+        Args:
+            symbol: Optional specific symbol to sync. If None, syncs all pairs.
+            mt5_timeframe: Optional MT5 timeframe constant override.
+
+        Returns:
+            None. Data is written to database.
+        """ ""
         if not self.mt5_conn:
             self.logger.error("MT5 connector not provided")
             return
@@ -364,11 +377,18 @@ class DataFetcher:
                 )
 
     def sync_data_incremental(self, symbol=None, mt5_timeframe=None) -> None:
-        """Incremental data sync: only fetch data newer than the last timestamp in the database.
+        """Incremental data sync: only fetch data newer than last timestamp.
 
-        This is optimized for live trading - only fetches the minimal data needed to stay current.
+        Optimized for live trading - only fetches minimal data needed.
         Uses unified market_data table with composite primary key.
         Much faster than full syncs and reduces MT5 API load.
+
+        Args:
+            symbol: Optional specific symbol to sync. If None, syncs all pairs.
+            mt5_timeframe: Optional MT5 timeframe constant override.
+
+        Returns:
+            None. Data is written to database.
         """
         if not self.mt5_conn:
             self.logger.error("MT5 connector not provided")

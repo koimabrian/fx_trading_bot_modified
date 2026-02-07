@@ -101,7 +101,11 @@ class TradeLogger:
         return [t for t in self.trades if t["profit"] < 0]
 
     def clear(self) -> None:
-        """Clear all logged trades."""
+        """Clear all logged trades.
+
+        Returns:
+            None.
+        """
         self.trades = []
         self.logger.debug("Cleared all trades")
 

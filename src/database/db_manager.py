@@ -6,8 +6,6 @@ import sqlite3
 
 from src.utils.logging_factory import LoggingFactory
 
-LoggingFactory.configure()
-
 
 class DatabaseManager:
     """Manages database connections and operations.

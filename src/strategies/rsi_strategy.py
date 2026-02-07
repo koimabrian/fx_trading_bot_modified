@@ -32,6 +32,12 @@ class RSIStrategy(BaseStrategy):
 
         Uses momentum divergence + RSI levels for more reliable signals.
         Requires self.period + 5 rows minimum for accurate calculation.
+
+        Args:
+            symbol: Trading symbol to analyze. Defaults to instance symbol.
+
+        Returns:
+            Signal dictionary with action, reason, confidence, or None if no signal.
         """
         # Fetch data with required rows
         required = self.period + 5
@@ -122,7 +128,14 @@ class RSIStrategy(BaseStrategy):
         return None
 
     def generate_exit_signal(self, position):
-        """Generate exit signal based on RSI"""
+        """Generate exit signal based on RSI overbought/oversold levels.
+
+        Args:
+            position: Position object with symbol and type attributes.
+
+        Returns:
+            True if exit signal triggered, False otherwise.
+        """
         data = self.fetch_data(position.symbol)
         if data.empty:
             self.logger.warning("No data available for %s", position.symbol)
@@ -158,7 +171,7 @@ class RSIStrategy(BaseStrategy):
         rsi = None  # type: ignore
 
         def init(self):
-            """Initialize RSI indicator for backtesting."""
+            """Initialize RSI indicator for backtesting framework."""
             self.rsi = self.I(
                 lambda x: ta.momentum.RSIIndicator(
                     pd.Series(x), window=self.period
@@ -167,7 +180,7 @@ class RSIStrategy(BaseStrategy):
             )
 
         def next(self):
-            """Generate buy/sell signals based on RSI crossovers."""
+            """Execute RSI overbought/oversold strategy logic on each price bar."""
             if self.rsi[-1] < self.oversold and self.rsi[-2] >= self.oversold:
                 self.buy(size=self.volume)
             elif self.rsi[-1] > self.overbought and self.rsi[-2] <= self.overbought:

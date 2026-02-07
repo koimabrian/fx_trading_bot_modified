@@ -101,12 +101,15 @@ class LoggingConfig:
         sentry_dsn: Optional[str] = None,
     ):
         """
-        Configure logging with optional file and Sentry integration
+        Configure logging with optional file and Sentry integration.
 
         Args:
-            level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-            log_file: Optional log file path
-            sentry_dsn: Optional Sentry DSN for error tracking
+            level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+            log_file: Optional log file path.
+            sentry_dsn: Optional Sentry DSN for error tracking.
+
+        Returns:
+            None.
         """
         # Configure root logger
         logging.basicConfig(
@@ -141,7 +144,14 @@ class LoggingConfig:
 
     @staticmethod
     def get_logger(name: str) -> logging.Logger:
-        """Get logger instance"""
+        """Get logger instance.
+
+        Args:
+            name: Logger name.
+
+        Returns:
+            Logger instance for the given name.
+        """
         return logging.getLogger(name)
 
 
@@ -149,7 +159,14 @@ class LoggingConfig:
 
 
 def track_request(f: Callable) -> Callable:
-    """Decorator to track HTTP requests"""
+    """Decorator to track HTTP requests.
+
+    Args:
+        f: The function to decorate.
+
+    Returns:
+        Decorated function that tracks request metrics.
+    """
 
     @functools.wraps(f)
     def decorated(*args, **kwargs):
@@ -187,7 +204,16 @@ def track_request(f: Callable) -> Callable:
 
 
 def track_trades(symbol: str, strategy: str, side: str):
-    """Decorator to track trade execution"""
+    """Decorator to track trade execution.
+
+    Args:
+        symbol: Trading symbol.
+        strategy: Strategy name.
+        side: Trade side (buy/sell).
+
+    Returns:
+        Decorator function that tracks trade metrics.
+    """
 
     def decorator(f: Callable) -> Callable:
         @functools.wraps(f)
@@ -208,7 +234,14 @@ def track_trades(symbol: str, strategy: str, side: str):
 
 
 def track_performance(metric_name: str):
-    """Decorator to track function performance"""
+    """Decorator to track function performance.
+
+    Args:
+        metric_name: Name for the performance metric.
+
+    Returns:
+        Decorator function that logs execution duration.
+    """
 
     def decorator(f: Callable) -> Callable:
         @functools.wraps(f)
@@ -227,7 +260,14 @@ def track_performance(metric_name: str):
 
 @contextmanager
 def track_db_query(query_type: str):
-    """Context manager to track database queries"""
+    """Context manager to track database queries.
+
+    Args:
+        query_type: Type of database query (select, insert, update, etc.).
+
+    Yields:
+        None. Tracks query duration and success/failure.
+    """
     start_time = time.time()
     try:
         yield
@@ -254,12 +294,20 @@ class MetricsExporter:
 
     @staticmethod
     def export() -> bytes:
-        """Export all metrics"""
+        """Export all metrics.
+
+        Returns:
+            Prometheus metrics as bytes.
+        """
         return generate_latest()
 
     @staticmethod
     def export_text() -> str:
-        """Export metrics as text"""
+        """Export metrics as text.
+
+        Returns:
+            Prometheus metrics as UTF-8 string.
+        """
         return MetricsExporter.export().decode("utf-8")
 
 
@@ -274,11 +322,26 @@ class HealthChecker:
         self.last_check: Dict[str, tuple] = {}
 
     def register(self, name: str, check_func: Callable):
-        """Register a health check"""
+        """Register a health check.
+
+        Args:
+            name: Name of the health check.
+            check_func: Function that returns True if healthy, False otherwise.
+
+        Returns:
+            None.
+        """
         self.checks[name] = check_func
 
     def run_checks(self, timeout: float = 5.0) -> Dict[str, Dict]:
-        """Run all health checks"""
+        """Run all health checks.
+
+        Args:
+            timeout: Maximum time in seconds for each check.
+
+        Returns:
+            Dictionary mapping check names to their results.
+        """
         results = {}
 
         for name, check_func in self.checks.items():
@@ -302,7 +365,11 @@ class HealthChecker:
         return results
 
     def is_healthy(self) -> bool:
-        """Check if all systems are healthy"""
+        """Check if all systems are healthy.
+
+        Returns:
+            True if all checks pass, False otherwise.
+        """
         results = self.run_checks()
         return all(result["status"] in ["healthy", "ok"] for result in results.values())
 
@@ -318,7 +385,15 @@ class PerformanceMonitor:
         self.max_samples = 1000
 
     def record_metric(self, name: str, value: float):
-        """Record a metric value"""
+        """Record a metric value.
+
+        Args:
+            name: Metric name.
+            value: Numeric value to record.
+
+        Returns:
+            None.
+        """
         if name not in self.metrics:
             self.metrics[name] = []
 
@@ -329,7 +404,14 @@ class PerformanceMonitor:
             self.metrics[name] = self.metrics[name][-self.max_samples :]
 
     def get_stats(self, name: str) -> Dict[str, float]:
-        """Get statistics for a metric"""
+        """Get statistics for a metric.
+
+        Args:
+            name: Metric name to get statistics for.
+
+        Returns:
+            Dictionary with count, mean, min, max, and percentile values.
+        """
         if name not in self.metrics or not self.metrics[name]:
             return {}
 
@@ -347,7 +429,11 @@ class PerformanceMonitor:
         }
 
     def get_all_stats(self) -> Dict[str, Dict[str, float]]:
-        """Get statistics for all metrics"""
+        """Get statistics for all metrics.
+
+        Returns:
+            Dictionary mapping metric names to their statistics.
+        """
         return {name: self.get_stats(name) for name in self.metrics}
 
 
@@ -369,7 +455,17 @@ class AlertManager:
         message: str,
         context: Optional[Dict] = None,
     ):
-        """Trigger an alert"""
+        """Trigger an alert.
+
+        Args:
+            alert_name: Unique name for the alert.
+            severity: Alert severity (INFO, WARNING, ERROR, CRITICAL).
+            message: Alert message describing the issue.
+            context: Optional dictionary with additional context.
+
+        Returns:
+            None.
+        """
         alert = {
             "name": alert_name,
             "severity": severity,
@@ -392,7 +488,14 @@ class AlertManager:
         logger.log(log_level, f"Alert triggered: {alert_name} - {message}")
 
     def resolve_alert(self, alert_name: str):
-        """Resolve an active alert"""
+        """Resolve an active alert.
+
+        Args:
+            alert_name: Name of the alert to resolve.
+
+        Returns:
+            None.
+        """
         if alert_name in self.active_alerts:
             self.active_alerts[alert_name]["resolved"] = True
             del self.active_alerts[alert_name]
@@ -401,11 +504,22 @@ class AlertManager:
             logger.info(f"Alert resolved: {alert_name}")
 
     def get_active_alerts(self) -> Dict[str, Dict]:
-        """Get all active alerts"""
+        """Get all active alerts.
+
+        Returns:
+            Dictionary of active alerts with their details.
+        """
         return self.active_alerts.copy()
 
     def get_alert_history(self, limit: int = 100) -> List[Dict]:
-        """Get alert history"""
+        """Get alert history.
+
+        Args:
+            limit: Maximum number of history entries to return.
+
+        Returns:
+            List of historical alert entries.
+        """
         return self.alert_history[-limit:]
 
 

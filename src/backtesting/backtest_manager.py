@@ -41,6 +41,45 @@ class BacktestManager:
         self.db.create_tables()
         self.logger = LoggingFactory.get_logger(__name__)
 
+    def _sanitize_value(self, value):
+        """Convert NaN and inf values to 0 for JSON serialization.
+
+        backtesting.py may return NaN or inf values which are not valid JSON.
+        This ensures all metrics can be serialized to JSON.
+
+        Args:
+            value: Numeric value that may be NaN, inf, or None.
+
+        Returns:
+            Sanitized float value, with NaN/inf/None converted to 0.
+        """
+        import math
+        import numpy as np
+
+        # Handle None
+        if value is None:
+            return 0
+
+        # Handle NaN (from NumPy or math)
+        try:
+            if math.isnan(value) or (isinstance(value, float) and np.isnan(value)):
+                return 0
+        except (TypeError, ValueError):
+            pass
+
+        # Handle inf
+        try:
+            if math.isinf(value):
+                return 0
+        except (TypeError, ValueError):
+            pass
+
+        # Return as-is if valid
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0
+
     def run_backtest(
         self,
         symbol=None,
@@ -49,14 +88,17 @@ class BacktestManager:
         end_date=None,
         timeframe=None,
     ):
-        """Run backtest for specified symbol and strategy with parameter optimization
+        """Run backtest for specified symbol and strategy with parameter optimization.
 
         Args:
-            symbol: Trading symbol (e.g., 'BTCUSD'), if None backtest all
-            strategy_name: Name of strategy to backtest, if None backtest all
-            start_date: Optional start date (YYYY-MM-DD), falls back to config if not provided
-            end_date: Optional end date (YYYY-MM-DD), falls back to config if not provided
-            timeframe: Optional explicit timeframe (15 or 60), auto-detect if not provided
+            symbol: Trading symbol (e.g., 'BTCUSD'), if None backtest all.
+            strategy_name: Name of strategy to backtest, if None backtest all.
+            start_date: Optional start date (YYYY-MM-DD), falls back to config.
+            end_date: Optional end date (YYYY-MM-DD), falls back to config.
+            timeframe: Optional explicit timeframe (15 or 60), auto-detect if not provided.
+
+        Returns:
+            None. Results are saved to database and logged.
         """
         # If no strategy specified, backtest all configured strategies
         if strategy_name is None:
@@ -116,14 +158,17 @@ class BacktestManager:
     def _run_single_backtest(
         self, symbol, strategy_name, start_date=None, end_date=None, timeframe=None
     ):
-        """Run backtest for a single symbol/strategy combination
+        """Run backtest for a single symbol/strategy combination.
 
         Args:
-            symbol: Trading symbol (e.g., 'BTCUSD')
-            strategy_name: Name of strategy to backtest
-            start_date: Optional start date
-            end_date: Optional end date
-            timeframe: Optional explicit timeframe
+            symbol: Trading symbol (e.g., 'BTCUSD').
+            strategy_name: Name of strategy to backtest.
+            start_date: Optional start date.
+            end_date: Optional end date.
+            timeframe: Optional explicit timeframe.
+
+        Returns:
+            None. Results are saved to database.
         """
         strategy_config = next(
             (
@@ -306,18 +351,26 @@ class BacktestManager:
                 best_stats.to_dict() if hasattr(best_stats, "to_dict") else best_stats
             )
             metrics = {
-                "sharpe_ratio": stats_dict.get("Sharpe Ratio", 0),
-                "sortino_ratio": stats_dict.get("Sortino Ratio", 0),
-                "profit_factor": stats_dict.get("Profit Factor", 0),
-                "calmar_ratio": stats_dict.get("Calmar Ratio", 0),
-                "max_drawdown": stats_dict.get("Max. Drawdown [%]", 0),
-                "return": stats_dict.get("Return [%]", 0),
-                "ulcer_index": stats_dict.get("Ulcer Index", 0.0),
-                "k_ratio": stats_dict.get("K-Ratio", 0.0),
-                "tail_ratio": stats_dict.get("Tail Ratio", 0.0),
-                "expectancy": stats_dict.get("Expectancy", 0.0),
-                "roe": stats_dict.get("Return on Equity", 0.0),
-                "time_to_recover": stats_dict.get("Time to Recover", 0.0),
+                "sharpe_ratio": self._sanitize_value(stats_dict.get("Sharpe Ratio", 0)),
+                "sortino_ratio": self._sanitize_value(
+                    stats_dict.get("Sortino Ratio", 0)
+                ),
+                "profit_factor": self._sanitize_value(
+                    stats_dict.get("Profit Factor", 0)
+                ),
+                "calmar_ratio": self._sanitize_value(stats_dict.get("Calmar Ratio", 0)),
+                "max_drawdown": self._sanitize_value(
+                    stats_dict.get("Max. Drawdown [%]", 0)
+                ),
+                "return": self._sanitize_value(stats_dict.get("Return [%]", 0)),
+                "ulcer_index": self._sanitize_value(stats_dict.get("Ulcer Index", 0.0)),
+                "k_ratio": self._sanitize_value(stats_dict.get("K-Ratio", 0.0)),
+                "tail_ratio": self._sanitize_value(stats_dict.get("Tail Ratio", 0.0)),
+                "expectancy": self._sanitize_value(stats_dict.get("Expectancy", 0.0)),
+                "roe": self._sanitize_value(stats_dict.get("Return on Equity", 0.0)),
+                "time_to_recover": self._sanitize_value(
+                    stats_dict.get("Time to Recover", 0.0)
+                ),
             }
             try:
                 # Ensure strategy exists in backtest_strategies table
@@ -413,13 +466,16 @@ class BacktestManager:
             # Note: Heatmap generation removed per user request - only terminal progress required
 
     def optimize(self, symbol, strategy_name, start_date=None, end_date=None):
-        """Alias for run_backtest() - runs parameter optimization via backtest
+        """Alias for run_backtest() - runs parameter optimization via backtest.
 
         Args:
-            symbol: Trading symbol
-            strategy_name: Strategy name
-            start_date: Optional start date (YYYY-MM-DD)
-            end_date: Optional end date (YYYY-MM-DD)
+            symbol: Trading symbol.
+            strategy_name: Strategy name.
+            start_date: Optional start date (YYYY-MM-DD).
+            end_date: Optional end date (YYYY-MM-DD).
+
+        Returns:
+            None. Results are saved to database.
         """
         self.logger.info(
             "Starting parameter optimization for %s on %s", strategy_name, symbol
@@ -429,15 +485,17 @@ class BacktestManager:
     def run_multi_backtest(
         self, symbols, strategy_name, start_date=None, end_date=None
     ):
-        """Run backtests for multiple symbols & timeframes sequentially and compile results.
+        """Run backtests for multiple symbols & timeframes sequentially.
 
         Args:
-            symbols: List of symbol strings (e.g., ['BTCUSD', 'ETHUSD', 'XRPUSD'])
-            strategy_name: Name of strategy to backtest
-            start_date: Optional start date (YYYY-MM-DD)
-            end_date: Optional end date (YYYY-MM-DD)
+            symbols: List of symbol strings (e.g., ['BTCUSD', 'ETHUSD', 'XRPUSD']).
+            strategy_name: Name of strategy to backtest.
+            start_date: Optional start date (YYYY-MM-DD).
+            end_date: Optional end date (YYYY-MM-DD).
 
-        Tests each symbol across all configured timeframes (M15 & H1).
+        Returns:
+            None. Tests each symbol across all configured timeframes (M15 & H1)
+            and saves results to database.
         """
         if not symbols:
             self.logger.error("No symbols provided for multi-backtest")
@@ -507,7 +565,15 @@ class BacktestManager:
         self.logger.info("=" * 80)
 
     def generate_multi_backtest_report(self, symbols, strategy_name):
-        """Generate comparison report for multi-symbol backtests (all timeframes)"""
+        """Generate comparison report for multi-symbol backtests.
+
+        Args:
+            symbols: List of symbol strings to include in report.
+            strategy_name: Name of strategy to report on.
+
+        Returns:
+            None. Report saved to backtests/results/ directory.
+        """
         try:
             # Get all results for each symbol & timeframe combination
             all_metrics = []
@@ -556,7 +622,16 @@ class BacktestManager:
             ErrorHandler.handle_error(exc, context="generate_multi_backtest_report")
 
     def generate_heatmap(self, results, symbol, timeframe):
-        """Generate and save optimization heatmap for RSI parameters"""
+        """Generate and save optimization heatmap for RSI parameters.
+
+        Args:
+            results: List of (params, stats) tuples from optimization.
+            symbol: Trading symbol for title.
+            timeframe: Timeframe string for title.
+
+        Returns:
+            None. Heatmap saved to backtests/results/ directory.
+        """
         try:
             periods = sorted(set(p["period"] for p, _ in results))
             oversolds = sorted(set(p["oversold"] for p, _ in results))
@@ -590,7 +665,11 @@ class BacktestManager:
             ErrorHandler.handle_error(exc, context="generate_heatmap")
 
     def run(self):
-        """Parse arguments and run the specified mode"""
+        """Parse arguments and run the specified mode.
+
+        Returns:
+            None. Executes the requested backtest mode.
+        """
         parser = argparse.ArgumentParser(description="FX Trading Bot Backtest Manager")
         parser.add_argument(
             "--mode",
@@ -683,7 +762,7 @@ class BacktestManager:
         try:
             # Extract trades using TradeExtractor
             trades_df = TradeExtractor.extract_trades(stats)
-            if trades_df is None or len(trades_df) == 0:
+            if trades_df is None or trades_df.empty:
                 self.logger.debug("No trades found in backtest results")
                 return
 

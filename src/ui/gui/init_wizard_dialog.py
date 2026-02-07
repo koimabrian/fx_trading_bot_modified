@@ -499,7 +499,7 @@ class InitWizardDialog(QDialog):
         return widget
 
     def _filter_symbols(self):
-        """Filter symbols based on search input."""
+        """Filter symbols based on search input text."""
         search_term = self.search_input.text().upper()
 
         for symbol, checkbox in self.checkboxes.items():
@@ -509,7 +509,7 @@ class InitWizardDialog(QDialog):
                 checkbox.hide()
 
     def _on_checkbox_changed(self):
-        """Handle checkbox state changes."""
+        """Handle checkbox state changes and update category/summary displays."""
         # Update category checkboxes
         for category in self.categories:
             category_symbols = self.categories[category]
@@ -568,7 +568,7 @@ class InitWizardDialog(QDialog):
         ]
 
     def _validate_selection(self):
-        """Validate symbol selection and proceed."""
+        """Validate symbol selection and proceed to next step."""
         selected = self._get_selected_symbols()
         if not selected:
             QMessageBox.warning(
@@ -675,7 +675,7 @@ class InitWizardDialog(QDialog):
         return widget
 
     def _perform_initialization(self):
-        """Perform the actual initialization."""
+        """Perform the actual database and symbol initialization."""
         try:
             self.show_step(5)
 

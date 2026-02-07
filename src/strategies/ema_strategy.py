@@ -32,6 +32,12 @@ class EMAStrategy(BaseStrategy):
         Trades on crossover: fast EMA crosses above/below slow EMA.
         EMA responds faster than SMA for more reactive trading.
         Requires slow_period + buffer rows for accurate calculation.
+
+        Args:
+            symbol: Trading symbol to analyze. Defaults to instance symbol.
+
+        Returns:
+            Signal dictionary with action, reason, confidence, or None if no signal.
         """
         # Fetch data with required rows
         required = self.slow_period + 5
@@ -99,6 +105,13 @@ class EMAStrategy(BaseStrategy):
 
         Uses EMA for trend confirmation and ATR for risk management.
         EMA provides faster exits than SMA.
+
+        Args:
+            symbol: Trading symbol to analyze. Defaults to instance symbol.
+            entry_price: Original entry price for calculating stop levels.
+
+        Returns:
+            Exit signal dictionary with action and reason, or None if no exit.
         """
         if entry_price is None:
             return None
@@ -151,7 +164,7 @@ class EMAStrategy(BaseStrategy):
         volume = 0.01
 
         def init(self):
-            """Initialize indicators."""
+            """Initialize EMA indicators for backtesting framework."""
             self.ema_fast = self.I(
                 lambda x: pd.Series(x).ewm(span=self.fast_period, adjust=False).mean(),
                 self.data.Close,
@@ -162,7 +175,7 @@ class EMAStrategy(BaseStrategy):
             )
 
         def next(self):
-            """Execute strategy logic on each bar."""
+            """Execute EMA crossover strategy logic on each price bar."""
             if len(self.data) < self.slow_period + 1:
                 return
 

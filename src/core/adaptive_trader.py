@@ -12,9 +12,11 @@ import yaml
 
 from src.core.strategy_selector import StrategySelector
 from src.strategies.factory import StrategyFactory
-from src.utils.backtesting_utils import (get_strategy_parameters_from_optimal,
-                                         query_top_strategies_by_rank_score,
-                                         volatility_rank_pairs)
+from src.utils.backtesting_utils import (
+    get_strategy_parameters_from_optimal,
+    query_top_strategies_by_rank_score,
+    volatility_rank_pairs,
+)
 from src.utils.error_handler import ErrorHandler
 from src.utils.logging_factory import LoggingFactory
 from src.utils.trading_rules import TradingRules
@@ -41,7 +43,11 @@ class AdaptiveTrader:
         self.config = self._load_config()
 
     def _load_config(self) -> Dict:
-        """Load configuration from YAML file."""
+        """Load configuration from YAML file.
+
+        Returns:
+            Configuration dictionary, or empty dict if loading fails.
+        """
         try:
             from src.utils.config_manager import ConfigManager
 
@@ -361,8 +367,9 @@ class AdaptiveTrader:
                                 f"(rank={rank_score:.4f})"
                             )
                             # Extract params from metrics
-                            from src.utils.backtesting_utils import \
-                                extract_strategy_params_from_metrics
+                            from src.utils.backtesting_utils import (
+                                extract_strategy_params_from_metrics,
+                            )
 
                             params = extract_strategy_params_from_metrics(metrics)
 
@@ -391,12 +398,13 @@ class AdaptiveTrader:
     def execute_adaptive_trades(self, symbol: Optional[str] = None) -> None:
         """Execute trades using adaptive strategy selection.
 
-        Args:
-            symbol: Optional specific symbol to trade. If None, trades all configured symbols.
-
         Iterates through configured symbols, generates adaptive signals,
-        validates trading rules, and executes orders without requiring
-        user-specified strategy.
+        validates trading rules (market hours, position limits), and
+        executes orders via MT5.
+
+        Args:
+            symbol: Optional specific symbol to trade. If None, trades
+                all symbols from tradable_pairs table.
         """
         try:
             # Get all unique symbols from database (tradable_pairs)
@@ -478,7 +486,7 @@ class AdaptiveTrader:
         return True
 
     def clear_cache(self) -> None:
-        """Clear all internal caches."""
+        """Clear all internal strategy and selector caches."""
         self.loaded_strategies.clear()
         self.strategy_selector.clear_cache()
         self.logger.debug("Adaptive trader caches cleared")

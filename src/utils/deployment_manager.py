@@ -35,7 +35,11 @@ class DeploymentConfig:
     health_check_retries: int = 5
 
     def get_image_tag(self) -> str:
-        """Get full image tag with registry"""
+        """Get full image tag with registry.
+
+        Returns:
+            Full Docker image tag in format 'registry/image:version'.
+        """
         return f"{self.registry}/{self.image_name}:{self.version}"
 
 
@@ -47,7 +51,14 @@ class DockerBuilder:
         self.logger = logging.getLogger(__name__)
 
     def build_image(self, dockerfile_path: str = "Dockerfile") -> bool:
-        """Build Docker image"""
+        """Build Docker image.
+
+        Args:
+            dockerfile_path: Path to Dockerfile.
+
+        Returns:
+            True if build successful, False otherwise.
+        """
         try:
             self.logger.info(f"Building Docker image: {self.config.get_image_tag()}")
 
@@ -75,7 +86,11 @@ class DockerBuilder:
             return False
 
     def push_image(self) -> bool:
-        """Push image to registry"""
+        """Push image to registry.
+
+        Returns:
+            True if push successful, False otherwise.
+        """
         try:
             self.logger.info(f"Pushing image: {self.config.get_image_tag()}")
 
@@ -106,11 +121,19 @@ class BlueGreenDeployment:
         self.deployment_file = Path(f".deployments/{config.app_name}_state.json")
 
     def _ensure_deployment_dir(self):
-        """Ensure deployment directory exists"""
+        """Ensure deployment directory exists.
+
+        Returns:
+            None.
+        """
         self.deployment_file.parent.mkdir(parents=True, exist_ok=True)
 
     def get_current_state(self) -> Dict:
-        """Get current deployment state"""
+        """Get current deployment state.
+
+        Returns:
+            Dictionary with active environment and deployment status.
+        """
         self._ensure_deployment_dir()
 
         if self.deployment_file.exists():
@@ -125,13 +148,27 @@ class BlueGreenDeployment:
         }
 
     def save_state(self, state: Dict):
-        """Save deployment state"""
+        """Save deployment state.
+
+        Args:
+            state: State dictionary to save.
+
+        Returns:
+            None.
+        """
         self._ensure_deployment_dir()
         with open(self.deployment_file, "w") as f:
             json.dump(state, f, indent=2)
 
     def deploy_to_inactive(self, image: str) -> bool:
-        """Deploy new version to inactive environment"""
+        """Deploy new version to inactive environment.
+
+        Args:
+            image: Docker image to deploy.
+
+        Returns:
+            True if deployment successful, False otherwise.
+        """
         state = self.get_current_state()
         inactive = self.GREEN if state["active"] == self.BLUE else self.BLUE
 
