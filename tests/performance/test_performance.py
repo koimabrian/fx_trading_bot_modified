@@ -11,7 +11,7 @@ import io
 import time
 import tracemalloc
 from contextlib import contextmanager
-from typing import Callable, Any, Dict, List
+from typing import Callable, Any, Dict
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -21,10 +21,6 @@ from src.utils.config_manager import ConfigManager
 from src.database.db_manager import DatabaseManager
 from src.core.data_fetcher import DataFetcher
 from src.mt5_connector import MT5Connector
-from src.core.base_strategy import BaseStrategy
-from src.strategy_manager import StrategyManager
-from src.core.trader import Trader
-from src.backtesting.backtest_manager import BacktestManager
 
 
 class PerformanceTest:
@@ -115,10 +111,10 @@ class PerformanceTest:
         self.logger.info("=" * 70)
 
         # Test import and decorator presence
-        from src.utils.mt5_decorator import mt5_safe
-
         with self.profile_time("mt5_safe decorator import"):
-            pass  # Already imported above
+            from src.utils.mt5_decorator import mt5_safe
+            # Verify decorator is callable
+            assert callable(mt5_safe), "mt5_safe should be callable"
 
         self.logger.info("✓ MT5Decorator imported successfully")
         self.logger.info("✓ Retry logic available")

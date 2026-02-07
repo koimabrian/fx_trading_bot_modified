@@ -1,10 +1,9 @@
 """Unit tests for core trading engine components."""
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 
 from src.core.trade_manager import TradeManager
-from src.utils.logging_factory import LoggingFactory
 
 
 class TestTradeManager:

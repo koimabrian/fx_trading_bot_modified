@@ -2,7 +2,6 @@
 
 import pytest
 from unittest.mock import Mock, patch
-from datetime import datetime
 
 from src.utils.logging_factory import LoggingFactory
 from src.utils.mt5_decorator import mt5_safe

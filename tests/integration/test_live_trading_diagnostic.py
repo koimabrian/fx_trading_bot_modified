@@ -4,20 +4,15 @@ This module provides integration tests for live trading diagnostics.
 Tests verify MT5 connection, market data availability, trading rules, and strategy loading.
 """
 
-import logging
 import sys
 from pathlib import Path
-
-import yaml
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.core.adaptive_trader import AdaptiveTrader
 from src.core.strategy_selector import StrategySelector
 from src.database.db_manager import DatabaseManager
 from src.mt5_connector import MT5Connector
-from src.strategy_manager import StrategyManager
 from src.utils.logging_factory import LoggingFactory
 from src.utils.config_manager import ConfigManager
 

@@ -1,9 +1,8 @@
 """Test that --symbol parameter correctly filters adaptive trader execution."""
 
-import logging
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import yaml
 

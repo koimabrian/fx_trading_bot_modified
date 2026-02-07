@@ -1,9 +1,6 @@
 """Unit tests for database and configuration components."""
 
 import pytest
-from unittest.mock import Mock, patch
-import tempfile
-import yaml
 
 from src.utils.config_manager import ConfigManager
 

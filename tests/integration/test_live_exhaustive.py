@@ -18,7 +18,6 @@ if sys.platform == "win32":
 
 import logging
 import yaml
-import pandas as pd
 from src.database.db_manager import DatabaseManager
 from src.mt5_connector import MT5Connector
 from src.core.adaptive_trader import AdaptiveTrader

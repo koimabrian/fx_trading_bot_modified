@@ -8,7 +8,6 @@ import threading
 import time
 import json
 import sys
-import logging
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 from datetime import datetime

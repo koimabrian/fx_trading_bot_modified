@@ -1,10 +1,9 @@
 """Unit tests for backtest orchestrator module."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from src.backtesting.backtest_orchestrator import BacktestOrchestrator
 

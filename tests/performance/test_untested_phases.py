@@ -6,8 +6,6 @@ Tests DataFetcher, StrategySelector, Backtesting, and Live Trading
 import sys
 import os
 import time
-import json
-from typing import Dict, Any
 
 # Add project root to path for proper imports
 project_root = os.path.dirname(

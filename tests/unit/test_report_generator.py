@@ -1,9 +1,7 @@
 """Unit tests for report generator module."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 import pandas as pd
-from datetime import datetime, timedelta
 import tempfile
 import os
 

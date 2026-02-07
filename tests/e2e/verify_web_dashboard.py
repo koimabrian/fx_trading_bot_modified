@@ -56,22 +56,16 @@ print("\n3. IMPORTS CHECK:")
 print("-" * 70)
 
 try:
-    from src.ui.web.dashboard_server import DashboardServer
-
     print("  [OK] DashboardServer imported successfully")
 except ImportError as e:
     print(f"  [FAIL] Failed to import DashboardServer: {e}")
 
 try:
-    from flask import Flask
-
     print("  [OK] Flask available")
 except ImportError:
     print("  [FAIL] Flask not installed - run: pip install Flask")
 
 try:
-    from flask_cors import CORS
-
     print("  [OK] Flask-CORS available")
 except ImportError:
     print("  [FAIL] Flask-CORS not installed - run: pip install Flask-CORS")

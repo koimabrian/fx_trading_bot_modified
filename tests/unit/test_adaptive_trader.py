@@ -5,7 +5,6 @@ import pytest
 from unittest.mock import Mock, MagicMock, patch
 
 from src.core.adaptive_trader import AdaptiveTrader
-from src.utils.logging_factory import LoggingFactory
 
 
 class TestAdaptiveTrader:

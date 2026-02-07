@@ -1,6 +1,4 @@
 """Test new utility modules added in OOP audit."""
-import pytest
-import math
 import pandas as pd
 import numpy as np
 
