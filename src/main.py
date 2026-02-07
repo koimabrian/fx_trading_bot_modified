@@ -112,14 +112,14 @@ def _mode_init(config: dict, logger):
 
 
 def _mode_sync(config: dict, args, logger):
-    """Execute sync mode: Synchronize market data from MT5.
+    """Execute sync mode: Synchronize market data and trade history from MT5.
 
     Args:
         config: Application configuration dictionary.
         args: Parsed command-line arguments.
         logger: Logger instance for output messages.
     """
-    logger.info("MODE: sync - Synchronizing market data...")
+    logger.info("MODE: sync - Synchronizing market data and trade history...")
     try:
         with DatabaseManager(config["database"]) as db:
             # Setup database
@@ -132,7 +132,11 @@ def _mode_sync(config: dict, args, logger):
                 logger.error("Failed to initialize MT5 for sync")
                 return
 
-            # Sync data
+            # Sync market data
+            logger.info("=" * 60)
+            logger.info("PHASE 1: Syncing market data from MT5...")
+            logger.info("=" * 60)
+            
             validator = DataValidator(db, config, mt5_conn)
             if args.symbol:
                 logger.info("Syncing data for symbol: %s", args.symbol)
@@ -151,7 +155,37 @@ def _mode_sync(config: dict, args, logger):
                         logger.info("  Syncing: %s", symbol)
                         validator.sync_data(symbol, None)
 
-            logger.info("Data sync completed successfully")
+            logger.info("Market data sync completed successfully")
+            
+            # Sync trade history from MT5
+            logger.info("")
+            logger.info("=" * 60)
+            logger.info("PHASE 2: Syncing trade history from MT5...")
+            logger.info("=" * 60)
+            
+            from src.core.trade_syncer import TradeSyncer
+            trade_syncer = TradeSyncer(db, mt5_conn)
+            
+            # Sync deals and orders (30 days by default)
+            deals_synced = trade_syncer.sync_deals_from_mt5(days_back=30)
+            orders_synced = trade_syncer.sync_orders_from_mt5(days_back=30)
+            positions_synced = trade_syncer.sync_open_positions()
+            
+            # Reconcile open positions
+            reconciliation = trade_syncer.reconcile_with_database()
+            
+            logger.info("")
+            logger.info("Trade sync summary:")
+            logger.info(f"  - Deals synced: {deals_synced}")
+            logger.info(f"  - Orders synced: {orders_synced}")
+            logger.info(f"  - Open positions synced: {positions_synced}")
+            logger.info(f"  - Positions closed in MT5: {len(reconciliation['closed_in_mt5'])}")
+            logger.info(f"  - New positions added to DB: {len(reconciliation['missing_in_db'])}")
+            
+            logger.info("")
+            logger.info("=" * 60)
+            logger.info("All sync operations completed successfully")
+            logger.info("=" * 60)
 
     except (OSError, RuntimeError, ValueError) as e:
         logger.error("Sync mode failed: %s", e)
