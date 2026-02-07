@@ -110,4 +110,4 @@ test_results.json
 !tests/**/*.py
 /docs
 /examples
-/src/utils/scripts
+/src/utils/scriptstest_schema_verification.py
