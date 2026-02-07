@@ -7,6 +7,7 @@ applies trading rules, and manages MT5 order placement.
 
 import yaml
 
+from src.utils.config_manager import ConfigManager
 from src.utils.error_handler import ErrorHandler
 from src.utils.logging_factory import LoggingFactory
 from src.utils.trading_rules import TradingRules
@@ -35,8 +36,6 @@ class Trader:
             Configuration dictionary, or empty dict if loading fails.
         """
         try:
-            from src.utils.config_manager import ConfigManager
-
             return ConfigManager.get_config()
         except Exception as e:
             ErrorHandler.handle_error(e, context="load_config")

@@ -12,6 +12,7 @@ import pandas as pd
 
 from src.core.data_fetcher import DataFetcher
 from src.utils.logging_factory import LoggingFactory
+from src.utils.timeframe_utils import format_timeframe, minutes_to_mt5_timeframe
 
 
 class DataValidator:
@@ -144,8 +145,6 @@ class DataValidator:
             )
 
             for tf in timeframes_to_sync:
-                from src.utils.timeframe_utils import format_timeframe, minutes_to_mt5_timeframe
-                
                 tf_str = format_timeframe(tf)
                 mt5_tf = minutes_to_mt5_timeframe(tf)
 

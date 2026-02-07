@@ -6,8 +6,11 @@ including signal generation, data fetching, and backtesting support.
 
 from abc import ABC, abstractmethod
 
+import ta
+
 from src.core.data_fetcher import DataFetcher
 from src.utils.logging_factory import LoggingFactory
+from src.utils.value_validator import ValueValidator
 
 
 class BaseStrategy(ABC):
@@ -44,8 +47,6 @@ class BaseStrategy(ABC):
         Returns:
             bool: True if valid (not NaN), False otherwise
         """
-        from src.utils.value_validator import ValueValidator
-
         if not ValueValidator.is_valid_number(value):
             self.logger.warning(
                 "Skipping signal due to invalid indicator value: %s", value
@@ -97,8 +98,6 @@ class BaseStrategy(ABC):
         Returns:
             bool: True if data is valid, False otherwise
         """
-        from src.utils.value_validator import ValueValidator
-        
         return ValueValidator.has_sufficient_data(
             data, required_period + 1, context=f"Strategy {self.symbol}"
         )
@@ -113,8 +112,6 @@ class BaseStrategy(ABC):
         Returns:
             DataFrame with 'atr' and 'atr_pct' columns added
         """
-        import ta
-
         atr = ta.volatility.AverageTrueRange(
             data["high"], data["low"], data["close"], window=period
         )

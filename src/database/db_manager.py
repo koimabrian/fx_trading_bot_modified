@@ -4,6 +4,7 @@ import logging
 import os
 import sqlite3
 
+from src.database.migrations import DatabaseMigrations
 from src.utils.logging_factory import LoggingFactory
 
 
@@ -115,8 +116,6 @@ class DatabaseManager:
 
     def create_tables(self):
         """Create necessary database tables and run migrations."""
-        from src.database.migrations import DatabaseMigrations
-
         migrations = DatabaseMigrations(self.conn)
         result = migrations.create_tables() and migrations.create_indexes()
         # Run schema migrations
@@ -126,8 +125,6 @@ class DatabaseManager:
 
     def create_indexes(self):
         """Create additional indexes on frequently queried columns."""
-        from src.database.migrations import DatabaseMigrations
-
         migrations = DatabaseMigrations(self.conn)
         return migrations.create_indexes()
 

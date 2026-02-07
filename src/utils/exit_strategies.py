@@ -18,6 +18,8 @@ from typing import Dict, List, Optional, Union
 import pandas as pd
 import ta
 
+from src.utils.logging_factory import LoggingFactory
+
 
 class ExitType(Enum):
     """Enumeration of exit strategy types."""
@@ -79,7 +81,6 @@ class BaseExitStrategy(ABC):
             config: Configuration dictionary with strategy-specific settings
         """
         self.config = config or {}
-        from src.utils.logging_factory import LoggingFactory
         self.logger = LoggingFactory.get_logger(self.__class__.__name__)
 
     @abstractmethod
@@ -442,7 +443,6 @@ class ExitStrategyManager:
             config: Configuration dict with exit strategy settings
         """
         self.config = config or {}
-        from src.utils.logging_factory import LoggingFactory
         self.logger = LoggingFactory.get_logger(__name__)
 
     def atr_based_exit(self, data, entry_price, atr_multiplier=2.0):

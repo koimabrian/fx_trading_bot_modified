@@ -13,10 +13,12 @@ import yaml
 from src.core.strategy_selector import StrategySelector
 from src.strategies.factory import StrategyFactory
 from src.utils.backtesting_utils import (
+    extract_strategy_params_from_metrics,
     get_strategy_parameters_from_optimal,
     query_top_strategies_by_rank_score,
     volatility_rank_pairs,
 )
+from src.utils.config_manager import ConfigManager
 from src.utils.error_handler import ErrorHandler
 from src.utils.logging_factory import LoggingFactory
 from src.utils.trading_rules import TradingRules
@@ -49,8 +51,6 @@ class AdaptiveTrader:
             Configuration dictionary, or empty dict if loading fails.
         """
         try:
-            from src.utils.config_manager import ConfigManager
-
             return ConfigManager.get_config()
         except Exception as e:
             self.logger.error("Failed to load config: %s", e)
@@ -367,10 +367,6 @@ class AdaptiveTrader:
                                 f"(rank={rank_score:.4f})"
                             )
                             # Extract params from metrics
-                            from src.utils.backtesting_utils import (
-                                extract_strategy_params_from_metrics,
-                            )
-
                             params = extract_strategy_params_from_metrics(metrics)
 
                             # Cache strategy

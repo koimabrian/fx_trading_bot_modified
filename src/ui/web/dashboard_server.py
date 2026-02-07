@@ -708,8 +708,6 @@ class DashboardServer:
                         # Parse strategy_info if it's a JSON string
                         if isinstance(signal.get("strategy_info"), str):
                             try:
-                                import json
-
                                 signal["strategy_info"] = json.loads(
                                     signal["strategy_info"]
                                 )

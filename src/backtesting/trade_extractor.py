@@ -23,10 +23,11 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from src.utils.logging_factory import LoggingFactory
+
 
 def _get_logger():
     """Get logger instance lazily to avoid circular imports."""
-    from src.utils.logging_factory import LoggingFactory
     return LoggingFactory.get_logger(__name__)
 
 

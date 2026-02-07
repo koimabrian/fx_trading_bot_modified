@@ -18,6 +18,7 @@ from src.database.db_manager import DatabaseManager
 from src.reports.report_generator import ReportGenerator
 from src.utils.logging_factory import LoggingFactory
 from src.utils.timeframe_utils import format_timeframe
+from src.utils.value_validator import ValueValidator
 
 logger = LoggingFactory.get_logger(__name__)
 cache = None  # Global cache instance
@@ -36,7 +37,6 @@ class ValueCleaner:
         Returns:
             Cleaned value (0 if NaN/Infinity/None, original otherwise).
         """
-        from src.utils.value_validator import ValueValidator
         return ValueValidator.sanitize_value(value, default=0)
 
     @staticmethod

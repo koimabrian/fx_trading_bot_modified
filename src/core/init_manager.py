@@ -13,6 +13,7 @@ from typing import Dict, List, Optional
 import MetaTrader5 as mt5
 import pandas as pd
 
+from src.core.data_fetcher import DataFetcher
 from src.utils.logging_factory import LoggingFactory
 
 
@@ -187,8 +188,6 @@ class InitManager:
             True if successful, False otherwise
         """
         try:
-            from src.core.data_fetcher import DataFetcher
-
             data_fetcher = DataFetcher(self.mt5_conn, self.db, self.config)
 
             # Get selected pairs from tradable_pairs table (not config)

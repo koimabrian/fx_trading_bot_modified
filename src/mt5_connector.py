@@ -16,8 +16,10 @@ import pandas as pd
 import yaml
 
 from src.strategies.factory import StrategyFactory
+from src.utils.config_manager import ConfigManager
 from src.utils.logging_factory import LoggingFactory
 from src.utils.mt5_decorator import mt5_safe
+from src.utils.timeframe_utils import mt5_timeframe_to_minutes
 
 
 class MT5Connector:
@@ -52,8 +54,6 @@ class MT5Connector:
         self.db = db
         self.logger = LoggingFactory.get_logger(__name__)
         # Load credentials from config.yaml or environment variables
-        from src.utils.config_manager import ConfigManager
-
         config = ConfigManager.get_config()
         mt5_config = config.get("mt5", {})
         self.login = int(os.getenv("MT5_LOGIN", mt5_config.get("login", 0)))
@@ -155,8 +155,6 @@ class MT5Connector:
 
             # Calculate date range: from 'count' periods ago to now
             # Determine timeframe_minutes for date range calculation
-            from src.utils.timeframe_utils import mt5_timeframe_to_minutes
-            
             timeframe_minutes = mt5_timeframe_to_minutes(timeframe)
 
             seconds_back = count * timeframe_minutes * 60
@@ -296,8 +294,6 @@ class MT5Connector:
         """
         symbol = signal["symbol"]
 
-        from src.utils.config_manager import ConfigManager
-
         config = ConfigManager.get_config()
         risk_params = config.get("risk_management", {})
         stop_loss_percent = risk_params.get("stop_loss_percent", 1.0) / 100
@@ -396,8 +392,6 @@ class MT5Connector:
             if not positions:
                 self.logger.debug("No open positions to monitor")
                 return
-
-            from src.utils.config_manager import ConfigManager
 
             config = ConfigManager.get_config()
             risk_params = config.get("risk_management", {})

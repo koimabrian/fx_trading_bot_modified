@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, Optional, List
 from contextlib import contextmanager
 
+from flask import request
 from prometheus_client import Counter, Gauge, Histogram, Summary, generate_latest
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
@@ -170,8 +171,6 @@ def track_request(f: Callable) -> Callable:
 
     @functools.wraps(f)
     def decorated(*args, **kwargs):
-        from flask import request
-
         method = request.method
         endpoint = request.endpoint or "unknown"
 

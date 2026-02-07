@@ -16,10 +16,11 @@ from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 from dataclasses import dataclass, asdict
 
+from src.utils.logging_factory import LoggingFactory
+
 
 def _get_logger():
     """Get logger instance lazily."""
-    from src.utils.logging_factory import LoggingFactory
     return LoggingFactory.get_logger(__name__)
 
 
@@ -50,7 +51,6 @@ class DockerBuilder:
 
     def __init__(self, config: DeploymentConfig):
         self.config = config
-        from src.utils.logging_factory import LoggingFactory
         self.logger = LoggingFactory.get_logger(__name__)
 
     def build_image(self, dockerfile_path: str = "Dockerfile") -> bool:
@@ -120,7 +120,7 @@ class BlueGreenDeployment:
 
     def __init__(self, config: DeploymentConfig):
         self.config = config
-        from src.utils.logging_factory import LoggingFactory; self.logger = LoggingFactory.get_logger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
         self.deployment_file = Path(f".deployments/{config.app_name}_state.json")
 
     def _ensure_deployment_dir(self):
@@ -299,7 +299,7 @@ class BackupManager:
     def __init__(self, backup_dir: str = "./backups"):
         self.backup_dir = Path(backup_dir)
         self.backup_dir.mkdir(parents=True, exist_ok=True)
-        from src.utils.logging_factory import LoggingFactory; self.logger = LoggingFactory.get_logger(__name__)
+        self.logger = LoggingFactory.get_logger(__name__)
 
     def backup_database(self, db_container: str = "fx-tradingbot-db") -> Optional[str]:
         """Backup PostgreSQL database"""

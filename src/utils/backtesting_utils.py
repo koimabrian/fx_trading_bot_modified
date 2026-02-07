@@ -4,14 +4,16 @@ Provides functions for ATR-based volatility ranking, parameter selection,
 and adaptive strategy choosing for live trading.
 """
 
+import json
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
+from src.utils.logging_factory import LoggingFactory
+
 
 def _get_logger():
     """Get logger instance lazily."""
-    from src.utils.logging_factory import LoggingFactory
     return LoggingFactory.get_logger(__name__)
 
 
@@ -193,8 +195,6 @@ def get_strategy_parameters_from_optimal(
 
         strategy_name = result.iloc[0]["strategy_name"]
         # parameter_value is stored as JSON string, parse it
-        import json
-
         params = json.loads(result.iloc[0]["parameter_value"])
 
         logger.debug(
@@ -248,7 +248,6 @@ def query_top_strategies_by_rank_score(
             return []
 
         strategies = []
-        import json
 
         for _, row in results.iterrows():
             strategy_name = row.get("strategy_name", f"strategy_{row['strategy_id']}")

@@ -15,6 +15,8 @@ from typing import Any, Optional, Union
 import numpy as np
 import pandas as pd
 
+from src.utils.logging_factory import LoggingFactory
+
 
 class ValueValidator:
     """Centralized validation for data quality checks."""
@@ -146,8 +148,6 @@ class ValueValidator:
 
         if len(df) < required_rows:
             if context:
-                from src.utils.logging_factory import LoggingFactory
-
                 logger = LoggingFactory.get_logger(__name__)
                 logger.warning(
                     "%s: Insufficient data - got %d rows, need %d",
