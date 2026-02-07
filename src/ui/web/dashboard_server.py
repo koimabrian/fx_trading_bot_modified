@@ -541,7 +541,7 @@ class DashboardServer:
                                 THEN ((exit_price - entry_price) * volume)
                                 ELSE 0 
                            END as pnl
-                    FROM trades
+                    FROM live_trades
                     WHERE created_at >= datetime('now', '-1 day')
                     ORDER BY created_at DESC
                     LIMIT 100
@@ -576,7 +576,7 @@ class DashboardServer:
                 # Get active positions
                 active_query = """
                     SELECT tp.symbol, t.trade_type as action, t.open_price as entry_price, t.volume, t.strategy_name as strategy
-                    FROM trades t
+                    FROM live_trades t
                     JOIN tradable_pairs tp ON t.symbol_id = tp.id
                     WHERE t.status IN ('executed', 'open')
                     ORDER BY t.open_time DESC
@@ -661,7 +661,7 @@ class DashboardServer:
         try:
             with self._get_db() as db:
                 # Delete all trades from the database
-                delete_query = "DELETE FROM trades"
+                delete_query = "DELETE FROM live_trades"
                 db.execute_query(delete_query)
                 db.conn.commit()
 
@@ -691,7 +691,7 @@ class DashboardServer:
                     SELECT tp.symbol, t.trade_type as action, 0.0 as entry_price, 
                            t.strategy_name, t.timeframe, t.status, t.open_time as timestamp,
                            json_object('name', t.strategy_name, 'confidence', 0.5) as strategy_info
-                    FROM trades t
+                    FROM live_trades t
                     JOIN tradable_pairs tp ON t.symbol_id = tp.id
                     WHERE t.status = 'signal_generated'
                     ORDER BY t.open_time DESC
@@ -752,7 +752,7 @@ class DashboardServer:
                 trades_query = """
                     SELECT tp.symbol, t.trade_type as action, t.strategy_name,
                            t.status, t.open_time as timestamp
-                    FROM trades t
+                    FROM live_trades t
                     JOIN tradable_pairs tp ON t.symbol_id = tp.id
                     WHERE t.status IN ('executed', 'closed')
                     ORDER BY t.open_time DESC
@@ -773,7 +773,7 @@ class DashboardServer:
                         SUM(CASE WHEN close_time IS NOT NULL AND profit > 0 THEN 1 ELSE 0 END) as winning_trades,
                         SUM(CASE WHEN close_time IS NOT NULL AND profit < 0 THEN 1 ELSE 0 END) as losing_trades,
                         SUM(CASE WHEN close_time IS NOT NULL THEN 1 ELSE 0 END) as closed_trades
-                    FROM trades
+                    FROM live_trades
                 """
                 stats_result = db.execute_query(stats_query).fetchone()
 

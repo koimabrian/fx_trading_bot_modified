@@ -117,10 +117,10 @@ class DatabaseMigrations:
             """
             )
 
-            # Table 7: trades (live trading audit trail) - with FK to tradable_pairs
+            # Table 7: live_trades (live trading audit trail from MT5) - with FK to tradable_pairs
             cursor.execute(
                 """
-                CREATE TABLE IF NOT EXISTS trades (
+                CREATE TABLE IF NOT EXISTS live_trades (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     symbol_id INTEGER NOT NULL,
                     timeframe TEXT NOT NULL,
@@ -133,7 +133,7 @@ class DatabaseMigrations:
                     close_time TIMESTAMP,
                     profit REAL,
                     status TEXT DEFAULT 'open',
-                    order_id INTEGER UNIQUE,
+                    order_id INTEGER,
                     deal_id INTEGER UNIQUE,
                     ticket INTEGER UNIQUE,
                     magic INTEGER,
@@ -227,9 +227,14 @@ class DatabaseMigrations:
                 "CREATE INDEX IF NOT EXISTS idx_backtest_trades_backtest_id ON backtest_trades(backtest_backtest_id)",
                 "CREATE INDEX IF NOT EXISTS idx_backtest_trades_symbol_id ON backtest_trades(symbol_id)",
                 # Live trade indexes (updated for symbol_id FK)
-                "CREATE INDEX IF NOT EXISTS idx_trades_symbol_status ON trades(symbol_id, status)",
-                "CREATE INDEX IF NOT EXISTS idx_trades_open_time ON trades(open_time DESC)",
-                "CREATE INDEX IF NOT EXISTS idx_trades_strategy ON trades(strategy_name)",
+                "CREATE INDEX IF NOT EXISTS idx_live_trades_symbol_status ON live_trades(symbol_id, status)",
+                "CREATE INDEX IF NOT EXISTS idx_live_trades_open_time ON live_trades(open_time DESC)",
+                "CREATE INDEX IF NOT EXISTS idx_live_trades_strategy ON live_trades(strategy_name)",
+                # Unique indexes for deal_id and ticket (each deal/position is unique)
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_live_trades_deal_id_unique ON live_trades(deal_id) WHERE deal_id IS NOT NULL",
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_live_trades_ticket_unique ON live_trades(ticket) WHERE ticket IS NOT NULL",
+                # Non-unique index for order_id (multiple deals can share same order)
+                "CREATE INDEX IF NOT EXISTS idx_live_trades_order_id ON live_trades(order_id) WHERE order_id IS NOT NULL",
                 # Optimal parameters indexes (updated for symbol_id FK)
                 "CREATE INDEX IF NOT EXISTS idx_optimal_params_symbol_timeframe ON optimal_parameters(symbol_id, timeframe, strategy_name)",
                 # Tradable pairs indexes
@@ -270,7 +275,7 @@ class DatabaseMigrations:
                 "backtest_results",
                 "backtest_strategies",
                 "backtest_trades",
-                "trades",
+                "live_trades",
             ]
 
             for table in tables_to_drop:
@@ -475,8 +480,8 @@ class DatabaseMigrations:
             if not has_symbol_id:
                 # Already v2 schema (direct symbol column, no symbol_id FK)
                 self.logger.info("V2 schema detected - ensuring indexes and MT5 fields")
-                # Ensure MT5 sync fields are present in trades table
-                self._add_mt5_sync_fields_to_trades(cursor)
+                # Ensure MT5 sync fields are present in live_trades table
+                self._add_mt5_sync_fields_to_live_trades(cursor)
                 return self.create_indexes()
 
             # Old schema with symbol_id FK detected - migrate to v2
@@ -485,7 +490,7 @@ class DatabaseMigrations:
                 cursor.execute("DROP TABLE IF EXISTS market_data")
                 cursor.execute("DROP TABLE IF EXISTS backtest_market_data")
                 cursor.execute("DROP TABLE IF EXISTS optimal_parameters")
-                cursor.execute("DROP TABLE IF EXISTS trades")
+                cursor.execute("DROP TABLE IF EXISTS live_trades")
                 cursor.execute("DROP TABLE IF EXISTS backtest_trades")
                 cursor.execute("DROP TABLE IF EXISTS tradable_pairs")
                 self.conn.commit()
@@ -528,11 +533,11 @@ class DatabaseMigrations:
             # Step 4: Migrate backtest_results to backtest_backtests
             self._migrate_backtest_results(cursor)
 
-            # Step 5: Migrate trades table
-            self._migrate_trades(cursor)
+            # Step 5: Migrate live_trades table
+            self._migrate_live_trades(cursor)
 
-            # Step 6: Add MT5 sync fields to trades table
-            self._add_mt5_sync_fields_to_trades(cursor)
+            # Step 6: Add MT5 sync fields to live_trades table
+            self._add_mt5_sync_fields_to_live_trades(cursor)
 
             # Step 7: Populate backtest_strategies if needed
             self._populate_backtest_strategies(cursor)
@@ -783,8 +788,8 @@ class DatabaseMigrations:
         except sqlite3.Error as e:
             self.logger.warning("Could not migrate backtest_results: %s", e)
 
-    def _migrate_trades(self, cursor) -> None:
-        """Migrate trades from symbol TEXT to symbol_id FK.
+    def _migrate_live_trades(self, cursor) -> None:
+        """Migrate live_trades from symbol TEXT to symbol_id FK.
 
         Args:
             cursor: SQLite cursor object.
@@ -793,18 +798,18 @@ class DatabaseMigrations:
             None.
         """
         try:
-            cursor.execute("PRAGMA table_info(trades)")
+            cursor.execute("PRAGMA table_info(live_trades)")
             columns = [col[1] for col in cursor.fetchall()]
 
             if "symbol_id" in columns:
-                self.logger.info("trades already migrated")
+                self.logger.info("live_trades already migrated")
                 return
 
-            self.logger.info("Migrating trades table...")
+            self.logger.info("Migrating live_trades table...")
 
             cursor.execute(
                 """
-                CREATE TABLE trades_v2 (
+                CREATE TABLE live_trades_v2 (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     symbol_id INTEGER NOT NULL,
                     timeframe TEXT NOT NULL,
@@ -817,7 +822,7 @@ class DatabaseMigrations:
                     close_time TIMESTAMP,
                     profit REAL,
                     status TEXT DEFAULT 'open',
-                    order_id INTEGER UNIQUE,
+                    order_id INTEGER,
                     deal_id INTEGER UNIQUE,
                     ticket INTEGER UNIQUE,
                     magic INTEGER,
@@ -833,73 +838,87 @@ class DatabaseMigrations:
 
             cursor.execute(
                 """
-                INSERT INTO trades_v2 
+                INSERT INTO live_trades_v2 
                 (symbol_id, timeframe, strategy_name, trade_type, volume, open_price, 
                  close_price, open_time, close_time, profit, status, order_id, deal_id)
                 SELECT tp.id, t.timeframe, t.strategy_name, t.trade_type, t.volume, 
                        t.open_price, t.close_price, t.open_time, t.close_time, t.profit, 
                        t.status, t.order_id, t.deal_id
-                FROM trades t
+                FROM live_trades t
                 LEFT JOIN tradable_pairs tp ON t.symbol = tp.symbol
                 WHERE tp.id IS NOT NULL
             """
             )
 
-            cursor.execute("DROP TABLE trades")
-            cursor.execute("ALTER TABLE trades_v2 RENAME TO trades")
+            cursor.execute("DROP TABLE live_trades")
+            cursor.execute("ALTER TABLE live_trades_v2 RENAME TO live_trades")
 
-            self.logger.info("Migrated trades with symbol_id FK")
+            self.logger.info("Migrated live_trades with symbol_id FK")
 
         except sqlite3.Error as e:
-            self.logger.warning("Could not migrate trades: %s", e)
+            self.logger.warning("Could not migrate live_trades: %s", e)
 
-    def _add_mt5_sync_fields_to_trades(self, cursor) -> None:
-        """Add MT5 synchronization fields to trades table.
-        
-        Adds: ticket, magic, swap, commission, comment, external, mt5_synced_at
-        
+    def _add_mt5_sync_fields_to_live_trades(self, cursor) -> None:
+        """Add MT5 synchronization fields to live_trades table.
+
+        Adds the following columns if they don't exist:
+        - order_id: MT5 order identifier
+        - deal_id: MT5 deal ticket
+        - ticket: MT5 position ticket
+        - magic: Magic number for trade identification
+        - swap: Swap/rollover charges
+        - commission: Commission charged
+        - comment: Trade comment/note
+        - external: Whether trade was placed externally
+        - mt5_synced_at: Last MT5 sync timestamp
+
         Args:
             cursor: SQLite cursor object.
-            
+
         Returns:
             None.
         """
         try:
-            cursor.execute("PRAGMA table_info(trades)")
+            cursor.execute("PRAGMA table_info(live_trades)")
             columns = [col[1] for col in cursor.fetchall()]
-            
-            # Check if MT5 sync fields already exist
-            if "ticket" in columns and "mt5_synced_at" in columns:
-                self.logger.info("MT5 sync fields already exist in trades table")
-                self._add_unique_constraints_to_trades(cursor)
+
+            if "mt5_synced_at" in columns:
+                self.logger.info("MT5 sync fields already exist in live_trades table")
+                self._add_unique_constraints_to_live_trades(cursor)
                 return
-            
-            self.logger.info("Adding MT5 sync fields to trades table...")
-            
-            # Add new columns one by one
-            new_columns = [
-                ("ticket", "INTEGER"),
-                ("magic", "INTEGER"),
-                ("swap", "REAL DEFAULT 0"),
-                ("commission", "REAL DEFAULT 0"),
-                ("comment", "TEXT"),
-                ("external", "BOOLEAN DEFAULT 0"),
-                ("mt5_synced_at", "TIMESTAMP"),
+
+            self.logger.info("Adding MT5 sync fields to live_trades table...")
+
+            # Define MT5 fields to add (name, type, default)
+            mt5_fields = [
+                ("order_id", "INTEGER", None),
+                ("deal_id", "INTEGER", None),
+                ("ticket", "INTEGER", None),
+                ("magic", "INTEGER", None),
+                ("swap", "REAL", "0"),
+                ("commission", "REAL", "0"),
+                ("comment", "TEXT", None),
+                ("external", "BOOLEAN", "0"),
+                ("mt5_synced_at", "TIMESTAMP", None),
             ]
-            
-            for col_name, col_type in new_columns:
+
+            for col_name, col_type, default_val in mt5_fields:
                 if col_name not in columns:
+                    default_clause = f"DEFAULT {default_val}" if default_val else ""
                     try:
-                        cursor.execute(f"ALTER TABLE trades ADD COLUMN {col_name} {col_type}")
-                        self.logger.info(f"Added column {col_name} to trades table")
+                        cursor.execute(f"ALTER TABLE live_trades ADD COLUMN {col_name} {col_type} {default_clause}")
+                        self.logger.info(f"Added column {col_name} to live_trades table")
                     except sqlite3.Error as e:
                         self.logger.debug(f"Column {col_name} may already exist: {e}")
-            
+
+            # Add unique constraints after columns are created
+            self._add_unique_constraints_to_live_trades(cursor)
+
             self.conn.commit()
             self.logger.info("MT5 sync fields added successfully")
-            
+
         except sqlite3.Error as e:
-            self.logger.warning("Could not add MT5 sync fields to trades: %s", e)
+            self.logger.warning("Could not add MT5 sync fields to live_trades: %s", e)
 
     def _populate_backtest_strategies(self, cursor) -> None:
         """Populate backtest_strategies table from backtest_results.
@@ -943,11 +962,14 @@ class DatabaseMigrations:
         except sqlite3.Error as e:
             self.logger.warning("Could not populate backtest_strategies: %s", e)
 
-    def _add_unique_constraints_to_trades(self, cursor) -> None:
-        """Add UNIQUE indexes on order_id, deal_id, and ticket columns.
+    def _add_unique_constraints_to_live_trades(self, cursor) -> None:
+        """Add UNIQUE indexes on deal_id and ticket columns.
         
         SQLite doesn't support adding UNIQUE constraints via ALTER TABLE,
         so we create UNIQUE indexes instead which have the same effect.
+        
+        Note: order_id should NOT be unique as multiple deals can share
+        the same order_id (partial fills, split executions).
         
         Args:
             cursor: SQLite cursor object.
@@ -956,13 +978,15 @@ class DatabaseMigrations:
             None.
         """
         try:
-            self.logger.info("Adding UNIQUE indexes to trades table...")
+            self.logger.info("Adding UNIQUE indexes to live_trades table...")
             
             # Create UNIQUE indexes (ignore if they already exist)
+            # Note: order_id is NOT unique - multiple deals can share same order
             indexes = [
-                "CREATE UNIQUE INDEX IF NOT EXISTS idx_trades_order_id_unique ON trades(order_id) WHERE order_id IS NOT NULL",
-                "CREATE UNIQUE INDEX IF NOT EXISTS idx_trades_deal_id_unique ON trades(deal_id) WHERE deal_id IS NOT NULL",
-                "CREATE UNIQUE INDEX IF NOT EXISTS idx_trades_ticket_unique ON trades(ticket) WHERE ticket IS NOT NULL",
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_live_trades_deal_id_unique ON live_trades(deal_id) WHERE deal_id IS NOT NULL",
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_live_trades_ticket_unique ON live_trades(ticket) WHERE ticket IS NOT NULL",
+                # Non-unique index for order_id lookups
+                "CREATE INDEX IF NOT EXISTS idx_live_trades_order_id ON live_trades(order_id) WHERE order_id IS NOT NULL",
             ]
             
             for index_sql in indexes:

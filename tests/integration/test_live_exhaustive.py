@@ -65,8 +65,8 @@ def test_1_database_and_data():
         param_count = cursor.fetchone()[0]
         print(f"\n[OK] Optimal parameters stored: {param_count}")
 
-        # Check trades table
-        cursor.execute("SELECT COUNT(*) FROM trades")
+        # Check live_trades table
+        cursor.execute("SELECT COUNT(*) FROM live_trades")
         trade_count = cursor.fetchone()[0]
         print(f"[OK] Trades in database: {trade_count}")
 
@@ -320,7 +320,7 @@ def test_7_database_recording():
                 COUNT(CASE WHEN status = 'open' THEN 1 END) as open,
                 COUNT(CASE WHEN status = 'closed' THEN 1 END) as closed,
                 COUNT(CASE WHEN status = 'signal' THEN 1 END) as signals
-            FROM trades
+            FROM live_trades
         """
         )
         result = cursor.fetchone()
@@ -337,7 +337,7 @@ def test_7_database_recording():
             cursor.execute(
                 """
                 SELECT symbol, entry_price, status, timestamp 
-                FROM trades 
+                FROM live_trades 
                 ORDER BY timestamp DESC 
                 LIMIT 5
             """

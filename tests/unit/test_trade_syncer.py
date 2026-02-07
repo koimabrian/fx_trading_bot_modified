@@ -161,7 +161,7 @@ class TestTradeSyncer(unittest.TestCase):
         # Verify execute_query was called with correct parameters
         self.mock_db.execute_query.assert_called_once()
         call_args = self.mock_db.execute_query.call_args
-        self.assertIn("UPDATE trades", call_args[0][0])
+        self.assertIn("UPDATE live_trades", call_args[0][0])
         self.assertIn("closed", call_args[0][0])
 
     @patch('src.core.trade_syncer.mt5')
