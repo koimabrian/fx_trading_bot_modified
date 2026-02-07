@@ -1,15 +1,12 @@
 """Unit tests for exit strategies module."""
 
 import pytest
-from unittest.mock import Mock, patch
-import pandas as pd
 from datetime import datetime
 
 from src.utils.exit_strategies import (
     ExitStrategyManager,
     ExitType,
     ExitSignal,
-    BaseExitStrategy,
     FixedPercentageStopLoss,
     FixedPercentageTakeProfit,
     TrailingStopStrategy,

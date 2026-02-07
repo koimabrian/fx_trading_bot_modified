@@ -1,8 +1,6 @@
 """Unit tests for error handling system."""
 
 import pytest
-from unittest.mock import Mock, patch
-from enum import Enum
 
 from src.utils.error_handler import ErrorHandler, ErrorSeverity, TradingError
 

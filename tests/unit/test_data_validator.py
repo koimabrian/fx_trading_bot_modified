@@ -1,10 +1,9 @@
 """Unit tests for data validator module."""
 
 import pytest
-from unittest.mock import Mock, patch
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from src.utils.data_validator import DataValidator
 

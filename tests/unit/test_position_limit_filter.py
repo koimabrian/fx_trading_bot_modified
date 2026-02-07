@@ -10,8 +10,7 @@ Tests the position limit checking logic that:
 """
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch
-from typing import List
+from unittest.mock import Mock, patch
 
 
 # Mock MT5 position class

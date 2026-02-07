@@ -1,10 +1,8 @@
 """Unit tests for indicator analyzer module."""
 
 import pytest
-from unittest.mock import Mock, patch
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
 
 from src.utils.indicator_analyzer import IndicatorAnalyzer
 

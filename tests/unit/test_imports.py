@@ -1,6 +1,5 @@
 ﻿# tests/test_imports.py
 """Test core module imports."""
-import pytest
 
 
 def test_mt5_connector_import():

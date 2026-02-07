@@ -6,7 +6,6 @@ Tests all untested components with correct dependencies
 import sys
 import os
 import time
-import json
 
 # Add project root to path for proper imports
 project_root = os.path.dirname(
@@ -20,7 +19,6 @@ from src.database.db_manager import DatabaseManager
 from src.core.strategy_selector import StrategySelector
 from src.backtesting.backtest_manager import BacktestManager
 from src.mt5_connector import MT5Connector
-from src.core.trade_manager import TradeManager
 
 LoggingFactory.configure()
 logger = LoggingFactory.get_logger(__name__)

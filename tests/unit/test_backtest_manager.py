@@ -1,10 +1,10 @@
 """Unit tests for backtest manager module."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from src.backtesting.backtest_manager import BacktestManager
 

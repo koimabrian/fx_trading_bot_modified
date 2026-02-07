@@ -1,10 +1,8 @@
 """Unit tests for trade extractor module."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
 
 from src.backtesting.trade_extractor import TradeExtractor
 

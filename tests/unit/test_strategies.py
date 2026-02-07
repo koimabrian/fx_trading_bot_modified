@@ -1,7 +1,6 @@
 """Unit tests for strategy components."""
 
 import pytest
-from unittest.mock import Mock, patch
 
 from src.strategies.factory import StrategyFactory
 

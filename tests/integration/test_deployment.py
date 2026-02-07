@@ -8,10 +8,8 @@ Date: February 1, 2026
 """
 
 import pytest
-import json
 import tempfile
 from pathlib import Path
-from datetime import datetime
 from src.utils.deployment_manager import (
     DeploymentConfig,
     DockerBuilder,

@@ -7,7 +7,6 @@ Covers metrics collection, health checks, performance tracking, and alerting.
 
 import pytest
 import time
-from datetime import datetime
 from src.utils.monitoring import (
     MetricsRegistry,
     LoggingConfig,

@@ -1,7 +1,7 @@
 """Unit tests for MT5Connector."""
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 
 from src.mt5_connector import MT5Connector
 

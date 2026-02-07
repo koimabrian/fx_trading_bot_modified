@@ -6,7 +6,6 @@ Tests all 4 phases and identifies optimization opportunities
 import sys
 import os
 import time
-import json
 
 # Add project root to path for proper imports
 project_root = os.path.dirname(
@@ -17,7 +16,6 @@ sys.path.insert(0, project_root)
 from src.utils.logging_factory import LoggingFactory
 from src.utils.config_manager import ConfigManager
 from src.utils.error_handler import ErrorHandler
-from src.utils.mt5_decorator import mt5_safe
 from src.database.db_manager import DatabaseManager
 
 

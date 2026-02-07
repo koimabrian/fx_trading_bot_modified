@@ -2,10 +2,9 @@
 
 import logging
 import pytest
-from unittest.mock import Mock, MagicMock, patch
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from src.backtesting.metrics_engine import MetricsEngine
 

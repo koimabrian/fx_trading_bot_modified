@@ -11,8 +11,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.core.trade_manager import TradeManager
 from src.mt5_connector import MT5Connector
-from src.database.db_manager import DatabaseManager
-from src.utils.config_manager import ConfigManager
 
 
 def test_close_all_positions_integration():

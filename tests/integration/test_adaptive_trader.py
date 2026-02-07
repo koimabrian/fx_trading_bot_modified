@@ -13,7 +13,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.core.adaptive_trader import AdaptiveTrader
 from src.core.strategy_selector import StrategySelector
 from src.database.db_manager import DatabaseManager
-from src.mt5_connector import MT5Connector
 from src.strategy_manager import StrategyManager
 from src.utils.logging_factory import LoggingFactory
 
