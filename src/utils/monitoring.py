@@ -10,12 +10,12 @@ Date: February 1, 2026
 import time
 import logging
 import functools
-from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, Optional, List
+from datetime import datetime
+from typing import Callable, Dict, Optional, List
 from contextlib import contextmanager
 
 from flask import request
-from prometheus_client import Counter, Gauge, Histogram, Summary, generate_latest
+from prometheus_client import Counter, Gauge, Histogram, generate_latest
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration

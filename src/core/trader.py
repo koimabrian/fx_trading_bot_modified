@@ -5,8 +5,6 @@ applies trading rules, and manages MT5 order placement.
 """
 
 
-import yaml
-
 from src.utils.config_manager import ConfigManager
 from src.utils.error_handler import ErrorHandler
 from src.utils.logging_factory import LoggingFactory

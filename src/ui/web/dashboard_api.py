@@ -6,13 +6,11 @@ Uses a base comparison handler class that all specific comparisons inherit from.
 """
 
 import json
-import logging
-import math
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 
 from src.database.db_manager import DatabaseManager
 from src.reports.report_generator import ReportGenerator

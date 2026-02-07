@@ -12,7 +12,7 @@ Handles emoji characters safely across Windows, Linux, and Mac.
 
 import logging
 import platform
-from typing import List, Tuple
+from typing import List
 
 import MetaTrader5 as mt5
 

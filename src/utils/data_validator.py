@@ -4,10 +4,8 @@
 Provides DataValidator class for checking data freshness,
 validating database schema, and syncing data from MT5.
 """
-import logging
 from datetime import datetime, timedelta
 
-import MetaTrader5 as mt5
 import pandas as pd
 
 from src.core.data_fetcher import DataFetcher

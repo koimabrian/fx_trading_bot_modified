@@ -1,6 +1,5 @@
 # src/ui/gui/plotly_charts.py
 # Purpose: Generate interactive Plotly charts for backtesting results
-import logging
 from typing import Dict, List
 
 import pandas as pd

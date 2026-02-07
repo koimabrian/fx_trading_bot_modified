@@ -7,8 +7,7 @@ Guides users through:
 4. Confirmation and initialization
 """
 
-import time
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import MetaTrader5 as mt5
 

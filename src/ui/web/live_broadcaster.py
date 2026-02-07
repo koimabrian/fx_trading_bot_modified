@@ -4,15 +4,13 @@ Provides real-time signal updates, trade execution events, and volatility
 metrics to connected clients using Socket.IO.
 """
 
-import json
-import logging
 import threading
 from datetime import datetime
-from queue import Empty, Queue
-from typing import Dict, List, Optional
+from queue import Queue
+from typing import Dict
 
 from flask import Flask
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO, emit, join_room
 
 from src.utils.logging_factory import LoggingFactory
 

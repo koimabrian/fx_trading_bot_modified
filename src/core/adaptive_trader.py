@@ -5,10 +5,7 @@ the best-performing strategies for each symbol/timeframe combination.
 Includes confidence scoring and strategy caching for optimization.
 """
 
-import logging
 from typing import Any, Dict, List, Optional
-
-import yaml
 
 from src.core.strategy_selector import StrategySelector
 from src.strategies.factory import StrategyFactory

@@ -5,7 +5,7 @@ Collects technical indicators (MACD, RSI, SMA, EMA) and signal metrics
 for live display on the dashboard.
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd

@@ -6,14 +6,12 @@ connection handling.
 """
 
 # pylint: disable=no-member
-import logging
 import os
 import time
 from datetime import datetime
 
 import MetaTrader5 as mt5
 import pandas as pd
-import yaml
 
 from src.strategies.factory import StrategyFactory
 from src.utils.config_manager import ConfigManager

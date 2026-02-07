@@ -1,6 +1,5 @@
 # src/backtesting/trade_logger.py
 # Purpose: Log detailed trade data during backtesting
-import logging
 from datetime import datetime
 from typing import Dict, List
 

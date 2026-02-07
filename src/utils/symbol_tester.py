@@ -11,13 +11,11 @@ Designed to be extended by specific test classes (MixedAsset, MajorPairs, etc)
 following the DRY principle.
 """
 
-import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 
 import MetaTrader5 as mt5
-import yaml
 
 from src.database.db_manager import DatabaseManager
 from src.mt5_connector import MT5Connector

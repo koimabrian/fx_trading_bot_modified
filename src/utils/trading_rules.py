@@ -6,7 +6,6 @@ Provides rules for:
 - Category-based position limits
 - Market condition validation
 """
-import logging
 from datetime import datetime
 
 import pytz

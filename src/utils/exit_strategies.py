@@ -13,7 +13,7 @@ Provides multiple exit strategies:
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional
 
 import pandas as pd
 import ta

@@ -7,8 +7,7 @@ This is a production-ready trade quality filtering module with all
 best practices for professional-grade trade selection.
 """
 
-import logging
-from typing import Dict, Optional
+from typing import Dict
 
 from src.utils.logging_factory import LoggingFactory
 

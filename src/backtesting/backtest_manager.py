@@ -6,7 +6,6 @@ and result visualization with parameter optimization via backtesting.py.
 
 import argparse
 import json
-import logging
 import math
 import os
 from datetime import datetime
@@ -15,7 +14,6 @@ from itertools import product
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import yaml
 from tqdm import tqdm
 
 from backtesting.lib import FractionalBacktest

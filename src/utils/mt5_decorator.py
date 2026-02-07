@@ -4,7 +4,6 @@ This module provides decorators to add automatic reconnection and retry logic
 to any MT5 method without cluttering the business logic.
 """
 
-import logging
 import time
 from functools import wraps
 from typing import Any, Callable

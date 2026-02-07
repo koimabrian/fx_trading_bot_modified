@@ -1,6 +1,5 @@
 # fx_trading_bot/src/database/db_manager.py
 # Purpose: Manages database connections and operations
-import logging
 import os
 import sqlite3
 

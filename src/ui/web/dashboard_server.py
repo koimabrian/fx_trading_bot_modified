@@ -6,7 +6,6 @@ All data loaded from the backtest database in real-time.
 """
 
 import json
-import logging
 import math
 import os
 import time
@@ -15,13 +14,11 @@ import MetaTrader5 as mt5
 from flask import Flask, jsonify, render_template, request, send_file
 from flask.json.provider import DefaultJSONProvider
 from flask_cors import CORS
-from flask_socketio import SocketIO
 
 from src.database.db_manager import DatabaseManager
 from src.reports.report_generator import ReportGenerator
 from src.ui.web.dashboard_api import DashboardAPI
 from src.ui.web.live_broadcaster import broadcaster
-from src.utils.indicator_analyzer import IndicatorAnalyzer
 from src.utils.logging_factory import LoggingFactory
 from src.utils.timeframe_utils import format_timeframe
 
