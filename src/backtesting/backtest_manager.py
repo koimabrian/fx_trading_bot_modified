@@ -7,6 +7,7 @@ and result visualization with parameter optimization via backtesting.py.
 import argparse
 import json
 import logging
+import math
 import os
 from datetime import datetime
 from itertools import product
@@ -53,9 +54,6 @@ class BacktestManager:
         Returns:
             Sanitized float value, with NaN/inf/None converted to 0.
         """
-        import math
-        import numpy as np
-
         # Handle None
         if value is None:
             return 0

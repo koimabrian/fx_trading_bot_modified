@@ -10,6 +10,7 @@ Generates comprehensive reports from backtesting and live trading data:
 
 import json
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
@@ -308,8 +309,6 @@ class ReportGenerator:
 
             # Ensure reports directory exists
             reports_dir = "backtests/results"
-            import os
-
             os.makedirs(reports_dir, exist_ok=True)
 
             filepath = os.path.join(reports_dir, filename)

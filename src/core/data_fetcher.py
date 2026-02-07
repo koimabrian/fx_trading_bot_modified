@@ -6,6 +6,7 @@ Uses LRU cache to avoid redundant fetches.
 """
 
 import sqlite3
+from datetime import datetime
 from functools import lru_cache
 from typing import Optional
 
@@ -13,6 +14,7 @@ import MetaTrader5 as mt5
 import pandas as pd
 
 from src.utils.logging_factory import LoggingFactory
+from src.utils.timeframe_utils import minutes_to_mt5_timeframe
 
 
 class DataFetcher:
@@ -554,12 +556,8 @@ class DataFetcher:
 
             # Convert start_date and end_date to datetime if needed
             if isinstance(start_date, str):
-                from datetime import datetime
-
                 start_date = datetime.strptime(start_date, "%Y-%m-%d")
             if isinstance(end_date, str):
-                from datetime import datetime
-
                 end_date = datetime.strptime(end_date, "%Y-%m-%d")
 
             # Fetch data from MT5
@@ -660,5 +658,4 @@ class DataFetcher:
         Returns:
             MT5 timeframe constant
         """
-        from src.utils.timeframe_utils import minutes_to_mt5_timeframe
         return minutes_to_mt5_timeframe(timeframe_minutes)

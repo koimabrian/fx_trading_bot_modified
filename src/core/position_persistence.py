@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Tuple
 
 import MetaTrader5 as mt5
 
+from src.utils.config_manager import ConfigManager
 from src.utils.logging_factory import LoggingFactory
 
 
@@ -176,8 +177,6 @@ class PositionPersistence:
         """
         try:
             # Category limits from config (with fallback defaults)
-            from src.utils.config_manager import ConfigManager
-
             config = ConfigManager.get_config()
 
             # Get limits from config or use defaults

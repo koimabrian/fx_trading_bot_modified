@@ -3,6 +3,8 @@
 
 import pandas as pd
 
+from src.utils.logging_factory import LoggingFactory
+
 
 class DataHandler:
     """Manages backtesting data preparation and storage."""
@@ -16,7 +18,6 @@ class DataHandler:
         """
         self.db = db
         self.config = config
-        from src.utils.logging_factory import LoggingFactory
         self.logger = LoggingFactory.get_logger(__name__)
 
     def prepare_backtest_data(self, symbol, timeframe):
