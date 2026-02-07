@@ -155,20 +155,9 @@ class MT5Connector:
 
             # Calculate date range: from 'count' periods ago to now
             # Determine timeframe_minutes for date range calculation
-            # MT5 constants: M15=15, H1=16385, H4=16388
-            # Use numeric equivalents for calculation: M15=15min, H1=60min, H4=240min
-            timeframe_minutes_map = {
-                mt5.TIMEFRAME_M15: 15,
-                mt5.TIMEFRAME_H1: 60,
-                mt5.TIMEFRAME_H4: 240,
-                15: 15,
-                60: 60,
-                240: 240,
-                16385: 60,
-                16388: 240,
-            }
-
-            timeframe_minutes = timeframe_minutes_map.get(timeframe, 15)
+            from src.utils.timeframe_utils import mt5_timeframe_to_minutes
+            
+            timeframe_minutes = mt5_timeframe_to_minutes(timeframe)
 
             seconds_back = count * timeframe_minutes * 60
 

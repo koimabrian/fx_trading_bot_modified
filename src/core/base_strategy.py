@@ -44,9 +44,9 @@ class BaseStrategy(ABC):
         Returns:
             bool: True if valid (not NaN), False otherwise
         """
-        import numpy as np
+        from src.utils.value_validator import ValueValidator
 
-        if np.isnan(value) or value is None:
+        if not ValueValidator.is_valid_number(value):
             self.logger.warning(
                 "Skipping signal due to invalid indicator value: %s", value
             )
@@ -97,16 +97,11 @@ class BaseStrategy(ABC):
         Returns:
             bool: True if data is valid, False otherwise
         """
-        required_rows = required_period + 5
-        if data.empty or len(data) < required_period + 1:
-            self.logger.warning(
-                "Insufficient data for %s: got %d rows, need %d",
-                self.symbol,
-                len(data),
-                required_period + 1,
-            )
-            return False
-        return True
+        from src.utils.value_validator import ValueValidator
+        
+        return ValueValidator.has_sufficient_data(
+            data, required_period + 1, context=f"Strategy {self.symbol}"
+        )
 
     def calculate_atr(self, data, period: int = 14):
         """Calculate ATR (Average True Range) volatility indicator.

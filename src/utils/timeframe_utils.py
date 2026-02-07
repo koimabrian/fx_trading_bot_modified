@@ -1,5 +1,7 @@
 """Timeframe conversion utilities shared across the application."""
 
+import MetaTrader5 as mt5
+
 
 def format_timeframe(timeframe):
     """Convert numeric timeframe to string format (M15, H1, H4).
@@ -86,3 +88,80 @@ def normalize_timeframe(timeframe) -> int:
     if isinstance(timeframe, str):
         return parse_timeframe(timeframe)
     return int(timeframe)
+
+
+def minutes_to_mt5_timeframe(timeframe_minutes: int):
+    """Convert minutes to MT5 timeframe constant.
+
+    Args:
+        timeframe_minutes: Timeframe in minutes (15, 60, 240, etc.)
+
+    Returns:
+        MT5 timeframe constant (e.g., mt5.TIMEFRAME_M15)
+
+    Examples:
+        >>> minutes_to_mt5_timeframe(15)
+        mt5.TIMEFRAME_M15
+        >>> minutes_to_mt5_timeframe(60)
+        mt5.TIMEFRAME_H1
+    """
+    timeframe_map = {
+        1: mt5.TIMEFRAME_M1,
+        5: mt5.TIMEFRAME_M5,
+        15: mt5.TIMEFRAME_M15,
+        30: mt5.TIMEFRAME_M30,
+        60: mt5.TIMEFRAME_H1,
+        240: mt5.TIMEFRAME_H4,
+        1440: mt5.TIMEFRAME_D1,
+        10080: mt5.TIMEFRAME_W1,
+        43200: mt5.TIMEFRAME_MN1,
+    }
+    return timeframe_map.get(timeframe_minutes, mt5.TIMEFRAME_M15)
+
+
+def mt5_timeframe_to_minutes(mt5_timeframe) -> int:
+    """Convert MT5 timeframe constant to minutes.
+
+    Handles both MT5 constants and raw integer values.
+
+    Args:
+        mt5_timeframe: MT5 timeframe constant or integer
+
+    Returns:
+        Timeframe in minutes
+
+    Examples:
+        >>> mt5_timeframe_to_minutes(mt5.TIMEFRAME_M15)
+        15
+        >>> mt5_timeframe_to_minutes(mt5.TIMEFRAME_H1)
+        60
+        >>> mt5_timeframe_to_minutes(16385)  # Raw H1 constant
+        60
+    """
+    # Map both MT5 constants and their raw integer values
+    timeframe_minutes_map = {
+        mt5.TIMEFRAME_M1: 1,
+        mt5.TIMEFRAME_M5: 5,
+        mt5.TIMEFRAME_M15: 15,
+        mt5.TIMEFRAME_M30: 30,
+        mt5.TIMEFRAME_H1: 60,
+        mt5.TIMEFRAME_H4: 240,
+        mt5.TIMEFRAME_D1: 1440,
+        mt5.TIMEFRAME_W1: 10080,
+        mt5.TIMEFRAME_MN1: 43200,
+        # Raw integer values (for backward compatibility)
+        1: 1,
+        5: 5,
+        15: 15,
+        30: 30,
+        60: 60,
+        240: 240,
+        1440: 1440,
+        10080: 10080,
+        43200: 43200,
+        # Raw MT5 constants (16385 = H1, 16388 = H4, etc.)
+        16385: 60,
+        16388: 240,
+    }
+    return timeframe_minutes_map.get(mt5_timeframe, 15)
+

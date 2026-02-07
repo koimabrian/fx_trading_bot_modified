@@ -36,13 +36,8 @@ class ValueCleaner:
         Returns:
             Cleaned value (0 if NaN/Infinity/None, original otherwise).
         """
-        if value is None:
-            return 0
-        elif isinstance(value, float):
-            if math.isnan(value) or math.isinf(value):
-                return 0
-            return value
-        return value
+        from src.utils.value_validator import ValueValidator
+        return ValueValidator.sanitize_value(value, default=0)
 
     @staticmethod
     def clean_dict(obj: Dict) -> Dict:
