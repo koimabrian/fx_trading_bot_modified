@@ -44,13 +44,10 @@ class TradingRules:
 
             db = DatabaseManager(config)
             db.connect()  # Establish connection
-            cursor = db.conn.cursor()
 
             # Query all symbols with their categories
-            cursor.execute(
-                "SELECT symbol, LOWER(category) as category FROM tradable_pairs ORDER BY symbol"
-            )
-            rows = cursor.fetchall()
+            query = "SELECT symbol, LOWER(category) as category FROM tradable_pairs ORDER BY symbol"
+            rows = db.execute_query(query).fetchall()
 
             if not rows:
                 LoggingFactory.get_logger(__name__).warning(

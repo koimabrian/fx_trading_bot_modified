@@ -20,7 +20,7 @@ from src.core.strategy_selector import StrategySelector
 from src.core.trade_manager import TradeManager
 from src.backtesting.backtest_manager import BacktestManager
 from src.database.db_manager import DatabaseManager
-from src.mt5_connector import MT5Connector
+from src.core.mt5_connector import MT5Connector
 
 LoggingFactory.configure()
 logger = LoggingFactory.get_logger(__name__)

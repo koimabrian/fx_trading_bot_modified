@@ -4,7 +4,7 @@
 
 def test_mt5_connector_import():
     """Test MT5 connector import."""
-    from src.mt5_connector import MT5Connector
+    from src.core.mt5_connector import MT5Connector
     assert MT5Connector is not None
 
 
@@ -16,5 +16,5 @@ def test_database_import():
 
 def test_strategy_manager_import():
     """Test strategy manager import."""
-    from src.strategy_manager import StrategyManager
+    from src.core.strategy_manager import StrategyManager
     assert StrategyManager is not None

@@ -19,9 +19,9 @@ if sys.platform == "win32":
 import logging
 import yaml
 from src.database.db_manager import DatabaseManager
-from src.mt5_connector import MT5Connector
+from src.core.mt5_connector import MT5Connector
 from src.core.adaptive_trader import AdaptiveTrader
-from src.strategy_manager import StrategyManager
+from src.core.strategy_manager import StrategyManager
 from src.core.data_fetcher import DataFetcher
 from src.utils.logging_factory import LoggingFactory
 

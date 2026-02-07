@@ -46,15 +46,14 @@ class ParameterArchiver:
             True if successful, False otherwise
         """
         try:
-            cursor = self.db.conn.cursor()
-
             # Insert or replace optimal parameters
-            cursor.execute(
-                """
+            query = """
                 INSERT OR REPLACE INTO optimal_parameters
                 (symbol, timeframe, strategy_name, parameter_value, metrics, last_optimized)
                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            """,
+            """
+            self.db.execute_query(
+                query,
                 (
                     symbol,
                     timeframe,
@@ -64,7 +63,6 @@ class ParameterArchiver:
                 ),
             )
 
-            self.db.conn.commit()
             self.logger.info(
                 "Stored optimal params: %s (%s %s) - Sharpe: %.2f",
                 strategy_name,
@@ -98,18 +96,17 @@ class ParameterArchiver:
             Parameter dictionary if found, None otherwise
         """
         try:
-            cursor = self.db.conn.cursor()
-            cursor.execute(
-                """
+            query = """
                 SELECT parameter_value, metrics, last_optimized FROM optimal_parameters op
                 JOIN tradable_pairs tp ON op.symbol_id = tp.id
                 WHERE tp.symbol = ? AND op.timeframe = ? AND op.strategy_name = ?
                 ORDER BY op.last_optimized DESC LIMIT 1
-            """,
+            """
+            row = self.db.execute_query(
+                query,
                 (symbol, timeframe, strategy_name),
-            )
+            ).fetchone()
 
-            row = cursor.fetchone()
             if not row:
                 return None
 
@@ -145,17 +142,15 @@ class ParameterArchiver:
             Dictionary keyed by 'symbol_timeframe_strategy'
         """
         try:
-            cursor = self.db.conn.cursor()
-            cursor.execute(
-                """
+            query = """
                 SELECT symbol, timeframe, strategy_name, parameter_value, metrics
                 FROM optimal_parameters
                 ORDER BY last_optimized DESC
             """
-            )
+            rows = self.db.execute_query(query).fetchall()
 
             all_params = {}
-            for row in cursor.fetchall():
+            for row in rows:
                 symbol, timeframe, strategy_name, params_json, metrics_json = row
                 key = f"{symbol}_{timeframe}_{strategy_name}"
                 params = json.loads(params_json)
@@ -183,9 +178,7 @@ class ParameterArchiver:
             List of strategy dictionaries with parameters and metrics
         """
         try:
-            cursor = self.db.conn.cursor()
-            cursor.execute(
-                """
+            query = """
                 SELECT br.strategy_name, br.metrics, op.parameter_value
                 FROM backtest_results br
                 JOIN tradable_pairs tp ON br.symbol = tp.symbol
@@ -196,12 +189,11 @@ class ParameterArchiver:
                 WHERE tp.symbol = ? AND br.timeframe = ?
                 ORDER BY br.rank_score DESC
                 LIMIT ?
-            """,
-                (symbol, timeframe, limit),
-            )
+            """
+            rows = self.db.execute_query(query, (symbol, timeframe, limit)).fetchall()
 
             strategies = []
-            for row in cursor.fetchall():
+            for row in rows:
                 strategy_name, metrics_json, params_json = row
                 strategy_dict = {
                     "strategy_name": strategy_name,
@@ -238,16 +230,13 @@ class ParameterArchiver:
             True if parameters exist, False otherwise
         """
         try:
-            cursor = self.db.conn.cursor()
-            cursor.execute(
-                """
+            query = """
                 SELECT COUNT(*) FROM optimal_parameters op
                 JOIN tradable_pairs tp ON op.symbol_id = tp.id
                 WHERE tp.symbol = ? AND op.timeframe = ?
-            """,
-                (symbol, timeframe),
-            )
-            count = cursor.fetchone()[0]
+            """
+            result = self.db.execute_query(query, (symbol, timeframe)).fetchone()
+            count = result[0]
             return count > 0
 
         except sqlite3.Error as e:

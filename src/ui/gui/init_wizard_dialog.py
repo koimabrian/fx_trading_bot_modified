@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import (
 from src.core.init_manager import InitManager
 from src.database.db_manager import DatabaseManager
 from src.database.migrations import DatabaseMigrations
-from src.mt5_connector import MT5Connector
+from src.core.mt5_connector import MT5Connector
 
 
 class InitWizardDialog(QDialog):

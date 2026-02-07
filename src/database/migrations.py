@@ -133,8 +133,15 @@ class DatabaseMigrations:
                     close_time TIMESTAMP,
                     profit REAL,
                     status TEXT DEFAULT 'open',
-                    order_id INTEGER,
-                    deal_id INTEGER,
+                    order_id INTEGER UNIQUE,
+                    deal_id INTEGER UNIQUE,
+                    ticket INTEGER UNIQUE,
+                    magic INTEGER,
+                    swap REAL DEFAULT 0,
+                    commission REAL DEFAULT 0,
+                    comment TEXT,
+                    external BOOLEAN DEFAULT 0,
+                    mt5_synced_at TIMESTAMP,
                     FOREIGN KEY (symbol_id) REFERENCES tradable_pairs(id)
                 )
             """
@@ -467,7 +474,9 @@ class DatabaseMigrations:
 
             if not has_symbol_id:
                 # Already v2 schema (direct symbol column, no symbol_id FK)
-                self.logger.info("V2 schema detected - ensuring indexes")
+                self.logger.info("V2 schema detected - ensuring indexes and MT5 fields")
+                # Ensure MT5 sync fields are present in trades table
+                self._add_mt5_sync_fields_to_trades(cursor)
                 return self.create_indexes()
 
             # Old schema with symbol_id FK detected - migrate to v2
@@ -522,7 +531,10 @@ class DatabaseMigrations:
             # Step 5: Migrate trades table
             self._migrate_trades(cursor)
 
-            # Step 6: Populate backtest_strategies if needed
+            # Step 6: Add MT5 sync fields to trades table
+            self._add_mt5_sync_fields_to_trades(cursor)
+
+            # Step 7: Populate backtest_strategies if needed
             self._populate_backtest_strategies(cursor)
 
             self.conn.commit()
@@ -805,8 +817,15 @@ class DatabaseMigrations:
                     close_time TIMESTAMP,
                     profit REAL,
                     status TEXT DEFAULT 'open',
-                    order_id INTEGER,
-                    deal_id INTEGER,
+                    order_id INTEGER UNIQUE,
+                    deal_id INTEGER UNIQUE,
+                    ticket INTEGER UNIQUE,
+                    magic INTEGER,
+                    swap REAL DEFAULT 0,
+                    commission REAL DEFAULT 0,
+                    comment TEXT,
+                    external BOOLEAN DEFAULT 0,
+                    mt5_synced_at TIMESTAMP,
                     FOREIGN KEY (symbol_id) REFERENCES tradable_pairs(id)
                 )
             """
@@ -822,6 +841,7 @@ class DatabaseMigrations:
                        t.status, t.order_id, t.deal_id
                 FROM trades t
                 LEFT JOIN tradable_pairs tp ON t.symbol = tp.symbol
+                WHERE tp.id IS NOT NULL
             """
             )
 
@@ -832,6 +852,54 @@ class DatabaseMigrations:
 
         except sqlite3.Error as e:
             self.logger.warning("Could not migrate trades: %s", e)
+
+    def _add_mt5_sync_fields_to_trades(self, cursor) -> None:
+        """Add MT5 synchronization fields to trades table.
+        
+        Adds: ticket, magic, swap, commission, comment, external, mt5_synced_at
+        
+        Args:
+            cursor: SQLite cursor object.
+            
+        Returns:
+            None.
+        """
+        try:
+            cursor.execute("PRAGMA table_info(trades)")
+            columns = [col[1] for col in cursor.fetchall()]
+            
+            # Check if MT5 sync fields already exist
+            if "ticket" in columns and "mt5_synced_at" in columns:
+                self.logger.info("MT5 sync fields already exist in trades table")
+                self._add_unique_constraints_to_trades(cursor)
+                return
+            
+            self.logger.info("Adding MT5 sync fields to trades table...")
+            
+            # Add new columns one by one
+            new_columns = [
+                ("ticket", "INTEGER"),
+                ("magic", "INTEGER"),
+                ("swap", "REAL DEFAULT 0"),
+                ("commission", "REAL DEFAULT 0"),
+                ("comment", "TEXT"),
+                ("external", "BOOLEAN DEFAULT 0"),
+                ("mt5_synced_at", "TIMESTAMP"),
+            ]
+            
+            for col_name, col_type in new_columns:
+                if col_name not in columns:
+                    try:
+                        cursor.execute(f"ALTER TABLE trades ADD COLUMN {col_name} {col_type}")
+                        self.logger.info(f"Added column {col_name} to trades table")
+                    except sqlite3.Error as e:
+                        self.logger.debug(f"Column {col_name} may already exist: {e}")
+            
+            self.conn.commit()
+            self.logger.info("MT5 sync fields added successfully")
+            
+        except sqlite3.Error as e:
+            self.logger.warning("Could not add MT5 sync fields to trades: %s", e)
 
     def _populate_backtest_strategies(self, cursor) -> None:
         """Populate backtest_strategies table from backtest_results.
@@ -874,3 +942,38 @@ class DatabaseMigrations:
 
         except sqlite3.Error as e:
             self.logger.warning("Could not populate backtest_strategies: %s", e)
+
+    def _add_unique_constraints_to_trades(self, cursor) -> None:
+        """Add UNIQUE indexes on order_id, deal_id, and ticket columns.
+        
+        SQLite doesn't support adding UNIQUE constraints via ALTER TABLE,
+        so we create UNIQUE indexes instead which have the same effect.
+        
+        Args:
+            cursor: SQLite cursor object.
+            
+        Returns:
+            None.
+        """
+        try:
+            self.logger.info("Adding UNIQUE indexes to trades table...")
+            
+            # Create UNIQUE indexes (ignore if they already exist)
+            indexes = [
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_trades_order_id_unique ON trades(order_id) WHERE order_id IS NOT NULL",
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_trades_deal_id_unique ON trades(deal_id) WHERE deal_id IS NOT NULL",
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_trades_ticket_unique ON trades(ticket) WHERE ticket IS NOT NULL",
+            ]
+            
+            for index_sql in indexes:
+                try:
+                    cursor.execute(index_sql)
+                    self.logger.debug(f"Created index: {index_sql[:50]}...")
+                except sqlite3.Error as e:
+                    self.logger.debug(f"Index may already exist: {e}")
+            
+            self.conn.commit()
+            self.logger.info("UNIQUE indexes added successfully")
+            
+        except sqlite3.Error as e:
+            self.logger.warning("Could not add UNIQUE indexes: %s", e)

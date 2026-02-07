@@ -87,11 +87,9 @@ class DataValidator:
             True if tables exist, False otherwise.
         """
         try:
-            cursor = self.db.conn.cursor()
-            cursor.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='market_data'"
-            )
-            exists = cursor.fetchone() is not None
+            query = "SELECT name FROM sqlite_master WHERE type='table' AND name='market_data'"
+            result = self.db.execute_query(query).fetchone()
+            exists = result is not None
             self.logger.debug("market_data table exists: %s", exists)
             return exists
         except (RuntimeError, ValueError, KeyError) as e:
@@ -112,9 +110,7 @@ class DataValidator:
         try:
             # Query market_data using direct symbol column (new schema)
             query = f"SELECT COUNT(*) as cnt FROM {table} WHERE symbol = ? AND timeframe = ?"
-            result = (
-                self.db.conn.cursor().execute(query, (symbol, timeframe)).fetchone()
-            )
+            result = self.db.execute_query(query, (symbol, timeframe)).fetchone()
             return result[0] if result else 0
         except (RuntimeError, ValueError, KeyError, TypeError) as e:
             self.logger.debug(
@@ -172,7 +168,7 @@ class DataValidator:
             tf_str = f"M{timeframe}" if timeframe < 60 else f"H{timeframe//60}"
             # Query market_data using direct symbol column (new schema, no JOIN needed)
             query = "SELECT MAX(md.time) as latest_time FROM market_data md WHERE md.symbol = ? AND md.timeframe = ?"
-            result = self.db.conn.cursor().execute(query, (symbol, tf_str)).fetchone()
+            result = self.db.execute_query(query, (symbol, tf_str)).fetchone()
 
             if not result or not result[0]:
                 self.logger.warning("No data found for %s (%s)", symbol, tf_str)

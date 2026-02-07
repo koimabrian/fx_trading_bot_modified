@@ -8,8 +8,8 @@ from typing import Dict
 
 import MetaTrader5 as mt5
 from src.database.db_manager import DatabaseManager
-from src.mt5_connector import MT5Connector
-from src.strategy_manager import StrategyManager
+from src.core.mt5_connector import MT5Connector
+from src.core.strategy_manager import StrategyManager
 from src.utils.backtesting_utils import volatility_rank_pairs
 from src.utils.logging_factory import LoggingFactory
 
@@ -96,12 +96,9 @@ class LiveTradingDiagnostic:
             ]
 
             for table in tables_to_check:
-                cursor = self.db.conn.cursor()
-                cursor.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-                    (table,),
-                )
-                if not cursor.fetchone():
+                query = "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
+                result = self.db.execute_query(query, (table,)).fetchone()
+                if not result:
                     self.issues.append(f"Database table missing: {table}")
                 else:
                     self.info.append(f"[OK] Table exists: {table}")
@@ -113,9 +110,9 @@ class LiveTradingDiagnostic:
         """Verify tradable pairs are populated in database."""
         self.logger.info("[3/9] Checking Tradable Pairs...")
         try:
-            cursor = self.db.conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM tradable_pairs")
-            pair_count = cursor.fetchone()[0]
+            query = "SELECT COUNT(*) FROM tradable_pairs"
+            result = self.db.execute_query(query).fetchone()
+            pair_count = result[0]
 
             if pair_count == 0:
                 self.issues.append(
@@ -135,33 +132,29 @@ class LiveTradingDiagnostic:
         """Verify market data availability for trading."""
         self.logger.info("[4/9] Checking Market Data...")
         try:
-            cursor = self.db.conn.cursor()
-
             # Check total data rows
-            cursor.execute("SELECT COUNT(*) FROM market_data")
-            data_count = cursor.fetchone()[0]
+            query = "SELECT COUNT(*) FROM market_data"
+            result = self.db.execute_query(query).fetchone()
+            data_count = result[0]
 
             if data_count == 0:
                 self.issues.append("No market data in database - run 'sync' mode first")
                 return
 
             # Check recent data
-            cursor.execute(
-                "SELECT COUNT(*) FROM market_data WHERE time > datetime('now', '-1 hour')"
-            )
-            recent_count = cursor.fetchone()[0]
+            query = "SELECT COUNT(*) FROM market_data WHERE time > datetime('now', '-1 hour')"
+            result = self.db.execute_query(query).fetchone()
+            recent_count = result[0]
 
             # Check data per pair
-            cursor.execute(
-                """
+            query = """
                 SELECT symbol, COUNT(*) as count 
                 FROM market_data 
                 GROUP BY symbol 
                 ORDER BY count DESC 
                 LIMIT 3
             """
-            )
-            top_pairs = cursor.fetchall()
+            rows = self.db.execute_query(query).fetchall()
 
             self.info.append(f"Total market data rows: {data_count}")
             if recent_count > 0:
@@ -169,8 +162,8 @@ class LiveTradingDiagnostic:
             else:
                 self.warnings.append("No data from last hour - consider running sync")
 
-            if top_pairs:
-                pair_info = ", ".join([f"{p[0]}({p[1]})" for p in top_pairs])
+            if rows:
+                pair_info = ", ".join([f"{p[0]}({p[1]})" for p in rows])
                 self.info.append(f"Top pairs by data: {pair_info}")
 
         except Exception as e:
@@ -205,9 +198,9 @@ class LiveTradingDiagnostic:
         """Verify optimal parameters are available for strategies."""
         self.logger.info("[6/9] Checking Optimal Parameters...")
         try:
-            cursor = self.db.conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM optimal_parameters")
-            param_count = cursor.fetchone()[0]
+            query = "SELECT COUNT(*) FROM optimal_parameters"
+            result = self.db.execute_query(query).fetchone()
+            param_count = result[0]
 
             if param_count == 0:
                 self.warnings.append(
@@ -216,14 +209,12 @@ class LiveTradingDiagnostic:
                 return
 
             # Check params per strategy
-            cursor.execute(
-                """
+            query = """
                 SELECT strategy_name, COUNT(*) as count 
                 FROM optimal_parameters 
                 GROUP BY strategy_name
             """
-            )
-            strategy_params = cursor.fetchall()
+            strategy_params = self.db.execute_query(query).fetchall()
 
             self.info.append(f"Total optimal parameters: {param_count}")
             for strat, count in strategy_params:

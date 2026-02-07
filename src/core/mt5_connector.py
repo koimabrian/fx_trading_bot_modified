@@ -524,3 +524,84 @@ class MT5Connector:
                 "Error closing position %s for %s: %s", position_id, symbol, e
             )
             return False
+
+    @mt5_safe(max_retries=3, retry_delay=1.0)
+    def get_account_status(self) -> dict:
+        """Get current account information.
+        
+        Centralized method for retrieving account status to eliminate
+        duplicate calls throughout the codebase.
+        
+        Returns:
+            Dictionary with account information:
+            - balance: Current account balance
+            - equity: Current equity
+            - margin: Used margin
+            - free_margin: Free margin available
+            - margin_level: Margin level percentage
+            - profit: Current floating profit/loss
+            
+            Returns empty dict if account info unavailable.
+            
+        Example:
+            >>> account = mt5_conn.get_account_status()
+            >>> print(f"Balance: {account['balance']}")
+        """
+        try:
+            account = mt5.account_info()
+            if account is None:
+                self.logger.warning("Failed to get account info: %s", mt5.last_error())
+                return {}
+            
+            return {
+                "balance": account.balance,
+                "equity": account.equity,
+                "margin": account.margin,
+                "free_margin": account.margin_free,
+                "margin_level": account.margin_level,
+                "profit": account.profit,
+                "currency": account.currency,
+                "leverage": account.leverage,
+                "name": account.name,
+                "server": account.server,
+                "login": account.login,
+            }
+            
+        except (RuntimeError, AttributeError) as e:
+            self.logger.error("Error getting account status: %s", e)
+            return {}
+
+    @mt5_safe(max_retries=3, retry_delay=1.0)
+    def get_open_positions(self, symbol: str = None) -> list:
+        """Get currently open positions.
+        
+        Centralized method for retrieving open positions to eliminate
+        duplicate mt5.positions_get() calls throughout the codebase.
+        
+        Args:
+            symbol: Optional symbol filter. If provided, returns only positions
+                   for that symbol. If None, returns all open positions.
+        
+        Returns:
+            List of position objects. Empty list if no positions or error.
+            
+        Example:
+            >>> all_positions = mt5_conn.get_open_positions()
+            >>> eurusd_positions = mt5_conn.get_open_positions("EURUSD")
+            >>> position_count = len(mt5_conn.get_open_positions())
+        """
+        try:
+            if symbol:
+                positions = mt5.positions_get(symbol=symbol)
+            else:
+                positions = mt5.positions_get()
+            
+            if positions is None:
+                self.logger.debug("No open positions found")
+                return []
+            
+            return list(positions)
+            
+        except (RuntimeError, TypeError) as e:
+            self.logger.error("Error getting open positions: %s", e)
+            return []
