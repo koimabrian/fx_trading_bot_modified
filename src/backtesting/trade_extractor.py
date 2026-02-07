@@ -18,9 +18,8 @@ Key Fixes Applied:
     4. Safe trade extraction: Validate trade attributes before processing
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-import numpy as np
 import pandas as pd
 
 from src.utils.logging_factory import LoggingFactory

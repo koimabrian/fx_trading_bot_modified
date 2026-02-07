@@ -5,7 +5,6 @@ results. Implements the parameter fallback strategy for live trading.
 """
 
 import json
-import logging
 import sqlite3
 from typing import Any, Dict, List, Optional
 

@@ -5,7 +5,6 @@ high-volatility pairs for live trading. Implements the volatility filtering
 strategy from the hybrid workflow.
 """
 
-import logging
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd

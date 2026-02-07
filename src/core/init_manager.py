@@ -5,13 +5,11 @@ from MT5, and fetches historical data for backtesting.
 """
 
 # pylint: disable=no-member
-import logging
 import os
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict
 
 import MetaTrader5 as mt5
-import pandas as pd
 
 from src.core.data_fetcher import DataFetcher
 from src.utils.logging_factory import LoggingFactory

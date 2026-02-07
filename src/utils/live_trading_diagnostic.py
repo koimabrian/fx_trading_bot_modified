@@ -4,11 +4,9 @@ Validates configuration, data availability, MT5 connection, signal generation,
 and trade execution to identify blockers preventing trades from executing.
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict
 
 import MetaTrader5 as mt5
-
-from src.core.adaptive_trader import AdaptiveTrader
 from src.database.db_manager import DatabaseManager
 from src.mt5_connector import MT5Connector
 from src.strategy_manager import StrategyManager

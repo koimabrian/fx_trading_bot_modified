@@ -1,6 +1,5 @@
 # fx_trading_bot/src/core/trade_monitor.py
 # Purpose: Monitor and close open positions
-import logging
 
 from src.utils.logging_factory import LoggingFactory
 

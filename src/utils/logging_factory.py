@@ -7,7 +7,6 @@ logger initialization and ensuring uniform log formatting and levels.
 import logging
 import os
 from logging.handlers import RotatingFileHandler
-from typing import Optional
 
 
 class LoggingFactory:

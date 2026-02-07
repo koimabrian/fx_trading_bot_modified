@@ -13,13 +13,11 @@ import sys
 import time
 
 import MetaTrader5 as mt5
-import yaml
 from PyQt5.QtWidgets import QApplication
 
 from src.backtesting.backtest_manager import BacktestManager
 from src.core.adaptive_trader import AdaptiveTrader
 from src.core.data_fetcher import DataFetcher
-from src.core.init_manager import InitManager
 from src.core.trade_monitor import TradeMonitor
 from src.database.db_manager import DatabaseManager
 from src.database.migrations import DatabaseMigrations

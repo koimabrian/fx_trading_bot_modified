@@ -8,9 +8,8 @@ Handles:
 4. Calculating position limits dynamically
 """
 
-import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import MetaTrader5 as mt5
 

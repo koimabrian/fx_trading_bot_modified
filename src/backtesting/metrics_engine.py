@@ -1,6 +1,5 @@
 # src/backtesting/metrics_engine.py
 # Purpose: Calculate 15 comprehensive metrics for backtest results
-import logging
 from typing import Dict, List
 
 import empyrical as ep

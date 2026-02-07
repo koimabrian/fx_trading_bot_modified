@@ -1,7 +1,6 @@
 # fx_trading_bot/src/core/strategy_selector.py
 # Purpose: Ranks and selects best-performing strategies based on backtest results
 import json
-import logging
 from typing import Dict, List
 
 from src.utils.logging_factory import LoggingFactory

@@ -1,6 +1,5 @@
 # src/backtesting/backtest_orchestrator.py
 # Purpose: Orchestrates backtesting with metrics and trade logging
-import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 

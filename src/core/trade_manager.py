@@ -7,11 +7,8 @@ REFACTORING NOTES:
 - Time-based exit for avoiding holding costs
 """
 
-import logging
-from datetime import datetime
 
 import MetaTrader5 as mt5
-import pandas as pd
 
 from src.utils.exit_strategies import ExitStrategyManager
 from src.utils.logging_factory import LoggingFactory

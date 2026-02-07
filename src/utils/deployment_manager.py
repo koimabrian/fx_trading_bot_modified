@@ -12,9 +12,9 @@ import subprocess
 import time
 import json
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 from pathlib import Path
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 
 from src.utils.logging_factory import LoggingFactory
 

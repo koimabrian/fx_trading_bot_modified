@@ -11,10 +11,9 @@ Generates comprehensive reports from backtesting and live trading data:
 import json
 import logging
 import os
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from datetime import datetime
+from typing import Dict, Optional
 
-import numpy as np
 import pandas as pd
 
 from src.database.db_manager import DatabaseManager
