@@ -286,6 +286,11 @@ class TradeSyncer:
             open_time = datetime.fromtimestamp(deal.time).isoformat()
             close_time = datetime.fromtimestamp(deal.time).isoformat()
             
+            # Note: MT5 deals only contain the execution price, not separate open/close
+            # For accurate trade history, deals should be correlated with their
+            # originating orders/positions. For now, we store deal.price for both.
+            # This is a known limitation of the MT5 deals API.
+            
             self.db.execute_query(
                 upsert_query,
                 (
