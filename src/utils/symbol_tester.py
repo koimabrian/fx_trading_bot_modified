@@ -18,7 +18,7 @@ from typing import Dict, List, Tuple
 import MetaTrader5 as mt5
 
 from src.database.db_manager import DatabaseManager
-from src.mt5_connector import MT5Connector
+from src.core.mt5_connector import MT5Connector
 from src.utils.config_manager import ConfigManager
 from src.utils.logging_factory import LoggingFactory
 from src.utils.symbol_status_formatter import SymbolStatusFormatter

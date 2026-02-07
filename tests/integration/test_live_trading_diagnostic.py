@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.core.strategy_selector import StrategySelector
 from src.database.db_manager import DatabaseManager
-from src.mt5_connector import MT5Connector
+from src.core.mt5_connector import MT5Connector
 from src.utils.logging_factory import LoggingFactory
 from src.utils.config_manager import ConfigManager
 

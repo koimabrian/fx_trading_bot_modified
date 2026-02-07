@@ -21,8 +21,8 @@ from src.core.data_fetcher import DataFetcher
 from src.core.trade_monitor import TradeMonitor
 from src.database.db_manager import DatabaseManager
 from src.database.migrations import DatabaseMigrations
-from src.mt5_connector import MT5Connector
-from src.strategy_manager import StrategyManager
+from src.core.mt5_connector import MT5Connector
+from src.core.strategy_manager import StrategyManager
 from src.ui.cli import setup_parser
 from src.ui.gui.init_wizard_dialog import InitWizardDialog
 from src.ui.web.dashboard_server import DashboardServer

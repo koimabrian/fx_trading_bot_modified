@@ -18,7 +18,7 @@ from src.utils.config_manager import ConfigManager
 from src.database.db_manager import DatabaseManager
 from src.core.strategy_selector import StrategySelector
 from src.backtesting.backtest_manager import BacktestManager
-from src.mt5_connector import MT5Connector
+from src.core.mt5_connector import MT5Connector
 
 LoggingFactory.configure()
 logger = LoggingFactory.get_logger(__name__)

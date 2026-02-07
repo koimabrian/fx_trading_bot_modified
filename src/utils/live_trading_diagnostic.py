@@ -8,8 +8,8 @@ from typing import Dict
 
 import MetaTrader5 as mt5
 from src.database.db_manager import DatabaseManager
-from src.mt5_connector import MT5Connector
-from src.strategy_manager import StrategyManager
+from src.core.mt5_connector import MT5Connector
+from src.core.strategy_manager import StrategyManager
 from src.utils.backtesting_utils import volatility_rank_pairs
 from src.utils.logging_factory import LoggingFactory
 

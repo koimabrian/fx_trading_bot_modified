@@ -28,7 +28,7 @@ def test_symbol_filtering():
         mock_mt5 = MagicMock()
 
         # Create strategy manager mock
-        from src.strategy_manager import StrategyManager
+        from src.core.strategy_manager import StrategyManager
 
         strategy_manager = StrategyManager(db, mode="live")
 

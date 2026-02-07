@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import Mock, patch
 
-from src.mt5_connector import MT5Connector
+from src.core.mt5_connector import MT5Connector
 
 
 class TestMT5Connector:

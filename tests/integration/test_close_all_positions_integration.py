@@ -10,7 +10,7 @@ import inspect
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.core.trade_manager import TradeManager
-from src.mt5_connector import MT5Connector
+from src.core.mt5_connector import MT5Connector
 
 
 def test_close_all_positions_integration():
