@@ -187,7 +187,7 @@ class TradeSyncer:
             # Get 'open' trades from database
             db_open_query = """
                 SELECT order_id, deal_id, status, id
-                FROM trades
+                FROM live_trades
                 WHERE status = 'open'
             """
             db_open = self.db.execute_query(db_open_query).fetchall()
@@ -265,9 +265,9 @@ class TradeSyncer:
             # deal.type: 0=buy, 1=sell
             trade_type = "BUY" if deal.type == 0 else "SELL"
             
-            # Insert or update deal in trades table
+            # Insert or update deal in live_trades table
             upsert_query = """
-                INSERT INTO trades (
+                INSERT INTO live_trades (
                     symbol_id, timeframe, strategy_name, trade_type,
                     volume, open_price, close_price, open_time, close_time,
                     profit, status, order_id, deal_id, ticket, magic,
@@ -372,13 +372,13 @@ class TradeSyncer:
             
             # Insert or update order
             upsert_query = """
-                INSERT INTO trades (
+                INSERT INTO live_trades (
                     symbol_id, timeframe, strategy_name, trade_type,
                     volume, open_price, open_time, status, order_id,
                     ticket, magic, comment, external, mt5_synced_at
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(order_id) DO UPDATE SET
+                ON CONFLICT(ticket) DO UPDATE SET
                     status = excluded.status,
                     mt5_synced_at = excluded.mt5_synced_at
             """
@@ -447,7 +447,7 @@ class TradeSyncer:
             
             # Insert or update position
             upsert_query = """
-                INSERT INTO trades (
+                INSERT INTO live_trades (
                     symbol_id, timeframe, strategy_name, trade_type,
                     volume, open_price, close_price, open_time,
                     profit, status, order_id, deal_id, ticket, magic,
@@ -504,7 +504,7 @@ class TradeSyncer:
         """
         try:
             update_query = """
-                UPDATE trades
+                UPDATE live_trades
                 SET status = 'closed', close_time = ?
                 WHERE id = ? AND status = 'open'
             """

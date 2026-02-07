@@ -304,16 +304,16 @@ def _mode_live(config: dict, args, logger):
             migrations = DatabaseMigrations(db.conn)
             migrations.migrate_tables()
 
-            # Clean up trades table on live start
-            logger.info("Cleaning up trades table...")
+            # Clean up live_trades table on live start
+            logger.info("Cleaning up live_trades table...")
             try:
-                query = "DELETE FROM trades"
+                query = "DELETE FROM live_trades"
                 db.execute_query(query)
                 logger.info(
-                    "Trades table cleared - ready for fresh live trading session"
+                    "Live trades table cleared - ready for fresh live trading session"
                 )
             except sqlite3.Error as e:
-                logger.warning("Could not clear trades table: %s", e)
+                logger.warning("Could not clear live_trades table: %s", e)
 
             # Initialize MT5
             mt5_conn = MT5Connector(db)
@@ -550,7 +550,7 @@ def _mode_live(config: dict, args, logger):
                                 WHEN trade_type = 'buy' THEN (close_price - open_price) * volume
                                 WHEN trade_type = 'sell' THEN (open_price - close_price) * volume
                                 ELSE 0 END) as daily_pl
-                                FROM trades 
+                                FROM live_trades 
                                 WHERE DATE(open_time) = DATE('now') AND close_time IS NOT NULL"""
                             )
                             result = cursor.fetchone()
@@ -632,14 +632,14 @@ def _mode_live(config: dict, args, logger):
                                             # Count current open positions (ANY status that isn't closed)
                                             cursor = db.conn.cursor()
                                             cursor.execute(
-                                                "SELECT COUNT(*) as count FROM trades WHERE close_time IS NULL"
+                                                "SELECT COUNT(*) as count FROM live_trades WHERE close_time IS NULL"
                                             )
                                             result = cursor.fetchone()
                                             total_open = result[0] if result else 0
 
                                             # Count open positions for this symbol
                                             cursor.execute(
-                                                "SELECT COUNT(*) as count FROM trades t "
+                                                "SELECT COUNT(*) as count FROM live_trades t "
                                                 "JOIN tradable_pairs tp ON t.symbol_id = tp.id "
                                                 "WHERE tp.symbol = ? AND t.close_time IS NULL",
                                                 (signal_symbol,),
@@ -717,7 +717,7 @@ def _mode_live(config: dict, args, logger):
                                                     )
                                                     # INSERT executed trade directly
                                                     cursor.execute(
-                                                        """INSERT INTO trades 
+                                                        """INSERT INTO live_trades 
                                                         (symbol_id, timeframe, strategy_name, trade_type, volume, 
                                                          open_price, status, open_time)
                                                         VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
@@ -810,13 +810,13 @@ def _mode_live(config: dict, args, logger):
                                         try:
                                             cursor = db.conn.cursor()
                                             cursor.execute(
-                                                "SELECT COUNT(*) as count FROM trades WHERE close_time IS NULL"
+                                                "SELECT COUNT(*) as count FROM live_trades WHERE close_time IS NULL"
                                             )
                                             result = cursor.fetchone()
                                             total_open = result[0] if result else 0
 
                                             cursor.execute(
-                                                "SELECT COUNT(*) as count FROM trades t "
+                                                "SELECT COUNT(*) as count FROM live_trades t "
                                                 "JOIN tradable_pairs tp ON t.symbol_id = tp.id "
                                                 "WHERE tp.symbol = ? AND t.close_time IS NULL",
                                                 (signal_symbol,),
@@ -895,7 +895,7 @@ def _mode_live(config: dict, args, logger):
                                                     )
 
                                                     cursor.execute(
-                                                        """INSERT INTO trades 
+                                                        """INSERT INTO live_trades 
                                                         (symbol_id, timeframe, strategy_name, trade_type, volume, 
                                                          open_price, status, open_time)
                                                         VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))""",

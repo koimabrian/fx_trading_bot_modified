@@ -107,9 +107,9 @@ class PositionPersistence:
             swap = position.swap
             commission = position.commission
 
-            # SQL to insert position into trades table
+            # SQL to insert position into live_trades table
             query = """
-            INSERT INTO trades (
+            INSERT INTO live_trades (
                 ticket, symbol, trade_type, volume, entry_price, entry_time,
                 current_price, profit_loss, swap, commission, status, session_id, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -151,7 +151,7 @@ class PositionPersistence:
         """
         try:
             query = """
-            SELECT * FROM trades
+            SELECT * FROM live_trades
             WHERE symbol = ? AND status IN ('OPEN', 'MONITORING')
             ORDER BY entry_time ASC
             """
@@ -193,7 +193,7 @@ class PositionPersistence:
             # Query positions table for this category
             # This requires a symbol_category mapping (should be in database)
             query = """
-            SELECT COUNT(*) as count FROM trades
+            SELECT COUNT(*) as count FROM live_trades
             WHERE status IN ('OPEN', 'MONITORING')
             AND symbol IN (
                 SELECT symbol FROM tradable_pairs WHERE category = ?
@@ -220,7 +220,7 @@ class PositionPersistence:
             limit = self.config.get("risk_management", {}).get("max_positions", 15)
 
             query = """
-            SELECT COUNT(*) as count FROM trades
+            SELECT COUNT(*) as count FROM live_trades
             WHERE status IN ('OPEN', 'MONITORING')
             """
 
@@ -249,7 +249,7 @@ class PositionPersistence:
         """
         try:
             query = """
-            UPDATE trades
+            UPDATE live_trades
             SET current_price = ?, profit_loss = ?, updated_at = ?
             WHERE ticket = ?
             """
@@ -266,7 +266,7 @@ class PositionPersistence:
             return False
 
     def close_position_record(self, ticket: int, exit_price: float) -> bool:
-        """Mark a position as closed in the trades table.
+        """Mark a position as closed in the live_trades table.
 
         Args:
             ticket: Position ticket number
@@ -277,7 +277,7 @@ class PositionPersistence:
         """
         try:
             query = """
-            UPDATE trades
+            UPDATE live_trades
             SET status = 'CLOSED', exit_price = ?, closed_at = ?
             WHERE ticket = ?
             """
@@ -344,7 +344,7 @@ class PositionPersistence:
             Number of records deleted
         """
         try:
-            query = "DELETE FROM trades WHERE status = 'CLOSED'"
+            query = "DELETE FROM live_trades WHERE status = 'CLOSED'"
 
             cursor = self.db.conn.execute(query)
             self.db.conn.commit()
@@ -382,7 +382,7 @@ class PositionPersistence:
                 AVG(profit_loss) as avg_pnl,
                 MAX(profit_loss) as max_profit,
                 MIN(profit_loss) as max_loss
-            FROM trades
+            FROM live_trades
             WHERE status IN ('OPEN', 'CLOSED')
             """
 
@@ -418,7 +418,7 @@ class PositionPersistence:
 
             # Get all open positions
             query = """
-                SELECT id, symbol_id FROM trades 
+                SELECT id, symbol_id FROM live_trades 
                 WHERE status IN ('OPEN', 'MONITORING')
             """
 
@@ -431,7 +431,7 @@ class PositionPersistence:
                     pos_id = position[0]
                     # Mark as closed at current time
                     close_query = """
-                        UPDATE trades 
+                        UPDATE live_trades 
                         SET status = 'CLOSED', close_time = ?
                         WHERE id = ?
                     """
